@@ -1,1 +1,4 @@
-.vercel
+node_modules/
+.env
+data/*.db
+*.jpg
