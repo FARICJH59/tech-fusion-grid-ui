@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AesirGrid OS // Core Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
+
+    <nav class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="h-3 w-3 bg-cyan-400 rounded-full animate-pulse"></div>
+                <span class="font-mono text-xs font-bold tracking-widest text-slate-400">AESIRGRID OS // MULTI-VIEW LAYER</span>
+            </div>
+            <div class="flex space-x-2 bg-slate-950 p-1 rounded border border-slate-800">
+                <button onclick="switchView('landing-view')" id="btn-landing-view" class="px-4 py-1.5 rounded text-xs font-mono font-bold transition bg-slate-800 text-cyan-400">
+                    📂 1. Public Store & i18n
+                </button>
+                <button onclick="switchView('executive-view')" id="btn-executive-view" class="px-4 py-1.5 rounded text-xs font-mono font-bold transition text-slate-400 hover:text-slate-200">
+                    📊 2. Executive Telemetry Grid
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="landing-view" class="view-panel p-6 max-w-7xl mx-auto space-y-8">
+        <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 border-b border-slate-800 pb-6">
+            <div>
+                <h1 class="text-2xl font-bold tracking-wider text-slate-200" data-i18n="title">AESIRGRID OS // DEPLOYED CORE</h1>
+                <p class="text-xs text-slate-500 font-mono mt-1">IP DISCLOSURE VERIFICATION SUITE // REGIME 2026</p>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+                <select id="lang-select" class="bg-slate-900 border border-slate-700 text-xs rounded p-2 text-slate-300 font-mono focus:outline-none w-full sm:w-auto">
+                    <option value="en">EN (English)</option>
+                    <option value="de">DE (Deutsch)</option>
+                    <option value="ja">JA (日本語)</option>
+                    <option value="es">ES (Español)</option>
+                    <option value="pt">PT (Português)</option>
+                </select>
+
+                <form id="email-auth-form" onsubmit="handleEmailLogin(event)" class="flex items-center space-x-2 bg-slate-900 border border-slate-800 p-1.5 rounded w-full sm:w-auto">
+                    <input type="email" id="auth-email" required placeholder="manager@aesirgrid.com" class="bg-slate-950 border border-slate-800 text-xs rounded px-2 py-1 font-mono focus:outline-none focus:border-slate-700 text-slate-200 placeholder-slate-600">
+                    <button type="submit" class="text-[11px] bg-cyan-950/40 border border-cyan-800 hover:bg-cyan-900 text-cyan-400 px-3 py-1 rounded font-mono transition whitespace-nowrap">
+                        📧 Access
+                    </button>
+                </form>
+
+                <a href="/api/auth/login" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded font-mono flex items-center justify-center space-x-2 transition w-full sm:w-auto">
+                    <i class="fab fa-github text-sm"></i>
+                    <span data-i18n="signin">Sign In via GitHub</span>
+                </a>
+            </div>
+        </header>
+
+        <div class="bg-slate-900/40 border border-slate-800 p-5 rounded-lg border-l-4 border-cyan-500">
+            <h3 class="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold mb-2">⚖️ Sovereign Intellectual Property & Export Compliance Disclosure</h3>
+            <p class="text-xs text-slate-400 leading-relaxed font-mono">
+                NOTICE: This terminal environment interfaces directly with the proprietary AesirGrid Macro-Stability state engine. All cryptographic parameters, transaction ledger mapping pipelines, and multi-tenant telemetry structures deployed herein are protected under active sovereign IP regulations. Unauthorized execution of server hooks or memory modification of the active SQLite3 container tier is strictly regulated.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-900/20 border border-slate-900 p-6 rounded-xl">
+            <div>
+                <div class="text-slate-400 text-xs uppercase font-mono mb-1" data-i18n="energy">🔋 Energy Allocated</div>
+                <div class="text-2xl font-bold font-mono text-emerald-400 store-energy">329.75 MWh</div>
+            </div>
+            <div>
+                <div class="text-slate-400 text-xs uppercase font-mono mb-1" data-i18n="carbon">🌱 Carbon Mitigated</div>
+                <div class="text-2xl font-bold font-mono text-cyan-400">1.24 MT CO2e</div>
+            </div>
+            <div>
+                <div class="text-slate-400 text-xs uppercase font-mono mb-1" data-i18n="yield">💰 Ledger Yield</div>
+                <div class="text-2xl font-bold font-mono text-blue-400 store-yield">$3,500.00 USD</div>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-sm font-bold tracking-widest uppercase mb-4 font-mono text-slate-400" data-i18n="products_heading">Available Edge Compute Modules</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs text-cyan-400 font-mono uppercase mb-1">Palette 01</div>
+                        <h3 class="text-lg font-bold mb-2 text-slate-200">SaaS Edge Router</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed mb-6">Automated sovereign routing maps, proxy tunnels, and regional payload isolation matrix.</p>
+                    </div>
+                    <div>
+                        <div class="text-xl font-mono font-bold mb-4">$29<span class="text-xs text-slate-500">/mo</span></div>
+                        <button onclick="checkout('price_0KxBDm589O8KAxCGMgG7scjb')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-mono text-[11px] py-2 rounded transition">
+                            💳 Subscribe via Stripe
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs text-cyan-400 font-mono uppercase mb-1">Palette 02</div>
+                        <h3 class="text-lg font-bold mb-2 text-slate-200">EMQX Broker Node</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed mb-6">High-throughput message broker architecture mapping dynamic live telemetry signals to local SQLite tiers.</p>
+                    </div>
+                    <div>
+                        <div class="text-xl font-mono font-bold mb-4">$89<span class="text-xs text-slate-500">/mo</span></div>
+                        <button onclick="checkout('price_emqx_mock_id')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-mono text-[11px] py-2 rounded transition">
+                            💳 Subscribe via Stripe
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs text-cyan-400 font-mono uppercase mb-1">Palette 03</div>
+                        <h3 class="text-lg font-bold mb-2 text-slate-200">Blackwell v3 Tensor</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed mb-6">Deep neural optimization clusters running localized matrix computing workflows on sandboxed endpoints.</p>
+                    </div>
+                    <div>
+                        <div class="text-xl font-mono font-bold mb-4">$499<span class="text-xs text-slate-500">/mo</span></div>
+                        <button onclick="checkout('price_blackwell_mock_id')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-mono text-[11px] py-2 rounded transition">
+                            💳 Subscribe via Stripe
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+            <div class="flex items-center space-x-2 text-xs font-mono text-slate-400 uppercase tracking-widest">
+                <i class="fas fa-terminal text-cyan-400 animate-pulse"></i>
+                <span>Edge Operation Use-Case Prompt Terminal</span>
+            </div>
+            <p class="text-xs text-slate-400 font-mono">Select a pre-compiled structural framework profile to evaluate edge grid deployment mechanics:</p>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="loadPrompt('retail')" class="text-xs bg-slate-950 border border-slate-800 hover:border-slate-700 font-mono px-3 py-1.5 rounded transition text-slate-300">📊 Retail Energy Smart Arbitrage</button>
+                <button onclick="loadPrompt('maritime')" class="text-xs bg-slate-950 border border-slate-800 hover:border-slate-700 font-mono px-3 py-1.5 rounded transition text-slate-300">⚓ Maritime Port Load Balancing</button>
+                <button onclick="loadPrompt('telecom')" class="text-xs bg-slate-950 border border-slate-800 hover:border-slate-700 font-mono px-3 py-1.5 rounded transition text-slate-300">📡 Telecom Power Shield Isolation</button>
+            </div>
+            <div id="prompt-output-box" class="hidden bg-slate-950 border border-slate-850 p-4 rounded font-mono text-xs text-cyan-300 border-l-2 border-cyan-400 whitespace-pre-wrap leading-relaxed"></div>
+        </div>
+    </div>
+
+    <div id="executive-view" class="view-panel hidden p-6 max-w-7xl mx-auto space-y-6">
+        <header class="border-b border-slate-800 pb-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <h1 class="text-xl font-bold tracking-wider text-slate-200">TECH FUSION MACRO-GRID</h1>
+            </div>
+            <span class="text-xs bg-emerald-950/50 border border-emerald-500 text-emerald-400 px-3 py-1 rounded font-mono">
+                LIVE_CORE // SQLITE3_ACTIVE
+            </span>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg">
+                <div class="text-slate-400 text-sm mb-2 uppercase tracking-wider">Utility Grid Load</div>
+                <div class="text-3xl font-mono font-bold text-emerald-400 id-energy-display">329.75 MWh</div>
+                <div class="text-xs text-slate-500 mt-2">● GRID OPTIMAL</div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg">
+                <div class="text-slate-400 text-sm mb-2 uppercase tracking-wider">Ledger Yield</div>
+                <div class="text-3xl font-mono font-bold text-blue-400 id-yield-display">$3,500.00 USD</div>
+                <div class="text-xs text-blue-500 mt-2">▲ SYSTEM YIELD MAXIMIZED</div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg">
+                <div class="text-slate-400 text-sm mb-2 uppercase tracking-wider">Macro-Stability Engine</div>
+                <div class="text-3xl font-mono font-bold text-amber-400">STABLE</div>
+                <div class="text-xs text-amber-500 mt-2">ACTIVE BASELINE LOCK</div>
+            </div>
+        </div>
+
+        <div class="mt-6 border-t border-slate-800 pt-6">
+            <h2 class="text-sm font-mono tracking-widest text-slate-400 mb-4 uppercase">Multi-Tenant Escrow Wallets</h2>
+            <div id="corporate-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="text-xs font-mono text-slate-500 animate-pulse">Querying Core Tenant Telemetry...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function switchView(viewId) {
+        document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));
+        document.getElementById(viewId).classList.remove('hidden');
+
+        document.getElementById('btn-landing-view').className = viewId === 'landing-view'
+            ? 'px-4 py-1.5 rounded text-xs font-mono font-bold transition bg-slate-800 text-cyan-400'
+            : 'px-4 py-1.5 rounded text-xs font-mono font-bold transition text-slate-400 hover:text-slate-200';
+
+        document.getElementById('btn-executive-view').className = viewId === 'executive-view'
+            ? 'px-4 py-1.5 rounded text-xs font-mono font-bold transition bg-slate-800 text-emerald-400'
+            : 'px-4 py-1.5 rounded text-xs font-mono font-bold transition text-slate-400 hover:text-slate-200';
+    }
+
+    // 🌐 EXTENDED i18n LOCALIZATION DICTIONARY MATRIX (With ES and PT)
+    const dictionary = {
+        en: { title: "AESIRGRID OS // DEPLOYED CORE", signin: "Sign In via GitHub", energy: "🔋 Energy Allocated", carbon: "🌱 Carbon Mitigated", yield: "💰 Ledger Yield", products_heading: "Available Edge Compute Modules" },
+        de: { title: "AESIRGRID OS // KERNBEREITSTELLUNG", signin: "Mit GitHub anmelden", energy: "🔋 Zugewiesene Energie", carbon: "🌱 CO2-Reduktion", yield: "💰 Hauptbuch-Ertrag", products_heading: "Verfügbare Edge-Rechenmodule" },
+        ja: { title: "AESIRGRID OS // デプロイ済みコア", signin: "GitHubでサインイン", energy: "🔋 割り当て済みエネルギー", carbon: "🌱 炭素削減量", yield: "💰 台帳収益", products_heading: "利用可能なエッジ計算モジュール" },
+        es: { title: "AESIRGRID OS // NÚCLEO DESPLEGADO", signin: "Iniciar sesión con GitHub", energy: "🔋 Energía Asignada", carbon: "🌱 Carbono Mitigado", yield: "💰 Rendimiento del Libro", products_heading: "Módulos de Cómputo Edge Disponibles" },
+        pt: { title: "AESIRGRID OS // NÚCLEO IMPLANTADO", signin: "Entrar com o GitHub", energy: "🔋 Energia Alocada", carbon: "🌱 Carbono Mitigado", yield: "💰 Rendimento do Livro", products_heading: "Módulos de Computação Edge Disponíveis" }
+    };
+
+    document.getElementById('lang-select').addEventListener('change', (e) => {
+        const lang = e.target.value;
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if(dictionary[lang] && dictionary[lang][key]) el.innerText = dictionary[lang][key];
+        });
+    });
+
+    // 📧 PASSWORDLESS EMAIL HANDSHAKE
+    async function handleEmailLogin(e) {
+        e.preventDefault();
+        const email = document.getElementById('auth-email').value;
+        try {
+            const res = await fetch('/api/auth/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+            if(data.success) {
+                switchView('executive-view');
+            } else {
+                alert(data.error || 'Authentication rejected.');
+            }
+        } catch(err) { alert('Identity verification server unreachable.'); }
+    }
+
+    // 💬 USE-CASE PROMPT CHASSIS DICTIONARY
+    const promptProfiles = {
+        retail: `[EXECUTION TEMPLATE: RETAIL DATA PROTOCOL]\n> Querying dynamic local smart grid pricing vectors...\n> Action: Route extra power capacity load into storage nodes when prices tank below historical baseline targets.\n> Database Status: Modifying corporate_tenants tables seamlessly.`,
+        maritime: `[EXECUTION TEMPLATE: MARITIME PORT INFRASTRUCTURE]\n> Inspecting cold ironing terminal electrical architectures...\n> Action: Re-allocate localized MWh quotas to inbound cargo freighters to maximize cold-ironing efficiency cycles under 4.6% system cap restrictions.`,
+        telecom: `[EXECUTION TEMPLATE: TELECOM CELL SHIELD INSULATION]\n> Processing macro-grid stability shock signal thresholds...\n> Action: Fire islanded micro-grid backup cells to prevent multi-tenant edge drops during deep regime transitions.`
+    };
+
+    function loadPrompt(profileKey) {
+        const outBox = document.getElementById('prompt-output-box');
+        outBox.innerText = promptProfiles[profileKey] || '';
+        outBox.classList.remove('hidden');
+    }
+
+    async function updateLiveMetrics() {
+        try {
+            const res = await fetch('/api/telemetry');
+            const data = await res.json();
+            document.querySelectorAll('.store-energy, .id-energy-display').forEach(el => el.innerText = data.energy + ' MWh');
+            document.querySelectorAll('.store-yield, .id-yield-display').forEach(el => el.innerText = '$' + data.yield.toLocaleString() + '.00 USD');
+        } catch (err) {}
+    }
+
+    async function fetchCorporateTenants() {
+        try {
+            const res = await fetch('/api/tenants');
+            const tenants = await res.json();
+            const container = document.getElementById('corporate-container');
+            if (container && tenants.length > 0) {
+                container.innerHTML = tenants.map(t => `
+                    <div class="bg-slate-900/80 border border-slate-800 p-4 rounded font-mono">
+                        <div class="text-slate-200 font-bold">${t.name}</div>
+                        <div class="text-slate-400 text-[11px] mt-1">Scope3: ${t.scope3} kg CO2</div>
+                        <div class="text-emerald-400 font-bold mt-2 text-lg">$${t.balance.toLocaleString()}</div>
+                        <div class="text-slate-500 text-[10px] mt-1">Cap: ${t.cap}%</div>
+                    </div>
+                `).join('');
+            }
+        } catch(e) {}
+    }
+
+    async function checkout(priceId) {
+        try {
+            const res = await fetch('/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priceId })
+            });
+            const session = await res.json();
+            if (session.url) window.location.href = session.url;
+        } catch(e) { alert('Stripe checkout sandbox gateway offline'); }
+    }
+
+    setInterval(updateLiveMetrics, 3000);
+    window.addEventListener('DOMContentLoaded', () => {
+        updateLiveMetrics();
+        fetchCorporateTenants();
+    });
+    </script>
+</body>
+</html>

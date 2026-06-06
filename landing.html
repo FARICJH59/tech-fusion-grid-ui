@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AesirGrid OS // Deployed Core</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
+
+    <header class="border-b border-slate-800 bg-slate-900/50 p-4 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <div class="h-3 w-3 bg-cyan-400 rounded-full animate-pulse"></div>
+            <h1 class="text-xl font-bold tracking-wider text-slate-200" data-i18n="title">AESIRGRID OS // DEPLOYED CORE</h1>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+            <select id="lang-select" class="bg-slate-900 border border-slate-700 text-xs rounded p-1 text-slate-300 font-mono focus:outline-none">
+                <option value="en">EN</option>
+                <option value="de">DE</option>
+                <option value="ja">JA</option>
+            </select>
+            <a href="/api/auth/github" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded font-mono flex items-center space-x-2 transition">
+                <i class="fab fa-github text-sm"></i>
+                <span data-i18n="signin">Sign In via GitHub</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="p-6 max-w-7xl mx-auto space-y-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-900/40 border border-slate-800 p-6 rounded-xl">
+            <div>
+                <div class="text-slate-400 text-xs uppercase font-mono mb-1" data-i18n="energy">🔋 Energy Allocated</div>
+                <div class="text-2xl font-bold font-mono text-emerald-400" id="store-energy">4.82 MWh</div>
+            </div>
+            <div>
+                <div class="text-slate-400 text-xs uppercase font-mono mb-1" data-i18n="carbon">🌱 Carbon Mitigated</div>
+                <div class="text-2xl font-bold font-mono text-cyan-400">1.24 MT CO2e</div>
+            </div>
+            <div>
+                <div class="text-slate-400 text-xs uppercase font-mono mb-1" data-i18n="yield">💰 Ledger Yield</div>
+                <div class="text-2xl font-bold font-mono text-blue-400" id="store-yield">$250.00 USD</div>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-lg font-bold tracking-wide mb-4 font-mono text-slate-400" data-i18n="products_heading">Available Edge Compute Modules</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs text-cyan-400 font-mono uppercase mb-1">Palette 01</div>
+                        <h3 class="text-xl font-bold mb-2">SaaS Edge Router</h3>
+                        <p class="text-sm text-slate-400 mb-6">Automated routing maps and proxy nodes.</p>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-mono font-bold mb-4">$29<span class="text-sm text-slate-500">/mo</span></div>
+                        <button onclick="checkout('price_0KxBDm589O8KAxCGMgG7scjb')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs py-2 rounded transition">
+                            💳 Subscribe via Stripe
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs text-cyan-400 font-mono uppercase mb-1">Palette 02</div>
+                        <h3 class="text-xl font-bold mb-2">EMQX Broker Node</h3>
+                        <p class="text-sm text-slate-400 mb-6">Telemetry stream message data hub.</p>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-mono font-bold mb-4">$89<span class="text-sm text-slate-500">/mo</span></div>
+                        <button onclick="checkout('price_emqx_mock_id')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs py-2 rounded transition">
+                            💳 Subscribe via Stripe
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs text-cyan-400 font-mono uppercase mb-1">Palette 03</div>
+                        <h3 class="text-xl font-bold mb-2">Blackwell v3 Tensor</h3>
+                        <p class="text-sm text-slate-400 mb-6">High-performance deep learning matrix clusters.</p>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-mono font-bold mb-4">$499<span class="text-sm text-slate-500">/mo</span></div>
+                        <button onclick="checkout('price_blackwell_mock_id')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs py-2 rounded transition">
+                            💳 Subscribe via Stripe
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    const dictionary = {
+        en: { title: "AESIRGRID OS // DEPLOYED CORE", signin: "Sign In via GitHub", energy: "🔋 Energy Allocated", carbon: "🌱 Carbon Mitigated", yield: "💰 Ledger Yield", products_heading: "Available Edge Compute Modules" },
+        de: { title: "AESIRGRID OS // KERNBEREITSTELLUNG", signin: "Mit GitHub anmelden", energy: "🔋 Zugewiesene Energie", carbon: "🌱 CO2-Reduktion", yield: "💰 Hauptbuch-Ertrag", products_heading: "Verfügbare Edge-Rechenmodule" },
+        ja: { title: "AESIRGRID OS // デプロイ済みコア", signin: "GitHubでサインイン", energy: "🔋 割り当て済みエネルギー", carbon: "🌱 炭素削減量", yield: "💰 台帳収益", products_heading: "利用可能なエッジ計算モジュール" }
+    };
+
+    document.getElementById('lang-select').addEventListener('change', (e) => {
+        const lang = e.target.value;
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if(dictionary[lang] && dictionary[lang][key]) el.innerText = dictionary[lang][key];
+        });
+    });
+
+    async function fetchTelemetry() {
+        try {
+            const res = await fetch('/api/telemetry');
+            const data = await res.json();
+            document.getElementById('store-energy').innerText = data.energy + ' MWh';
+            document.getElementById('store-yield').innerText = '$' + data.yield.toLocaleString() + '.00 USD';
+        } catch(e) {}
+    }
+
+    async function checkout(priceId) {
+        try {
+            const res = await fetch('/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priceId })
+            });
+            const session = await res.json();
+            if (session.url) window.location.href = session.url;
+        } catch(e) { alert('Checkout engine offline'); }
+    }
+
+    setInterval(fetchTelemetry, 3000);
+    window.addEventListener('DOMContentLoaded', fetchTelemetry);
+    </script>
+</body>
+</html>
