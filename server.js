@@ -18,6 +18,7 @@ const regionalGridSpecs = {
   APAC:  { rate: 22.40, currency: "¥", co2_factor: 0.680, label: "JPY" }
 };
 
+// 1. DYNAMIC TELEMETRY EDGE STREAM ROUTE
 app.get('/api/grid/status', (req, res) => {
   res.json({
     success: true,
@@ -30,6 +31,7 @@ app.get('/api/grid/status', (req, res) => {
   });
 });
 
+// 2. LIVE TIME-SERIES LEDGER HISTORY SYNC ENDPOINT
 app.get('/api/grid/history', (req, res) => {
   res.json({
     success: true,
@@ -39,6 +41,7 @@ app.get('/api/grid/history', (req, res) => {
   });
 });
 
+// 3. SECURE MONETARY PRODUCTION BILLING SYNC ROUTE
 app.post('/api/billing/checkout', (req, res) => {
   const { deposit_amount } = req.body;
   global_enterprise_balance = parseFloat(deposit_amount);
@@ -50,6 +53,7 @@ app.post('/api/billing/checkout', (req, res) => {
   });
 });
 
+// 4. MULTI-MARKET OPENADR SETTLEMENT HANDSHAKE ROUTE
 app.post('/api/grid/demand-response', (req, res) => {
   const { curtailed_kwh, region = "PJM" } = req.body;
   const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
@@ -76,6 +80,7 @@ app.post('/api/grid/demand-response', (req, res) => {
   });
 });
 
+// 5. GLOBAL BRIGHTFIELD AI OPTIMIZER INTERFACE PIPELINE
 app.post('/api/grid/battery-dispatch', (req, res) => {
   const { target_capacity_kwh, region = "PJM" } = req.body;
   const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
@@ -106,6 +111,7 @@ app.post('/api/grid/battery-dispatch', (req, res) => {
   });
 });
 
+// 6. AGENT SHELL COMPILATION INGRESS PIPELINE ROUTE
 app.post('/api/agent/compile', (req, res) => {
   const { blueprint, target_cloud, github_repository } = req.body;
   res.json({
@@ -116,10 +122,12 @@ app.post('/api/agent/compile', (req, res) => {
   });
 });
 
+// Master Single-Page Route Routing Catch-all fallback
 app.get('*', (pathReq, pathRes) => {
   pathRes.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Production Ingress Port Listener
 app.listen(PORT, () => {
-  console.log(`🚀 Globalized VPP Engine Running on port: ${PORT}`);
+  console.log(`🚀 Globalized VPP Multigrid Engine online running on port: ${PORT}`);
 });
