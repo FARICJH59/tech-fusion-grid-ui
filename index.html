@@ -89,6 +89,7 @@
       </div>
     </div>
   </div>
+
   <div id="view-dashboard" class="max-w-7xl mx-auto space-y-6" style="display: none;">
     <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-[#0a0f1d] border border-[#1e293b] rounded-xl gap-4">
       <div>
@@ -157,7 +158,7 @@
           <hr class="border-slate-800/60 my-3" />
           <div class="space-y-3 text-left">
             <div><label class="block text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">GitHub Repository Target URL</label><input id="ipt-repo-url" type="text" value="https://github.com/farichva/tech-fusion-grid-ui" class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-purple-300 focus:outline-none font-mono" /></div>
-            <div><label class="block text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Personal Access Token (Optional)</label><input id="ipt-repo-token" type="password" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-slate-200 focus:outline-none font-mono" /></div>
+            <div><label class="block text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Personal Access Token (Optional)</label><input id="ipt-repo-token" type="password" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-slate-500 focus:outline-none font-mono" /></div>
           </div>
         </div>
         <button onClick="importGithubRepositoryContext()" class="w-full mt-4 bg-[#171221] hover:bg-[#251b36] text-purple-400 border border-purple-900/40 font-bold uppercase tracking-wider text-[10px] py-2.5 rounded-lg transition-all cursor-pointer">Map Base Repository Matrix</button>
@@ -195,6 +196,7 @@
       <div id="terminal-log-output" class="w-full h-32 bg-[#040712] border border-slate-900 rounded-lg p-3 font-mono text-xs overflow-y-auto space-y-1 text-slate-400"></div>
     </footer>
   </div>
+
   <script>
     function appendTerminalLog(msg, color = "var(--clr-matrix-green)") {
       const logBox = document.getElementById("terminal-log-output");
@@ -245,12 +247,11 @@
     async function confirmStripeSubscription(planName, initialDeposit) {
       appendTerminalLog(`Contacting Stripe billing nodes for secure checkout token creation...`, "var(--clr-quantum-cyan)");
       try {
-        const response = await fetch('/api/billing/checkout', { 
+        await fetch('/api/billing/checkout', { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' }, 
           body: JSON.stringify({ deposit_amount: initialDeposit }) 
         });
-        const d = await response.json();
         localStorage.setItem("stripe_subscription_active", "true");
         localStorage.setItem("current_wallet_balance", initialDeposit.toFixed(2));
         renderActiveViews();
@@ -318,7 +319,6 @@
     function fireAgentCompute() { appendTerminalLog(`✔ [AGENT_DEPLOY]: Package bundle exported successfully via Blackwell network layer.`, "var(--clr-quantum-cyan)"); }
     function toggleExtendedLanguage(l) { appendTerminalLog(`Language context mapped to standard: [${l}]`, "var(--clr-solar-amber)"); }
     
-    // Automatically boot the sync worker if session is cached active
     if (localStorage.getItem("user_email")) { setInterval(syncLiveGridHistoryLedger, 2500); }
     window.addEventListener("DOMContentLoaded", renderActiveViews);
   </script>
