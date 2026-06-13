@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tech Fusion AI/ML LLC - Unified Operational Fleet Matrix</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
@@ -141,12 +142,19 @@
         </div>
         <button onClick="triggerDemandResponse()" class="w-full mt-4 bg-[#1f1712] hover:bg-[#2c2018] text-orange-400 border border-orange-900/50 font-bold uppercase tracking-wider text-[10px] py-2.5 rounded-lg transition-all cursor-pointer">Inject National Grid DR Signal</button>
       </div>
-      <div class="holo-card rounded-xl p-6 relative overflow-hidden">
-        <div class="flex justify-between items-start mb-4"><h3 class="orbitron-hdr text-xs font-bold tracking-widest text-slate-400 uppercase">3. Sustainability Audit</h3><span id="txt-carbon-payout" class="text-[10px] text-emerald-400 font-mono font-bold">CO2 Offset</span></div>
-        <hr class="border-slate-800/60 my-3" />
-        <p class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Accumulated Carbon Mitigated</p>
-        <div id="txt-carbon-quota" class="text-2xl font-bold font-mono text-emerald-400 my-1">0.000 kg</div>
-        <div class="mt-3 overflow-y-auto max-h-[105px] border border-slate-800/80 rounded bg-[#040712] p-1.5 font-mono text-[9px] text-slate-400">
+      <div class="holo-card rounded-xl p-6 relative overflow-hidden flex flex-col justify-between">
+        <div>
+          <div class="flex justify-between items-start mb-2"><h3 class="orbitron-hdr text-xs font-bold tracking-widest text-slate-400 uppercase">3. Sustainability Audit</h3><span id="txt-carbon-payout" class="text-[10px] text-emerald-400 font-mono font-bold">CO2 Offset</span></div>
+          <hr class="border-slate-800/60 my-2" />
+          <div class="flex justify-between items-baseline">
+            <p class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Accumulated Carbon Mitigated</p>
+            <div id="txt-carbon-quota" class="text-xl font-bold font-mono text-emerald-400">0.000 kg</div>
+          </div>
+          <div class="w-full h-24 mt-2 bg-[#040811]/60 rounded-lg p-1 border border-slate-900">
+            <canvas id="telemetryChart"></canvas>
+          </div>
+        </div>
+        <div class="mt-2 overflow-y-auto max-h-[75px] border border-slate-800/80 rounded bg-[#040712] p-1.5 font-mono text-[9px] text-slate-400">
           <table class="w-full text-left">
             <thead><tr class="text-slate-500 border-b border-slate-800 uppercase tracking-widest text-[8px]"><th class="pb-1">ID</th><th class="pb-1">Event</th><th class="pb-1">Region</th><th class="pb-1 text-right">Value</th></tr></thead>
             <tbody id="history-table-body"><tr class="text-slate-600"><td colspan="4" class="pt-2 text-center italic">Awaiting grid transactions...</td></tr></tbody>
@@ -159,7 +167,7 @@
           <hr class="border-slate-800/60 my-3" />
           <div class="space-y-3 text-left">
             <div><label class="block text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">GitHub Repository Target URL</label><input id="ipt-repo-url" type="text" value="https://github.com/farichva/tech-fusion-grid-ui" class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-purple-300 focus:outline-none font-mono" /></div>
-            <div><label class="block text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Personal Access Token (Optional)</label><input id="ipt-repo-token" type="password" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-slate-300 focus:outline-none font-mono" /></div>
+            <div><label class="block text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Personal Access Token (Optional)</label><input id="ipt-repo-token" type="password" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-slate-200 focus:outline-none font-mono" /></div>
           </div>
         </div>
         <button onClick="importGithubRepositoryContext()" class="w-full mt-4 bg-[#171221] hover:bg-[#251b36] text-purple-400 border border-purple-900/40 font-bold uppercase tracking-wider text-[10px] py-2.5 rounded-lg transition-all cursor-pointer">Map Base Repository Matrix</button>
@@ -197,9 +205,9 @@
       <div id="terminal-log-output" class="w-full h-32 bg-[#040712] border border-slate-900 rounded-lg p-3 font-mono text-xs overflow-y-auto space-y-1 text-slate-400"></div>
     </footer>
   </div>
-
   <script>
     let backgroundSyncInterval = null;
+    let telemetryChartInstance = null;
 
     function appendTerminalLog(msg, color = "var(--clr-matrix-green)") {
       const logBox = document.getElementById("terminal-log-output");
@@ -208,6 +216,38 @@
         logBox.insertAdjacentHTML('beforeend', `<div style="color: ${color}">[${timestamp}] ${msg}</div>`);
         logBox.scrollTop = logBox.scrollHeight;
       }
+    }
+
+    // INITIALIZE REAL-TIME TIMELINE GRAPH MATRIX
+    function initializeChartEngine() {
+      const ctx = document.getElementById('telemetryChart');
+      if (!ctx || telemetryChartInstance) return;
+      
+      telemetryChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['-10s', '-8s', '-6s', '-4s', '-2s', 'NOW'],
+          datasets: [{
+            label: 'Grid Arbitrage Load (kW)',
+            data: [40, 45, 38, 55, 42, 40],
+            borderColor: '#00f0ff',
+            borderWidth: 1.5,
+            backgroundColor: 'rgba(0, 240, 255, 0.05)',
+            fill: true,
+            tension: 0.4,
+            pointRadius: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 8 } } },
+            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 8 } } }
+          }
+        }
+      });
     }
 
     function renderActiveViews() {
@@ -220,12 +260,10 @@
       const dashboardNode = document.getElementById("view-dashboard");
       const identityTarget = document.getElementById("runtime-identity-target");
 
-      // Hide all containers to ensure a clean transition
       if (gatewayNode) gatewayNode.style.display = "none";
       if (paywallNode) paywallNode.style.display = "none";
       if (dashboardNode) dashboardNode.style.display = "none";
 
-      // Evaluate states sequentially
       if (!activeUser) {
         if (gatewayNode) gatewayNode.style.display = "block";
         clearInterval(backgroundSyncInterval);
@@ -237,7 +275,9 @@
         if (identityTarget) {
           identityTarget.innerHTML = `QUANTUM EDGE ARCHITECTURE ENGINE • INTERFACE V4.3 • ACCESS MATRIX: <span class="px-2 py-0.5 rounded font-bold bg-purple-950 text-purple-400 border border-purple-800">${activeRole} (${activeUser})</span>`;
         }
-        // Safely invoke our database syncing daemon loops
+        
+        initializeChartEngine();
+
         if (!backgroundSyncInterval) {
           syncLiveGridHistoryLedger();
           backgroundSyncInterval = setInterval(syncLiveGridHistoryLedger, 2500);
@@ -286,6 +326,12 @@
         });
         const d = await res.json();
         appendTerminalLog(`✔ [STRIPE_RAILS]: DR Event cleared. Dispatched ${d.currency_symbol}${d.payout_amount} to United Bank account.`, "var(--clr-matrix-green)");
+        // Update Chart Curve Data Visually
+        if(telemetryChartInstance) {
+          telemetryChartInstance.data.datasets[0].data.push(50 + Math.random() * 30);
+          telemetryChartInstance.data.datasets[0].data.shift();
+          telemetryChartInstance.update();
+        }
       } catch (e) {}
     }
 
@@ -300,7 +346,13 @@
         });
         const d = await res.json();
         appendTerminalLog(`✔ [BRIGHTFIELD_AI]: Sizing optimized. Mitigated ${d.carbon_mitigated_kg} kg grid CO2.`, "var(--clr-matrix-green)");
-        appendTerminalLog(`✔ [STRIPE_RAILS]: Captured ${d.currency_symbol}${d.savings_payout} USD optimization savings.`, "var(--clr-matrix-green)");
+        appendTerminalLog(`✔ [STRIPE_RAILS]: Captured ${d.currency_symbol}${d.savings_payout} USD soft-cost savings.`, "var(--clr-matrix-green)");
+        // Add Dynamic spike curve on optimization calculation triggers
+        if(telemetryChartInstance) {
+          telemetryChartInstance.data.datasets[0].data.push(20 + Math.random() * 15);
+          telemetryChartInstance.data.datasets[0].data.shift();
+          telemetryChartInstance.update();
+        }
       } catch (e) {}
     }
 
