@@ -302,18 +302,18 @@
 
     async function confirmStripeSubscription(planName, initialDeposit) {
       appendTerminalLog(`Contacting Stripe billing nodes for secure checkout token creation...`, "var(--clr-quantum-cyan)");
-      try {
+      if(localStorage.getItem("user_subscription_tier") === "SaaS Edge Plan"){ appendTerminalLog(`❌ [ACCESS_DENIED]: Agentic Blackwell compilation models require a Premium Tier license.`, "#ef4444"); return; } try {
         await fetch('/api/billing/checkout', { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ deposit_amount: initialDeposit }) 
+          body: JSON.stringify({ deposit_amount: initialDeposit, selected_plan: planName }) 
         });
-        localStorage.setItem("stripe_subscription_active", "true");
+        localStorage.setItem("stripe_subscription_active", "true"); localStorage.setItem("user_subscription_tier", planName);
         localStorage.setItem("current_wallet_balance", initialDeposit.toFixed(2));
         renderActiveViews();
         appendTerminalLog(`[STRIPE_WEBHOOK]: Subscription success synchronized. Wallet initialized with $${initialDeposit.toFixed(2)} USD.`, "var(--clr-matrix-green)");
       } catch (err) {
-        localStorage.setItem("stripe_subscription_active", "true");
+        localStorage.setItem("stripe_subscription_active", "true"); localStorage.setItem("user_subscription_tier", planName);
         localStorage.setItem("current_wallet_balance", initialDeposit.toFixed(2));
         renderActiveViews();
       }
@@ -322,13 +322,13 @@
     async function triggerDemandResponse() {
       const selectedMarket = document.getElementById("sel-grid-market").value;
       appendTerminalLog(`[GRID_NODE]: Initializing openADR dispatch footprint on ${selectedMarket} Grid...`, "var(--clr-solar-amber)");
-      try {
+      if(localStorage.getItem("user_subscription_tier") === "SaaS Edge Plan"){ appendTerminalLog(`❌ [ACCESS_DENIED]: Agentic Blackwell compilation models require a Premium Tier license.`, "#ef4444"); return; } try {
         const res = await fetch('/api/grid/demand-response', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ curtailed_kwh: 120.00, region: selectedMarket })
         });
-        const d = await res.json();
+        const d = await res.json(); if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Sizing operations outside PJM requires a commercial EMQX subscription token.`, "var(--clr-solar-amber)"); return; } if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Multi-market calculations restricted. Please upgrade to the EMQX Broker Plan to process international grid nodes.`, "var(--clr-solar-amber)"); return; }
         appendTerminalLog(`✔ [STRIPE_RAILS]: DR Event cleared. Dispatched ${d.currency_symbol}${d.payout_amount} to United Bank account.`, "var(--clr-matrix-green)");
         if(telemetryChartInstance) {
           telemetryChartInstance.data.datasets[0].data.push(50 + Math.random() * 30);
@@ -341,13 +341,13 @@
     async function triggerPaymentSimulation() {
       const selectedMarket = document.getElementById("sel-grid-market").value;
       appendTerminalLog("[BRIGHTFIELD_AI]: Dispatching dynamic site battery sizing telemetry...", "var(--clr-quantum-cyan)");
-      try {
+      if(localStorage.getItem("user_subscription_tier") === "SaaS Edge Plan"){ appendTerminalLog(`❌ [ACCESS_DENIED]: Agentic Blackwell compilation models require a Premium Tier license.`, "#ef4444"); return; } try {
         const res = await fetch('/api/grid/battery-dispatch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ target_capacity_kwh: 120.00, region: selectedMarket })
         });
-        const d = await res.json();
+        const d = await res.json(); if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Sizing operations outside PJM requires a commercial EMQX subscription token.`, "var(--clr-solar-amber)"); return; } if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Multi-market calculations restricted. Please upgrade to the EMQX Broker Plan to process international grid nodes.`, "var(--clr-solar-amber)"); return; }
         appendTerminalLog(`✔ [BRIGHTFIELD_AI]: Sizing optimized. Mitigated ${d.carbon_mitigated_kg} kg grid CO2.`, "var(--clr-matrix-green)");
         appendTerminalLog(`✔ [STRIPE_RAILS]: Captured ${d.currency_symbol}${d.savings_payout} USD soft-cost savings.`, "var(--clr-matrix-green)");
         if(telemetryChartInstance) {
@@ -359,7 +359,7 @@
     }
 
     async function syncLiveGridHistoryLedger() {
-      try {
+      if(localStorage.getItem("user_subscription_tier") === "SaaS Edge Plan"){ appendTerminalLog(`❌ [ACCESS_DENIED]: Agentic Blackwell compilation models require a Premium Tier license.`, "#ef4444"); return; } try {
         const r = await fetch("/api/grid/history");
         const d = await r.json();
         if (d.success) {
