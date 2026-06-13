@@ -7,23 +7,22 @@ const PORT = process.env.PORT || 3000;
 
 if (cluster.isMaster) {
   console.log(`Master cluster node ${process.pid} is spawning system worker layout...`);
-  
-  // Fork worker threads based on available core matrix hardware
   for (let i = 0; i < Math.min(totalCPUs, 2); i++) {
     cluster.fork();
   }
-
   cluster.on('exit', (worker, code, signal) => {
     console.log(`⚠️ Worker process ${worker.process.pid} dropped offline. Initiating automated DevOps hot-swap fork...`);
     cluster.fork();
   });
 } else {
-  const app = express();
-  app.use(express.json());
-  app.use(express.static(path.join(__dirname, '.')));
+  const expressApp = express();
+  expressApp.use(express.json());
+  expressApp.use(express.static(path.join(__dirname, '.')));
 
+  // ENTERPRISE ACCOUNTING PERSISTENCE STATES
   let global_enterprise_balance = 0.00;
   let total_carbon_mitigated = 0.00;
+  let platform_performance_earnings = 0.00; // Tracks our 20% operational cut
   let historical_event_ledger = [];
   let active_subscription_tier = "SaaS Edge Plan";
 
@@ -34,7 +33,7 @@ if (cluster.isMaster) {
     APAC:  { rate: 22.40, currency: "¥", co2_factor: 0.680 }
   };
 
-  app.get('/api/grid/status', (req, res) => {
+  expressApp.get('/api/grid/status', (req, res) => {
     res.json({
       success: true,
       worker_pid: process.pid,
@@ -47,17 +46,18 @@ if (cluster.isMaster) {
     });
   });
 
-  app.get('/api/grid/history', (req, res) => {
+  expressApp.get('/api/grid/history', (req, res) => {
     res.json({
       success: true,
       balance: global_enterprise_balance.toFixed(2),
       total_co2: total_carbon_mitigated.toFixed(3),
+      platform_revenue: platform_performance_earnings.toFixed(2),
       history: historical_event_ledger,
       tier: active_subscription_tier
     });
   });
 
-  app.post('/api/billing/checkout', (req, res) => {
+  expressApp.post('/api/billing/checkout', (req, res) => {
     const { deposit_amount, selected_plan } = req.body;
     global_enterprise_balance = parseFloat(deposit_amount);
     active_subscription_tier = selected_plan || "SaaS Edge Plan";
@@ -70,65 +70,79 @@ if (cluster.isMaster) {
     });
   });
 
-  app.post('/api/grid/demand-response', (req, res) => {
+  expressApp.post('/api/grid/demand-response', (req, res) => {
     const { curtailed_kwh, region = "PJM" } = req.body;
     if (region !== "PJM" && active_subscription_tier === "SaaS Edge Plan") {
       return res.status(403).json({ success: false, error: "TIER_RESTRICTED_MARKET" });
     }
     const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
-    const computed_payout = parseFloat((curtailed_kwh * spec.rate).toFixed(2));
-    global_enterprise_balance += computed_payout;
+    
+    // PERFORMANCE SHARE MATH LOOP
+    const raw_client_savings = parseFloat((curtailed_kwh * spec.rate).toFixed(2));
+    const platform_cut = parseFloat((raw_client_savings * 0.20).toFixed(2)); // 20% Split
+    const net_client_credit = parseFloat((raw_client_savings - platform_cut).toFixed(2));
+    
+    global_enterprise_balance += net_client_credit;
+    platform_performance_earnings += platform_cut;
     
     const log_entry = {
       id: "DR-" + Math.random().toString(36).substr(2, 5).toUpperCase(),
       timestamp: new Date().toLocaleTimeString(),
-      type: "Curtailment",
+      type: `Curtailment (Split: 20% System Fee Taken)`,
       region: region,
-      value: `${spec.currency || "$"}${computed_payout.toFixed(2)}`
+      value: `${spec.currency || "$"}${net_client_credit.toFixed(2)}`
     };
     historical_event_ledger.unshift(log_entry);
+    
     res.json({
       success: true,
-      status: `OPENADR_${region}_EVENT_CLEARED`,
-      payout_amount: computed_payout.toFixed(2),
+      status: `OPENADR_${region}_SPLIT_CLEARED`,
+      payout_amount: net_client_credit.toFixed(2),
+      performance_fee: platform_cut.toFixed(2),
       currency_symbol: spec.currency,
       new_balance: global_enterprise_balance.toFixed(2),
       grid_timestamp: new Date().toISOString()
     });
   });
 
-  app.post('/api/grid/battery-dispatch', (req, res) => {
+  expressApp.post('/api/grid/intellisize-dispatch', (req, res) => {
     const { target_capacity_kwh, region = "PJM" } = req.body;
     if (region !== "PJM" && active_subscription_tier === "SaaS Edge Plan") {
       return res.status(403).json({ success: false, error: "TIER_RESTRICTED_MARKET" });
     }
     const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
     const soft_cost_reduction_multiplier = 0.15; 
-    const optimization_savings = parseFloat((target_capacity_kwh * spec.rate * soft_cost_reduction_multiplier).toFixed(2));
+    
+    const raw_optimization_savings = parseFloat((target_capacity_kwh * spec.rate * soft_cost_reduction_multiplier).toFixed(2));
+    const platform_cut = parseFloat((raw_optimization_savings * 0.20).toFixed(2)); // 20% Performance Share Cut
+    const net_client_savings = parseFloat((raw_optimization_savings - platform_cut).toFixed(2));
     const carbon_offset = parseFloat((target_capacity_kwh * spec.co2_factor).toFixed(3));
     
-    global_enterprise_balance += optimization_savings;
+    global_enterprise_balance += net_client_savings;
+    platform_performance_earnings += platform_cut;
     total_carbon_mitigated += carbon_offset;
     
     const log_entry = {
       id: "BAT-" + Math.random().toString(36).substr(2, 5).toUpperCase(),
       timestamp: new Date().toLocaleTimeString(),
-      type: "AI Optimization",
+      type: "IntelliSize (80/20 Split Applied)",
       region: region,
-      value: `${spec.currency || "$"}${optimization_savings.toFixed(2)}`
+      value: `${spec.currency || "$"}${net_client_savings.toFixed(2)}`
     };
     historical_event_ledger.unshift(log_entry);
+    
     res.json({
       success: true,
-      status: "BATTERY_MATRIX_OPTIMIZED",
-      savings_payout: optimization_savings.toFixed(2),
+      status: "STORAGE_MATRIX_OPTIMIZED",
+      savings_payout: net_client_savings.toFixed(2),
+      performance_fee: platform_cut.toFixed(2),
       currency_symbol: spec.currency,
       new_balance: global_enterprise_balance.toFixed(2),
       carbon_mitigated_kg: carbon_offset.toFixed(3)
     });
   });
 
-  app.post('/api/agent/compile', (req, res) => {
+  expressApp.post('/api/agent/compile', (req, res) => {
     if (active_subscription_tier === "SaaS Edge Plan") {
       return res.status(403).json({ success: false, error: "TIER_RESTRICTED_COMPILATION" });
     }
@@ -141,11 +155,11 @@ if (cluster.isMaster) {
     });
   });
 
-  app.get('*', (pathReq, pathRes) => {
+  expressApp.get('*', (pathReq, pathRes) => {
     pathRes.sendFile(path.join(__dirname, 'index.html'));
   });
 
-  app.listen(PORT, () => {
-    console.log(`🚀 Clustered Worker Core Process ${process.pid} operational on port: ${PORT}`);
+  expressApp.listen(PORT, () => {
+    console.log(`🚀 IntelliSize Enforced VPP Core online running on port: ${PORT}`);
   });
 }

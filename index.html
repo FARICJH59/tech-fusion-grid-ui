@@ -329,7 +329,7 @@
           body: JSON.stringify({ curtailed_kwh: 120.00, region: selectedMarket })
         });
         const d = await res.json(); if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Sizing operations outside PJM requires a commercial EMQX subscription token.`, "var(--clr-solar-amber)"); return; } if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Multi-market calculations restricted. Please upgrade to the EMQX Broker Plan to process international grid nodes.`, "var(--clr-solar-amber)"); return; }
-        appendTerminalLog(`✔ [STRIPE_RAILS]: DR Event cleared. Dispatched ${d.currency_symbol}${d.payout_amount} to United Bank account.`, "var(--clr-matrix-green)");
+        appendTerminalLog(`✔ [STRIPE_RAILS]: DR Event cleared. Dispatched ${d.currency_symbol}${d.payout_amount} to United Bank account.`, "var(--clr-matrix-green)"); appendTerminalLog(`💰 [REVENUE_SHARE]: Retained 20% platform performance fee: ${d.currency_symbol}${d.performance_fee} units.`, "var(--clr-holo-purple)");
         if(telemetryChartInstance) {
           telemetryChartInstance.data.datasets[0].data.push(50 + Math.random() * 30);
           telemetryChartInstance.data.datasets[0].data.shift();
@@ -349,7 +349,7 @@
         });
         const d = await res.json(); if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Sizing operations outside PJM requires a commercial EMQX subscription token.`, "var(--clr-solar-amber)"); return; } if(res.status===403){ appendTerminalLog(`⚠️ [TIER_LOCK]: Multi-market calculations restricted. Please upgrade to the EMQX Broker Plan to process international grid nodes.`, "var(--clr-solar-amber)"); return; }
         appendTerminalLog(`✔ [BRIGHTFIELD_AI]: Sizing optimized. Mitigated ${d.carbon_mitigated_kg} kg grid CO2.`, "var(--clr-matrix-green)");
-        appendTerminalLog(`✔ [STRIPE_RAILS]: Captured ${d.currency_symbol}${d.savings_payout} USD soft-cost savings.`, "var(--clr-matrix-green)");
+        appendTerminalLog(`✔ [STRIPE_RAILS]: Captured ${d.currency_symbol}${d.savings_payout} USD soft-cost savings.`, "var(--clr-matrix-green)"); appendTerminalLog(`💰 [REVENUE_SHARE]: Retained 20% optimization share cut: ${d.currency_symbol}${d.performance_fee} units.`, "var(--clr-holo-purple)");
         if(telemetryChartInstance) {
           telemetryChartInstance.data.datasets[0].data.push(20 + Math.random() * 15);
           telemetryChartInstance.data.datasets[0].data.shift();
