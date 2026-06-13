@@ -6,10 +6,16 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '.')));
 
-// Server-side state holder to persist ledger tracking balances securely
 let global_enterprise_balance = 0.00;
 
-// 1. DYNAMIC TELEMETRY EDGE STREAM ROUTE
+// GLOBAL REGIONAL CARBON & PRICING PARAMETERS MATRIX Matrix
+const regionalGridSpecs = {
+  PJM:   { rate: 0.375, currency: "$", co2_factor: 0.475, label: "USD" },
+  ERCOT: { rate: 4.850, currency: "$", co2_factor: 0.520, label: "USD" },
+  EMEA:  { rate: 0.145, currency: "€", co2_factor: 0.115, label: "EUR" },
+  APAC:  { rate: 22.40, currency: "¥", co2_factor: 0.680, label: "JPY" }
+};
+
 app.get('/api/grid/status', (req, res) => {
   res.json({
     success: true,
@@ -22,12 +28,9 @@ app.get('/api/grid/status', (req, res) => {
   });
 });
 
-// 2. SECURE MONETARY PRODUCTION BILLING SYNC ROUTE (BYOC FINANCED)
 app.post('/api/billing/checkout', (req, res) => {
-  const { customer_email, selected_plan, deposit_amount } = req.body;
+  const { deposit_amount } = req.body;
   global_enterprise_balance = parseFloat(deposit_amount);
-  console.log(`[STRIPE_BILLING]: Confirmed long-term fixed price signal for ${customer_email}: $${global_enterprise_balance}`);
-  
   res.json({
     success: true,
     status: "BYOC_CONTRACT_TOKEN_VALIDATED",
@@ -36,52 +39,50 @@ app.post('/api/billing/checkout', (req, res) => {
   });
 });
 
-// 3. LIVE OPENADR SPECIFICATION COMPLIANT SMART GRID ENDPOINT
+// MULTI-MARKET OPENADR SETTLEMENT HANDSHAKE ROUTE
 app.post('/api/grid/demand-response', (req, res) => {
-  const { target_account_email, curtailed_kwh } = req.body;
-  console.log(`[OpenADR_VTN]: Dispatching distributed portfolio resources across PJM lines...`);
+  const { curtailed_kwh, region = "PJM" } = req.body;
+  const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
   
-  const market_incentive_rate = 0.375; 
-  const computed_payout = parseFloat((curtailed_kwh * market_incentive_rate).toFixed(2));
+  const computed_payout = parseFloat((curtailed_kwh * spec.rate).toFixed(2));
   global_enterprise_balance += computed_payout;
   
   res.json({
     success: true,
-    status: "OPENADR_EVENT_CLEARED",
+    status: `OPENADR_${region}_EVENT_CLEARED`,
     payout_amount: computed_payout.toFixed(2),
+    currency_symbol: spec.currency,
     new_balance: global_enterprise_balance.toFixed(2),
     grid_timestamp: new Date().toISOString()
   });
 });
 
-// 4. BRIGHTFIELD AI INSPIRED BATTERY ENERGY STORAGE DISPATCH OPTIMIZER
+// GLOBAL BRIGHTFIELD AI OPTIMIZER INTERFACE PIPELINE
 app.post('/api/grid/battery-dispatch', (req, res) => {
-  const { target_capacity_kwh } = req.body;
+  const { target_capacity_kwh, region = "PJM" } = req.body;
+  const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
   
-  // Brightfield AI optimization formula modeling: Reducing soft cost metrics instantly
   const soft_cost_reduction_multiplier = 0.15; 
-  const optimization_savings = parseFloat((target_capacity_kwh * soft_cost_reduction_multiplier).toFixed(2));
+  const optimization_savings = parseFloat((target_capacity_kwh * spec.rate * soft_cost_reduction_multiplier).toFixed(2));
   global_enterprise_balance += optimization_savings;
-
-  console.log(`[BRIGHTFIELD_AI]: Generation optimization plan generated in minutes. Carbon footprint mitigated.`);
   
   res.json({
     success: true,
     status: "BATTERY_MATRIX_OPTIMIZED",
     savings_payout: optimization_savings.toFixed(2),
+    currency_symbol: spec.currency,
     new_balance: global_enterprise_balance.toFixed(2),
-    carbon_mitigated_kg: (target_capacity_kwh * 0.475).toFixed(3) // Calculates actual grid carbon offsets
+    carbon_mitigated_kg: (target_capacity_kwh * spec.co2_factor).toFixed(3)
   });
 });
 
-// 5. AGENT SHELL COMPILATION INGRESS PIPELINE ROUTE
 app.post('/api/agent/compile', (req, res) => {
   const { blueprint, target_cloud, github_repository } = req.body;
   res.json({
     success: true,
     blueprint_compiled: blueprint,
     egress_destination: target_cloud,
-    isolated_build_logs: `Scaffolding complete. Tree index from ${github_repository} packaged into agnostic container layers.`
+    isolated_build_logs: `Tree index from ${github_repository} packaged into container layers.`
   });
 });
 
@@ -90,5 +91,5 @@ app.get('*', (pathReq, pathRes) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Enterprise VPP Serverless backend online running on port: ${PORT}`);
+  console.log(`🚀 Globalized VPP Multigrid Engine running on port: ${PORT}`);
 });

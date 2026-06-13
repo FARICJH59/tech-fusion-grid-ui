@@ -112,7 +112,7 @@ cat << 'EOF' > index_closure.js
         </div>
       </div>
       <div class="flex items-center gap-3 self-end sm:self-auto">
-        <div class="flex border border-slate-700 rounded overflow-hidden text-[9px] font-bold bg-[#111827]">
+        <div class="flex border border-slate-700 rounded overflow-hidden text-[9px] font-bold bg-[#111827]"><select id="sel-grid-market" class="bg-cyan-950 text-cyan-400 p-1 border-r border-slate-700 focus:outline-none text-[9px] font-bold"><option value="PJM">🇺🇸 PJM Grid</option><option value="ERCOT">🤠 ERCOT (TX)</option><option value="EMEA">🇪🇺 EMEA Node</option><option value="APAC">🇯🇵 APAC Core</option></select>
           <button onClick="toggleExtendedLanguage('EN')" class="hover:bg-cyan-900/50 text-cyan-400 px-2 py-1">EN</button>
           <button onClick="toggleExtendedLanguage('ES')" class="border-l border-slate-700 hover:bg-cyan-900/50 text-slate-400 px-2 py-1">ES</button>
           <button onClick="toggleExtendedLanguage('FR')" class="border-l border-slate-700 hover:bg-cyan-900/50 text-slate-400 px-2 py-1">FR</button>
@@ -351,12 +351,12 @@ cat << 'EOF' > index_patch_tail.js
         const res = await fetch('/api/grid/demand-response', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target_account_email: localStorage.getItem("user_email") || "farichva@gmail.com", curtailed_kwh: 120.00 })
+          body: JSON.stringify({ target_account_email: localStorage.getItem("user_email") || "farichva@gmail.com", curtailed_kwh: 120.00, region: document.getElementById("sel-grid-market").value })
         });
         const data = await res.json();
         if (data.success) {
           appendTerminalLog(`✔ [STRIPE_RAILS]: DR Settlement complete. Dispatched $${data.payout_amount || '45.00'} USD to United Bank ledger.`, "var(--clr-matrix-green)");
-          document.getElementById("txt-ledger-balance").innerText = `$${data.new_balance || '45.00'}`;
+          document.getElementById("txt-ledger-balance").innerText = `${data.currency_symbol || "$"}${data.new_balance || "45.00"}`;
         } else { throw new Error(); }
       } catch (err) {
         let currentBalance = parseFloat(localStorage.getItem("current_wallet_balance") || "0.00");
@@ -376,11 +376,11 @@ cat << 'EOF' > index_patch_tail.js
         const response = await fetch('/api/grid/battery-dispatch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target_capacity_kwh: 120.00 })
+          body: JSON.stringify({ target_capacity_kwh: 120.00, region: document.getElementById("sel-grid-market").value })
         });
         const data = await response.json();
         if (data.success) {
-          document.getElementById("txt-ledger-balance").innerText = `$${data.new_balance}`;
+          document.getElementById("txt-ledger-balance").innerText = `${data.currency_symbol || "$"}${data.new_balance}`;
           document.getElementById("txt-carbon-quota").innerText = `${(500.00 - parseFloat(data.carbon_mitigated_kg)).toFixed(3)} kg`;
           appendTerminalLog(`✔ [BRIGHTFIELD_AI]: Sizing proposal optimized. Soft costs mitigated.`, "var(--clr-matrix-green)");
           appendTerminalLog(`✔ [STRIPE_RAILS]: Captured $${data.savings_payout} USD optimization credits.`, "var(--clr-matrix-green)");
@@ -568,7 +568,7 @@ cat << 'EOF' > index.html
         </div>
       </div>
       <div class="flex items-center gap-3 self-end sm:self-auto">
-        <div class="flex border border-slate-700 rounded overflow-hidden text-[9px] font-bold bg-[#111827]">
+        <div class="flex border border-slate-700 rounded overflow-hidden text-[9px] font-bold bg-[#111827]"><select id="sel-grid-market" class="bg-cyan-950 text-cyan-400 p-1 border-r border-slate-700 focus:outline-none text-[9px] font-bold"><option value="PJM">🇺🇸 PJM Grid</option><option value="ERCOT">🤠 ERCOT (TX)</option><option value="EMEA">🇪🇺 EMEA Node</option><option value="APAC">🇯🇵 APAC Core</option></select>
           <button onClick="toggleExtendedLanguage('EN')" class="hover:bg-cyan-900/50 text-cyan-400 px-2 py-1">EN</button>
           <button onClick="toggleExtendedLanguage('ES')" class="border-l border-slate-700 hover:bg-cyan-900/50 text-slate-400 px-2 py-1">ES</button>
           <button onClick="toggleExtendedLanguage('FR')" class="border-l border-slate-700 hover:bg-cyan-900/50 text-slate-400 px-2 py-1">FR</button>
@@ -802,12 +802,12 @@ cat << 'EOF' > index.html
         const res = await fetch('/api/grid/demand-response', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target_account_email: localStorage.getItem("user_email") || "farichva@gmail.com", curtailed_kwh: 120.00 })
+          body: JSON.stringify({ target_account_email: localStorage.getItem("user_email") || "farichva@gmail.com", curtailed_kwh: 120.00, region: document.getElementById("sel-grid-market").value })
         });
         const data = await res.json();
         if (data.success) {
           appendTerminalLog(`✔ [STRIPE_RAILS]: DR Settlement complete. Dispatched $${data.payout_amount || '45.00'} USD to United Bank ledger.`, "var(--clr-matrix-green)");
-          document.getElementById("txt-ledger-balance").innerText = `$${data.new_balance || '45.00'}`;
+          document.getElementById("txt-ledger-balance").innerText = `${data.currency_symbol || "$"}${data.new_balance || "45.00"}`;
         } else { throw new Error(); }
       } catch (err) {
         let currentBalance = parseFloat(localStorage.getItem("current_wallet_balance") || "0.00");
@@ -827,11 +827,11 @@ cat << 'EOF' > index.html
         const response = await fetch('/api/grid/battery-dispatch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target_capacity_kwh: 120.00 })
+          body: JSON.stringify({ target_capacity_kwh: 120.00, region: document.getElementById("sel-grid-market").value })
         });
         const data = await response.json();
         if (data.success) {
-          document.getElementById("txt-ledger-balance").innerText = `$${data.new_balance}`;
+          document.getElementById("txt-ledger-balance").innerText = `${data.currency_symbol || "$"}${data.new_balance}`;
           document.getElementById("txt-carbon-quota").innerText = `${(500.00 - parseFloat(data.carbon_mitigated_kg)).toFixed(3)} kg`;
           appendTerminalLog(`✔ [BRIGHTFIELD_AI]: Sizing proposal optimized. Soft costs mitigated.`, "var(--clr-matrix-green)");
           appendTerminalLog(`✔ [STRIPE_RAILS]: Captured $${data.savings_payout} USD optimization credits.`, "var(--clr-matrix-green)");
