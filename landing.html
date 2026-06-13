@@ -6,6 +6,23 @@
     <title>AesirGrid OS // Deployed Core</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const supabaseUrl = "https://ijqlhwikttzeqqanjyfv.supabase.co";
+        const supabaseKey = "sb_publishable_BXsCBzgsDDcEiUAzRvf83Q_fr-PgKHa"; // Swap with your real key
+        const supabase = supabasejs.createClient(supabaseUrl, supabaseKey);
+
+        async function loginWithProvider(providerName) {
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: providerName,
+                options: {
+                    redirectTo: "https://aesirgrid.com/executive"
+                }
+            });
+            if (error) console.error("Identity protocols mismatch:", error.message);
+        }
+    </script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
 
@@ -21,10 +38,16 @@
                 <option value="de">DE</option>
                 <option value="ja">JA</option>
             </select>
-            <a href="/api/auth/github" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded font-mono flex items-center space-x-2 transition">
-                <i class="fab fa-github text-sm"></i>
-                <span data-i18n="signin">Sign In via GitHub</span>
-            </a>
+            <div class="flex items-center space-x-2">
+                <button onclick="loginWithProvider('github')" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded font-mono flex items-center space-x-2 transition cursor-pointer text-white">
+                    <i class="fab fa-github text-sm"></i>
+                    <span>GitHub</span>
+                </button>
+                <button onclick="loginWithProvider('google')" class="text-xs bg-red-700 hover:bg-red-600 border border-red-600 px-3 py-1.5 rounded font-mono flex items-center space-x-2 transition cursor-pointer text-white">
+                    <i class="fab fa-google text-sm"></i>
+                    <span>Google</span>
+                </button>
+            </div>
         </div>
     </header>
 

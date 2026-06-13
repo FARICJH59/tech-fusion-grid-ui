@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "server.js"
+    }
+  ],
+  "env": {
+    "GATEWAY_BASE_URL": "https://tech-fusion-grid-ui.vercel.app",
+    "GITHUB_CLIENT_ID": "your_github_client_id_here",
+    "GITHUB_CLIENT_SECRET": "your_github_client_secret_here",
+    "STRIPE_SECRET_KEY": "sk_test_your_stripe_key_here"
+  }
+}
