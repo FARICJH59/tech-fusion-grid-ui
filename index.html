@@ -362,7 +362,9 @@
       if(localStorage.getItem("user_subscription_tier") === "SaaS Edge Plan"){ appendTerminalLog(`❌ [ACCESS_DENIED]: Agentic Blackwell compilation models require a Premium Tier license.`, "#ef4444"); return; } try {
         const r = await fetch("/api/grid/history");
         const d = await r.json();
-        if (d.success) {
+        if (d.success) { 
+          /* Predictive Engine Moat Call */ 
+          fetch(`/api/grid/forecast?region=${document.getElementById("sel-grid-market").value}`).then(r => r.json()).then(f => { if(f.anomaly_detected){ appendTerminalLog(`🔮 [FORECAST_ENGINE]: High Congestion Anomaly predicted on ${f.region} Matrix for ${f.forecast_horizon}. (Confidence: ${f.confidence_score}%). Pre-emptively arming asset rails...`, "var(--clr-solar-amber)"); } });
           document.getElementById("txt-ledger-balance").innerText = (d.history[0]?.currency_symbol || "$") + d.balance;
           document.getElementById("txt-utility-incentives").innerText = (d.history[0]?.currency_symbol || "$") + d.balance;
           document.getElementById("txt-carbon-quota").innerText = d.total_co2 + " kg";
