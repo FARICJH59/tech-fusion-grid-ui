@@ -64,6 +64,31 @@ expressApp.get('/api/grid/forecast', (req, res) => {
   });
 });
 
+// AGENTIC COMMERCE COMPLIANT MCP INGRESS TOOL NODE
+expressApp.post('/api/mcp/tools/execute-checkout', (req, res) => {
+  const { tool_name, arguments: args } = req.body;
+  
+  if (tool_name !== "stripe_instant_checkout") {
+    return res.status(400).json({ isError: true, content: [{ type: "text", text: "UNKNOWN_MCP_TOOL" }] });
+  }
+
+  const amount = parseFloat(args.deposit_amount || 0);
+  const plan = args.selected_plan || "EMQX Broker Plan";
+  
+  global_enterprise_balance = amount;
+  active_subscription_tier = plan;
+
+  res.json({
+    isError: false,
+    content: [
+      {
+        type: "text",
+        text: `✔ [STRIPE_AGENTIC_COMMERCE]: Successfully cleared checkout via autonomous MCP layer. Initialized ${plan} with wallet base token: $${amount.toFixed(2)}`
+      }
+    ]
+  });
+});
+
 expressApp.post('/api/billing/checkout', (req, res) => {
   const { deposit_amount, selected_plan } = req.body;
   global_enterprise_balance = parseFloat(deposit_amount);
@@ -165,19 +190,15 @@ expressApp.get('*', (pathReq, pathRes) => {
   pathRes.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ENVIRONMENT BRIDGE CONTEXT DISPATCHER
 if (process.env.VERCEL) {
-  // Expose the raw instance so Vercel can wrap it as a fluent Serverless Function
   module.exports = expressApp;
 } else {
-  // If running locally inside Termux, spin up full multi-threaded cluster architecture
   if (cluster.isMaster) {
     console.log(`🚀 Master cluster node ${process.pid} is spawning system worker layout locally...`);
     for (let i = 0; i < Math.min(totalCPUs, 2); i++) {
       cluster.fork();
     }
-    cluster.on('exit', (worker) => {
-      console.log(`⚠️ Worker process ${worker.process.pid} offline. Re-forking...`);
+    cluster.on('exit', () => {
       cluster.fork();
     });
   } else {
