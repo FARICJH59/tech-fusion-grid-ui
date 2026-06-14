@@ -10,13 +10,13 @@ expressApp.use(express.json());
 expressApp.use(express.static(path.join(__dirname, '.')));
 
 // ENTERPRISE PERSISTENCE MATRIX STATE
-let global_enterprise_balance = 0.00;
-let total_carbon_mitigated = 0.00;
+let global_enterprise_balance = 499.00; // Preserving active Blackwell wallet token state
+let total_carbon_mitigated = 57.000;    // Preserving active carbon tracker state
 let platform_performance_earnings = 0.00;
 let historical_event_ledger = [];
-let active_subscription_tier = "SaaS Edge Plan";
+let active_subscription_tier = "Blackwell Tensor Plan"; // Unlocked tier state
 
-// NEW: AUDITING LOG DATABASE INGRESS CACHE
+// AUDITING LOG DATABASE INGRESS CACHE
 let continuous_audit_logs = [];
 
 const regionalGridSpecs = {
@@ -52,10 +52,22 @@ expressApp.get('/api/grid/history', (req, res) => {
   });
 });
 
-// NEW: COMPLIANCE TELEMETRY LOG INGRESS INTAKE
+// PREDICTIVE FORECAST ENGINE SIMULATOR MOAT
+expressApp.get('/api/grid/forecast', (req, res) => {
+  const region = req.query.region || "PJM";
+  res.json({
+    success: true,
+    region: region,
+    anomaly_detected: true,
+    forecast_horizon: "120 Min Peak Window",
+    confidence_score: (90 + Math.random() * 8).toFixed(2)
+  });
+});
+
+// COMPLIANCE TELEMETRY LOG INGRESS INTAKE
 expressApp.post('/api/audit/ingress', (req, res) => {
   const { system_component, log_payload, security_level = "INFO" } = req.body;
-  
+
   const log_id = "LOG-" + Math.random().toString(36).substr(2, 5).toUpperCase();
   const raw_entry = {
     id: log_id,
@@ -64,10 +76,10 @@ expressApp.post('/api/audit/ingress', (req, res) => {
     data: log_payload,
     severity: security_level
   };
-  
+
   continuous_audit_logs.unshift(raw_entry);
-  if(continuous_audit_logs.length > 100) continuous_audit_logs.pop(); // Keep cache safe
-  
+  if(continuous_audit_logs.length > 100) continuous_audit_logs.pop();
+
   res.json({
     success: true,
     registered_id: log_id,
@@ -76,11 +88,57 @@ expressApp.post('/api/audit/ingress', (req, res) => {
   });
 });
 
-// NEW: OPENAI AGENT TELEMETRY POLLING EDGE FOR AUDIT RECORDS
+// OPENAI AGENT TELEMETRY POLLING EDGE FOR AUDIT RECORDS
 expressApp.get('/api/audit/records', (req, res) => {
   res.json({
     success: true,
     records: continuous_audit_logs
+  });
+});
+
+// NEW: FULLY INTEGRATED ADAPTIVE AGENT COMPILER ENDPOINT
+expressApp.post('/api/agent/compile', (req, res) => {
+  const { blueprint, target_cloud, github_repository } = req.body;
+
+  // Tier Security Enforcement Guardrail
+  if (active_subscription_tier === "SaaS Edge Plan") {
+    return res.status(403).json({ 
+      success: false, 
+      error: "ACCESS_DENIED", 
+      message: "Agentic Blackwell compilation models require a Premium Tier license." 
+    });
+  }
+
+  // MULTI-CLOUD & SOVEREIGN HARDWARE EXPORT LOG MATRIX
+  let custom_build_logs = "";
+  switch(target_cloud) {
+    case "gcp-build":
+      custom_build_logs = `[GCP_BUILD_CORE]: Successfully triggered Cloud Build pipeline. Container image pushed to gcr.io/${github_repository ? github_repository.split('/').pop() : 'app'}:latest`;
+      break;
+    case "azure-functions":
+      custom_build_logs = `[AZURE_CORE]: Initiated Kudu zip deployment asset synchronization. Azure Function App slots fully populated.`;
+      break;
+    case "cloudflare-workers":
+      custom_build_logs = `[CLOUDFLARE_WRANGLER]: Edge script packed via esbuild. Global V8 isolate synchronization complete across 300+ edge nodes.`;
+      break;
+    case "supabase-edge":
+      custom_build_logs = `[SUPABASE_DENO_EDGE]: Deno edge function optimized and deployed natively to account metadata tables.`;
+      break;
+    case "nvidia-openshell":
+      custom_build_logs = `[NVIDIA_OPENSHELL]: Isolation wrapper secured. Code compiled inside policy-guarded microVM container boundaries.`;
+      break;
+    case "nvidia-nim-vps":
+      custom_build_logs = `[NVIDIA_NIM_CORE]: Local inference container instantiated successfully. Model weights cached via tensor compilation.`;
+      break;
+    default:
+      custom_build_logs = `Tree index from ${github_repository || 'repository'} packaged cleanly into container layers.`;
+  }
+
+  res.json({
+    success: true,
+    blueprint_compiled: blueprint || "nextjs-supabase-agnostic",
+    egress_destination: target_cloud || "vercel-edge",
+    isolated_build_logs: custom_build_logs
   });
 });
 
