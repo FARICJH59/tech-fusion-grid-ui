@@ -494,7 +494,34 @@
     }
 
     function importGithubRepositoryContext() { appendTerminalLog(`✔ [DEEP_DEVOPS]: Ingest complete. Code base tree layout matrix mapped.`, "var(--clr-matrix-green)"); }
-    function fireAgentCompute() { appendTerminalLog(`✔ [AGENT_DEPLOY]: Package bundle exported successfully via Blackwell network layer.`, "var(--clr-quantum-cyan)"); }
+    
+    async function fireAgentCompute() {
+      const selectedRoute = document.getElementById("sel-cloud-route") ? document.getElementById("sel-cloud-route").value : "vercel-edge";
+      const promptValue = document.getElementById("ipt-prompt").value;
+      const repoUrl = document.getElementById("ipt-repo-url").value;
+      
+      appendTerminalLog(`[COMPILER]: Initializing agentic compilation pass for target route: ${selectedRoute}...`, "var(--clr-solar-amber)");
+      
+      try {
+        const res = await fetch('/api/agent/compile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            blueprint: "nextjs-supabase-agnostic",
+            target_cloud: selectedRoute,
+            github_repository: repoUrl
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          appendTerminalLog(`✔ ${data.isolated_build_logs}`, "var(--clr-quantum-cyan)");
+        } else {
+          appendTerminalLog(`❌ [COMPILE_ERROR]: ${data.message || 'Access Forbidden'}`, "rgb(239, 68, 68)");
+        }
+      } catch (err) {
+        appendTerminalLog(`❌ Network synchronization loss with compiler nodes.`, "rgb(239, 68, 68)");
+      }
+    }
 
     // Listens for structural content mount before initializing persistent view states
     window.addEventListener("DOMContentLoaded", renderActiveViews);
