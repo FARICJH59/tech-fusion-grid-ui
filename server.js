@@ -9,12 +9,15 @@ const expressApp = express();
 expressApp.use(express.json());
 expressApp.use(express.static(path.join(__dirname, '.')));
 
-// ENTERPRISE ACCOUNTING PERSISTENCE STATES
+// ENTERPRISE PERSISTENCE MATRIX STATE
 let global_enterprise_balance = 0.00;
 let total_carbon_mitigated = 0.00;
 let platform_performance_earnings = 0.00;
 let historical_event_ledger = [];
 let active_subscription_tier = "SaaS Edge Plan";
+
+// NEW: AUDITING LOG DATABASE INGRESS CACHE
+let continuous_audit_logs = [];
 
 const regionalGridSpecs = {
   PJM:   { rate: 0.375, currency: "$", co2_factor: 0.475 },
@@ -44,23 +47,40 @@ expressApp.get('/api/grid/history', (req, res) => {
     total_co2: total_carbon_mitigated.toFixed(3),
     platform_revenue: platform_performance_earnings.toFixed(2),
     history: historical_event_ledger,
-    tier: active_subscription_tier
+    tier: active_subscription_tier,
+    audit_count: continuous_audit_logs.length
   });
 });
 
-expressApp.get('/api/grid/forecast', (req, res) => {
-  const { region = "PJM" } = req.query;
-  const congestionProbability = Math.random();
-  const isAnomalyDetected = congestionProbability > 0.70;
+// NEW: COMPLIANCE TELEMETRY LOG INGRESS INTAKE
+expressApp.post('/api/audit/ingress', (req, res) => {
+  const { system_component, log_payload, security_level = "INFO" } = req.body;
+  
+  const log_id = "LOG-" + Math.random().toString(36).substr(2, 5).toUpperCase();
+  const raw_entry = {
+    id: log_id,
+    timestamp: new Date().toISOString(),
+    component: system_component,
+    data: log_payload,
+    severity: security_level
+  };
+  
+  continuous_audit_logs.unshift(raw_entry);
+  if(continuous_audit_logs.length > 100) continuous_audit_logs.pop(); // Keep cache safe
   
   res.json({
     success: true,
-    region: region,
-    model_type: "Localized Time-Series Core (LSTM Matrix)",
-    anomaly_detected: isAnomalyDetected,
-    confidence_score: (85 + Math.random() * 14).toFixed(2),
-    forecast_horizon: "120 Min Peak Window",
-    calculated_grid_load_kw: (isAnomalyDetected ? 450 + Math.random() * 150 : 180 + Math.random() * 50).toFixed(1)
+    registered_id: log_id,
+    status: "INGEST_BUFFER_CLEARED",
+    total_buffered: continuous_audit_logs.length
+  });
+});
+
+// NEW: OPENAI AGENT TELEMETRY POLLING EDGE FOR AUDIT RECORDS
+expressApp.get('/api/audit/records', (req, res) => {
+  res.json({
+    success: true,
+    records: continuous_audit_logs
   });
 });
 
@@ -71,7 +91,7 @@ expressApp.post('/api/mcp/tools/execute-checkout', (req, res) => {
   }
   const amount = parseFloat(args.deposit_amount || 0);
   const plan = args.selected_plan || "EMQX Broker Plan";
-  
+
   global_enterprise_balance = amount;
   active_subscription_tier = plan;
 
@@ -90,7 +110,7 @@ expressApp.post('/api/billing/checkout', (req, res) => {
     status: "BYOC_CONTRACT_TOKEN_VALIDATED",
     new_balance: global_enterprise_balance.toFixed(2),
     tier: active_subscription_tier,
-    url: null 
+    url: null
   });
 });
 
@@ -100,14 +120,14 @@ expressApp.post('/api/grid/demand-response', (req, res) => {
     return res.status(403).json({ success: false, error: "TIER_RESTRICTED_MARKET" });
   }
   const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
-  
+
   const raw_client_savings = parseFloat((curtailed_kwh * spec.rate).toFixed(2));
   const platform_cut = parseFloat((raw_client_savings * 0.20).toFixed(2));
   const net_client_credit = parseFloat((raw_client_savings - platform_cut).toFixed(2));
-  
+
   global_enterprise_balance += net_client_credit;
   platform_performance_earnings += platform_cut;
-  
+
   const log_entry = {
     id: "DR-" + Math.random().toString(36).substr(2, 5).toUpperCase(),
     timestamp: new Date().toLocaleTimeString(),
@@ -116,7 +136,7 @@ expressApp.post('/api/grid/demand-response', (req, res) => {
     value: `${spec.currency || "$"}${net_client_credit.toFixed(2)}`
   };
   historical_event_ledger.unshift(log_entry);
-  
+
   res.json({
     success: true,
     status: `OPENADR_${region}_SPLIT_CLEARED`,
@@ -134,17 +154,17 @@ expressApp.post('/api/grid/intellisize-dispatch', (req, res) => {
     return res.status(403).json({ success: false, error: "TIER_RESTRICTED_MARKET" });
   }
   const spec = regionalGridSpecs[region] || regionalGridSpecs.PJM;
-  const soft_cost_reduction_multiplier = 0.15; 
-  
+  const soft_cost_reduction_multiplier = 0.15;
+
   const raw_optimization_savings = parseFloat((target_capacity_kwh * spec.rate * soft_cost_reduction_multiplier).toFixed(2));
   const platform_cut = parseFloat((raw_optimization_savings * 0.20).toFixed(2));
   const net_client_savings = parseFloat((raw_optimization_savings - platform_cut).toFixed(2));
   const carbon_offset = parseFloat((target_capacity_kwh * spec.co2_factor).toFixed(3));
-  
+
   global_enterprise_balance += net_client_savings;
   platform_performance_earnings += platform_cut;
   total_carbon_mitigated += carbon_offset;
-  
+
   const log_entry = {
     id: "BAT-" + Math.random().toString(36).substr(2, 5).toUpperCase(),
     timestamp: new Date().toLocaleTimeString(),
@@ -153,7 +173,7 @@ expressApp.post('/api/grid/intellisize-dispatch', (req, res) => {
     value: `${spec.currency || "$"}${net_client_savings.toFixed(2)}`
   };
   historical_event_ledger.unshift(log_entry);
-  
+
   res.json({
     success: true,
     status: "STORAGE_MATRIX_OPTIMIZED",
@@ -165,19 +185,6 @@ expressApp.post('/api/grid/intellisize-dispatch', (req, res) => {
   });
 });
 
-expressApp.post('/api/agent/compile', (req, res) => {
-  if (active_subscription_tier === "SaaS Edge Plan") {
-    return res.status(403).json({ success: false, error: "TIER_RESTRICTED_COMPILATION" });
-  }
-  const { blueprint, target_cloud, github_repository } = req.body;
-  res.json({
-    success: true,
-    blueprint_compiled: blueprint,
-    egress_destination: target_cloud,
-    isolated_build_logs: `Tree index from ${github_repository} packaged into container layers.`
-  });
-});
-
 expressApp.get('*', (pathReq, pathRes) => {
   pathRes.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -186,7 +193,6 @@ expressApp.get('*', (pathReq, pathRes) => {
 if (process.env.VERCEL) {
   module.exports = expressApp;
 } else if (process.env.LOCAL_SINGLE === "true") {
-  // Direct single-thread boot to smoothly bypass Android's cluster IPC barriers
   expressApp.listen(PORT, () => {
     console.log(`🚀 Single-Thread Local Engine online on port: ${PORT}`);
   });
