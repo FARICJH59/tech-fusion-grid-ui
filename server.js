@@ -27,7 +27,7 @@ expressApp.get('/api/grid/status', (req, res) => {
   res.json({
     success: true,
     worker_pid: process.pid,
-    environment: process.env.VERCEL ? "Vercel Serverless Function" : "Local Clustered Thread",
+    environment: process.env.VERCEL ? "Vercel Serverless Function" : "Local Single Thread",
     timestamp: new Date().toISOString(),
     telemetry: {
       cpu_utilization: (40 + Math.random() * 10).toFixed(1),
@@ -64,14 +64,11 @@ expressApp.get('/api/grid/forecast', (req, res) => {
   });
 });
 
-// AGENTIC COMMERCE COMPLIANT MCP INGRESS TOOL NODE
 expressApp.post('/api/mcp/tools/execute-checkout', (req, res) => {
   const { tool_name, arguments: args } = req.body;
-  
   if (tool_name !== "stripe_instant_checkout") {
     return res.status(400).json({ isError: true, content: [{ type: "text", text: "UNKNOWN_MCP_TOOL" }] });
   }
-
   const amount = parseFloat(args.deposit_amount || 0);
   const plan = args.selected_plan || "EMQX Broker Plan";
   
@@ -80,12 +77,7 @@ expressApp.post('/api/mcp/tools/execute-checkout', (req, res) => {
 
   res.json({
     isError: false,
-    content: [
-      {
-        type: "text",
-        text: `✔ [STRIPE_AGENTIC_COMMERCE]: Successfully cleared checkout via autonomous MCP layer. Initialized ${plan} with wallet base token: $${amount.toFixed(2)}`
-      }
-    ]
+    content: [{ type: "text", text: `✔ [STRIPE_AGENTIC_COMMERCE]: Successfully cleared checkout via autonomous MCP layer. Initialized ${plan} with wallet base token: $${amount.toFixed(2)}` }]
   });
 });
 
@@ -190,17 +182,21 @@ expressApp.get('*', (pathReq, pathRes) => {
   pathRes.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// MULTI-RUNTIME ENVIRONMENT BRIDGE DISPATCHER
 if (process.env.VERCEL) {
   module.exports = expressApp;
+} else if (process.env.LOCAL_SINGLE === "true") {
+  // Direct single-thread boot to smoothly bypass Android's cluster IPC barriers
+  expressApp.listen(PORT, () => {
+    console.log(`🚀 Single-Thread Local Engine online on port: ${PORT}`);
+  });
 } else {
   if (cluster.isMaster) {
-    console.log(`🚀 Master cluster node ${process.pid} is spawning system worker layout locally...`);
+    console.log(`🚀 Master cluster node ${process.pid} spawning system worker layout...`);
     for (let i = 0; i < Math.min(totalCPUs, 2); i++) {
       cluster.fork();
     }
-    cluster.on('exit', () => {
-      cluster.fork();
-    });
+    cluster.on('exit', () => { cluster.fork(); });
   } else {
     expressApp.listen(PORT, () => {
       console.log(`🚀 Clustered Local Worker Process ${process.pid} online on port: ${PORT}`);
