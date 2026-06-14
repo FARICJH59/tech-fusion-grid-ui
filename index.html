@@ -192,8 +192,12 @@
           </div>
           <div>
             <label id="lbl-route" class="block text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Target Cloud Ingress/Export Route</label>
-            <select class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-purple-400 focus:outline-none font-mono font-bold">
+            <select id="sel-cloud-route" class="w-full bg-[#040811] border border-slate-900 rounded-lg p-2 text-xs text-purple-400 focus:outline-none font-mono font-bold">
               <option value="vercel-edge">▲ Vercel Global Edge Nodes</option>
+              <option value="gcp-build">🔹 Google Cloud Build Core</option>
+              <option value="azure-functions">🔷 Azure Serverless Functions</option>
+              <option value="cloudflare-workers">🧡 Cloudflare Edge Workers</option>
+              <option value="supabase-edge">⚡ Supabase Autonomous Functions</option>
               <option value="aws-lambda-agnostic">☁ AWS Lambda Agnostic Container</option>
               <option value="docker-vps-selfhost">🐋 Standardized Self-Hosted Docker VPS</option>
             </select>
