@@ -1,5 +1,27 @@
+# dependencies
 node_modules/
+
+# env
 .env
+.env.local
+
+# next.js
+.next/
+out/
+
+# builds
+dist/
+
+# database
 data/*.db
-*.jpg
-.vercel
+
+# logs
+*.log
+pnpm-debug.log*
+
+# vercel
+.vercel/
+.vercelignore
+
+# OS
+.DS_Store
