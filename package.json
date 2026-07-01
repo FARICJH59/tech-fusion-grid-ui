@@ -1,24 +1,24 @@
 {
   "name": "tech-fusion-grid-ui",
   "version": "1.0.0",
-  "description": "Tech Fusion Sovereign Grid & Wallet Intelligence Panel",
-  "main": "server.js",
+  "private": true,
   "scripts": {
-    "start": "node server.js"
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
+    "next": "15.5.19",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "@supabase/supabase-js": "^2.108.1",
-    "axios": "^1.7.9",
-    "cookie-parser": "^1.4.7",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "express-rate-limit": "^8.5.2",
-    "jimp": "^1.6.1",
-    "jsonwebtoken": "^9.0.3",
-    "mqtt": "^5.15.1",
-    "nodemailer": "^6.10.0",
-    "pg": "^8.13.1",
-    "sqlite3": "^5.1.7",
-    "stripe": "^22.2.0"
+    "ioredis": "^5.11.1",
+    "mqtt": "^5.15.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^18.19.130",
+    "@types/react": "^18.3.31"
   }
 }

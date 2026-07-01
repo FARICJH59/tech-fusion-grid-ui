@@ -1,0 +1,25 @@
+{
+  "name": "edge-gateway-v1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mqtt": "^5.15.1",
+    "sqlite3": "^6.0.1",
+    "uuid": "^14.0.1"
+  },
+  "allowScripts": {
+    "sqlite3@6.0.1": true,
+    "better-sqlite3@12.11.1": true
+  }
+}
