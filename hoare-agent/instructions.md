@@ -39,9 +39,11 @@ All findings should be returned as structured JSON with the following top-level 
 
 ```json
 {
-  "status": "ok" | "warning" | "critical",
-  "deviceId": "<inverter-id>",
-  "timestamp": "<ISO-8601>",
+  "status": "ok",
+  "deviceId": "INV-001",
+  "timestamp": "2026-07-02T05:00:00.000Z",
   "findings": []
 }
 ```
+
+`status` is one of `"ok"`, `"warning"`, or `"critical"`.
