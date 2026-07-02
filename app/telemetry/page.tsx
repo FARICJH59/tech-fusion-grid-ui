@@ -3,8 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import GridPipelineCanvas from '@/components/GridPipelineCanvas';
 
+type TelemetryData = {
+  triton: { latency: number; queueDepth: number; tps: number };
+  z3: { latency: number; queueDepth: number; isSolving: boolean };
+  commit: { latency: number; queueDepth: number };
+};
+
+const GridPipelineCanvasWithTypedTelemetry =
+  GridPipelineCanvas as unknown as React.ComponentType<{ telemetry: TelemetryData }>;
+
+function GridPipelineCanvasWithTelemetry({ telemetry }: { telemetry: TelemetryData }) {
+  return <GridPipelineCanvasWithTypedTelemetry telemetry={telemetry} />;
+}
+
 export default function TelemetryPage() {
-  const [telemetry, setTelemetry] = useState({
+  const [telemetry, setTelemetry] = useState<TelemetryData>({
     triton: { latency: 0, queueDepth: 0, tps: 0 },
     z3: { latency: 0, queueDepth: 0, isSolving: false },
     commit: { latency: 0, queueDepth: 0 },
@@ -18,7 +31,7 @@ export default function TelemetryPage() {
     ws.onopen = () => setStatus('CONNECTED');
     ws.onmessage = (event) => {
       try {
-        setTelemetry(JSON.parse(event.data));
+        setTelemetry(JSON.parse(event.data) as TelemetryData);
       } catch (err) {
         console.error('Failed to parse telemetry frame:', err);
       }
@@ -47,7 +60,7 @@ export default function TelemetryPage() {
       </header>
 
       <section className="grid grid-cols-1 gap-6">
-        <GridPipelineCanvas telemetry={telemetry} />
+        <GridPipelineCanvasWithTelemetry telemetry={telemetry} />
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono">
