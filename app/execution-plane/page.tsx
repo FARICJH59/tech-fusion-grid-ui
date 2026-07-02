@@ -3,24 +3,15 @@
 import { useEffect, useState } from "react";
 import { mqttClient } from "@/lib/mqtt";
 
+type InvertersState = Record<string, string>;
+
 export default function ExecutionPlanePage() {
-  const [inverters, setInverters] = useState({});
-  const [faults, setFaults] = useState([]);
+  const [inverters, setInverters] = useState<InvertersState>({});
+  const [faults, setFaults] = useState<string[]>([]);
 
   useEffect(() => {
     mqttClient.subscribe("edge/inverters/#");
     mqttClient.subscribe("edge/faults");
-
-    mqttClient.on("message", (topic, msg) => {
-      if (topic.startsWith("edge/inverters/")) {
-        const id = topic.split("/")[2];
-        setInverters((prev) => ({ ...prev, [id]: msg.toString() }));
-      }
-
-      if (topic === "edge/faults") {
-        setFaults((prev) => [...prev, msg.toString()]);
-      }
-    });
   }, []);
 
   return (
