@@ -113,8 +113,9 @@ export function solveQuadratic(
   return [(-b + sqrtD) / (2 * a), (-b - sqrtD) / (2 * a)];
 }`,
     pyCode: () => `import math
+from typing import List
 
-def solve_quadratic(a: float, b: float, c: float) -> list[float]:
+def solve_quadratic(a: float, b: float, c: float) -> List[float]:
     """Solves the quadratic equation ax² + bx + c = 0.
 
     Returns:
@@ -164,12 +165,13 @@ export function computeAcPower(
   return { realPowerW, apparentPowerVA, reactivePowerVAR, powerFactor };
 }`,
     pyCode: () => `import math
+from typing import Dict
 
 def compute_ac_power(
     voltage_rms: float,
     current_rms: float,
     phi_radians: float,
-) -> dict[str, float]:
+) -> Dict[str, float]:
     """Computes AC real power, apparent power, and reactive power.
 
     Args:
@@ -234,8 +236,9 @@ export function dft(
   });
 }`,
     pyCode: () => `import math
+from typing import Dict, List
 
-def dft(signal: list[float]) -> list[dict[str, float]]:
+def dft(signal: List[float]) -> List[Dict[str, float]]:
     """Computes the Discrete Fourier Transform (DFT) of a real signal.
 
     O(N²) — use numpy.fft for large N.
@@ -306,11 +309,13 @@ export function ohmsLaw(params: {
     powerW,
   };
 }`,
-    pyCode: () => `def ohms_law(
-    voltage: float | None,
-    current: float | None,
-    resistance: float | None,
-) -> dict[str, float]:
+    pyCode: () => `from typing import Dict, Optional
+
+def ohms_law(
+    voltage: Optional[float],
+    current: Optional[float],
+    resistance: Optional[float],
+) -> Dict[str, float]:
     """Applies Ohm's Law to derive the missing electrical quantity.
 
     Provide exactly two of the three parameters; pass None for the unknown.
@@ -404,7 +409,9 @@ function buildGenericPyCode(description: string, variables: Record<string, strin
     .map(([name, type]) => `${name}: ${type}`)
     .join(", ");
 
-  return `def compute_math(${paramList}) -> object:
+  return `from typing import Any
+
+def compute_math(${paramList}) -> Any:
     """Generated implementation for:
     "${description}"
 
