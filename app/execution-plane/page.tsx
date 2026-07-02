@@ -3,24 +3,46 @@
 import { useEffect, useState } from "react";
 import { mqttClient } from "@/lib/mqtt";
 
+type InvertersState = Record<string, string>;
+type MessagePayload = { toString(): string } | string;
+type MessageHandler = (topic: string, message: MessagePayload) => void;
+
+type MqttClientWithMessageApi = typeof mqttClient & {
+  subscribe: ((topic: string) => void) & ((topic: string, handler: MessageHandler) => void);
+  onMessage?: (handler: MessageHandler) => void | (() => void);
+};
+
 export default function ExecutionPlanePage() {
-  const [inverters, setInverters] = useState({});
-  const [faults, setFaults] = useState([]);
+  const [inverters, setInverters] = useState<InvertersState>({});
+  const [faults, setFaults] = useState<string[]>([]);
 
   useEffect(() => {
-    mqttClient.subscribe("edge/inverters/#");
-    mqttClient.subscribe("edge/faults");
+    const client = mqttClient as MqttClientWithMessageApi;
+    const handleMessage: MessageHandler = (topic, msg) => {
+      const message = msg.toString();
 
-    mqttClient.on("message", (topic, msg) => {
       if (topic.startsWith("edge/inverters/")) {
         const id = topic.split("/")[2];
-        setInverters((prev) => ({ ...prev, [id]: msg.toString() }));
+        setInverters((prev) => ({ ...prev, [id]: message }));
       }
 
       if (topic === "edge/faults") {
-        setFaults((prev) => [...prev, msg.toString()]);
+        setFaults((prev) => [...prev, message]);
       }
-    });
+    };
+
+    if (typeof client.onMessage === "function") {
+      client.subscribe("edge/inverters/#");
+      client.subscribe("edge/faults");
+
+      const unsubscribe = client.onMessage(handleMessage);
+      return () => {
+        if (typeof unsubscribe === "function") unsubscribe();
+      };
+    }
+
+    client.subscribe("edge/inverters/#", handleMessage);
+    client.subscribe("edge/faults", handleMessage);
   }, []);
 
   return (
