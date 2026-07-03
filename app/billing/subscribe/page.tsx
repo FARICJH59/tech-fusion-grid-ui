@@ -34,18 +34,32 @@ export default function SubscribePage() {
         body: JSON.stringify({ email: trimmedEmail }),
       });
 
-      const data = (await res.json().catch(() => ({}))) as {
+      let data: {
         message?: string;
         url?: string;
       };
 
-      if (!res.ok || !data.url) {
+      try {
+        data = (await res.json()) as typeof data;
+      } catch {
+        throw new Error("Billing service returned an unreadable checkout response.");
+      }
+
+      if (!res.ok) {
         throw new Error(data.message || "Unable to create a Stripe checkout session.");
+      }
+
+      if (!data.url) {
+        throw new Error("Billing service did not return a checkout URL.");
       }
 
       window.location.assign(data.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to start checkout.");
+      if (err instanceof TypeError) {
+        setError("Unable to connect to billing service. Please check your connection and try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Unable to start checkout.");
+      }
       setIsLoading(false);
     }
   };
