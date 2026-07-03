@@ -23,7 +23,7 @@ function buildReply(input: string): string {
 
 export default function HoareChatPage() {
   const [sessionId] = useState(() =>
-    `ui-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`
+    `ui-${crypto.randomUUID().slice(0, 8)}-${Date.now().toString(36)}`
   );
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
