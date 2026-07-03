@@ -12,25 +12,31 @@ type CarbonRequestBody = {
 };
 
 export async function POST(req: Request) {
+  let body: CarbonRequestBody;
+
   try {
-    const body = (await req.json()) as CarbonRequestBody;
-    const payload = body.payload ?? {};
+    body = (await req.json()) as CarbonRequestBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
-    const company = (payload.company ?? "").trim();
-    const sector = (payload.sector ?? "").trim();
-    const projectType = (payload.projectType ?? "").trim();
-    const location = (payload.location ?? "").trim();
+  const payload = body.payload ?? {};
+  const company = (payload.company ?? "").trim();
+  const sector = (payload.sector ?? "").trim();
+  const projectType = (payload.projectType ?? "").trim();
+  const location = (payload.location ?? "").trim();
 
-    if (!company || !sector || !projectType || !location) {
-      return NextResponse.json(
-        {
-          error: "Missing required payload fields",
-          required: ["company", "sector", "projectType", "location"],
-        },
-        { status: 400 }
-      );
-    }
+  if (!company || !sector || !projectType || !location) {
+    return NextResponse.json(
+      {
+        error: "Missing required payload fields",
+        required: ["company", "sector", "projectType", "location"],
+      },
+      { status: 400 }
+    );
+  }
 
+  try {
     const agentResult = await runAgent(
       body.sessionId || "carbon-session",
       "carbon",
@@ -38,7 +44,9 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json(agentResult);
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to run carbon agent";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

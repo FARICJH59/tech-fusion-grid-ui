@@ -49,9 +49,7 @@ const locationWeights: Record<string, number> = {
 };
 
 function clampScore(score: number): number {
-  if (score > 100) return 100;
-  if (score < 0) return 0;
-  return score;
+  return Math.min(100, Math.max(0, score));
 }
 
 function getFeasibility(score: number): "High" | "Medium" | "Low" {

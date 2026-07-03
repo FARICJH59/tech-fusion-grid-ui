@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 
 type CarbonResult = {
   score: number;
@@ -22,24 +22,25 @@ export default function CarbonDashboardPage() {
   const [sector, setSector] = useState("Forestry");
   const [projectType, setProjectType] = useState("REDD+");
   const [location, setLocation] = useState("Ghana");
+  const [sessionId, setSessionId] = useState("carbon-anon");
   const [result, setResult] = useState<CarbonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sessionId = useMemo(() => {
-    const normalized = company.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    return `carbon-${normalized || "anon"}`;
-  }, [company]);
-
   async function runAnalysis() {
     setLoading(true);
     setError(null);
+
+    const normalized = company.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const nextSessionId = `carbon-${normalized || "anon"}`;
+    setSessionId(nextSessionId);
+
     try {
       const res = await fetch("/api/carbon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId,
+          sessionId: nextSessionId,
           payload: { company, sector, projectType, location },
         }),
       });
@@ -51,8 +52,10 @@ export default function CarbonDashboardPage() {
       } else {
         setResult((data.result ?? null) as CarbonResult | null);
       }
-    } catch {
-      setError("Carbon analysis failed");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Carbon analysis failed";
+      setError(message);
       setResult(null);
     } finally {
       setLoading(false);
