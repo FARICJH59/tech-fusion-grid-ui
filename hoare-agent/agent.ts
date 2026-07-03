@@ -53,7 +53,7 @@ const AVAILABLE_TOOLS: HoareTool[] = [
 const sessions = new Map<string, HoareSession>();
 
 export function createSession(): HoareSession {
-  const id = `hoare-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = `hoare-${Date.now()}-${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
   const session: HoareSession = {
     id,
     createdAt: new Date().toISOString(),
