@@ -14,27 +14,31 @@ async function hoareFetch(path: string, options?: RequestInit) {
   return res.json();
 }
 
-export async function hoareChat(body: Record<string, unknown>) {
+export async function hoareChat(message: string) {
   return hoareFetch("/api/hoare/chat", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ message }),
   });
 }
 
-export async function hoareExecute(body: Record<string, unknown>) {
+export async function hoareExecute(toolName: string, payload: Record<string, unknown> = {}) {
   return hoareFetch("/api/hoare/execute", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ tool: toolName, ...payload }),
   });
 }
 
-export async function hoareTools() {
+export async function hoareListTools() {
   return hoareFetch("/api/hoare/tools");
 }
 
-export async function hoareSession(body?: Record<string, unknown>) {
+export async function hoareSessionCreate(metadata?: Record<string, unknown>) {
   return hoareFetch("/api/hoare/session", {
-    method: body ? "POST" : "GET",
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    method: "POST",
+    body: JSON.stringify(metadata ?? {}),
   });
+}
+
+export async function hoareSessionList() {
+  return hoareFetch("/api/hoare/session");
 }

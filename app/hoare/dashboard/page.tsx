@@ -2,43 +2,21 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-
-const UI_ONLY_SESSIONS = [
-  {
-    id: "ui-demo-a1",
-    createdAt: "2026-07-03T00:05:00.000Z",
-    messages: 8,
-  },
-  {
-    id: "ui-demo-b2",
-    createdAt: "2026-07-03T01:10:00.000Z",
-    messages: 5,
-  },
-  {
-    id: "ui-demo-c3",
-    createdAt: "2026-07-03T02:25:00.000Z",
-    messages: 11,
-  },
-];
-
-const UI_ONLY_TOOLS = [
-  "telemetry_query",
-  "audit_log",
-  "execute_command",
-  "anomaly_detect",
-];
+import { useHoare } from "@/hooks/useHoare";
 
 export default function HoareDashboardPage() {
+  const { sessions, tools, loading, error } = useHoare();
+
   const totalMessages = useMemo(
-    () => UI_ONLY_SESSIONS.reduce((sum, session) => sum + session.messages, 0),
-    []
+    () => sessions.reduce((sum, s) => sum + (s.messages ?? 0), 0),
+    [sessions]
   );
 
   const stats = [
-    { label: "Demo Sessions", value: UI_ONLY_SESSIONS.length },
-    { label: "Demo Messages", value: totalMessages },
-    { label: "Demo Tools", value: UI_ONLY_TOOLS.length },
-    { label: "Runtime", value: "UI Only" },
+    { label: "Sessions", value: sessions.length },
+    { label: "Messages", value: totalMessages },
+    { label: "Tools", value: tools.length },
+    { label: "Backend", value: error ? "Unreachable" : loading ? "Connecting…" : "Connected" },
   ];
 
   return (
@@ -53,8 +31,14 @@ export default function HoareDashboardPage() {
     >
       <h1 style={{ fontSize: "2rem", marginBottom: 8 }}>📊 HOARE Dashboard</h1>
       <p style={{ color: "#9ca3af", marginBottom: 32 }}>
-        Front-end only activity overview (no backend services)
+        Live activity overview from the HOARE backend
       </p>
+
+      {error && (
+        <p style={{ color: "#f87171", fontSize: "0.85rem", marginBottom: 16 }}>
+          ⚠ {error}
+        </p>
+      )}
 
       <div
         style={{
@@ -82,11 +66,17 @@ export default function HoareDashboardPage() {
         ))}
       </div>
 
-      <h2 style={{ marginBottom: 16 }}>Demo Sessions</h2>
+      <h2 style={{ marginBottom: 16 }}>Sessions</h2>
+      {loading && sessions.length === 0 && (
+        <p style={{ color: "#9ca3af" }}>Loading sessions…</p>
+      )}
+      {!loading && sessions.length === 0 && (
+        <p style={{ color: "#6b7280" }}>No sessions found.</p>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {UI_ONLY_SESSIONS.map((session) => (
+        {sessions.map((session) => (
           <div
-            key={session.id}
+            key={String(session.id)}
             style={{
               background: "#162033",
               border: "1px solid #263248",
@@ -94,9 +84,14 @@ export default function HoareDashboardPage() {
               padding: 16,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>{session.id}</div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>{String(session.id)}</div>
             <div style={{ color: "#9ca3af", fontSize: "0.8rem" }}>
-              Created: {new Date(session.createdAt).toLocaleString()} &nbsp;|&nbsp; {session.messages} message(s)
+              {session.createdAt
+                ? `Created: ${new Date(String(session.createdAt)).toLocaleString()}`
+                : ""}
+              {session.messages !== undefined
+                ? ` | ${session.messages} message(s)`
+                : ""}
             </div>
           </div>
         ))}
