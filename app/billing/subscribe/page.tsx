@@ -3,6 +3,24 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+type CheckoutResponse = {
+  message?: string;
+  url?: string;
+};
+
+const isCheckoutResponse = (value: unknown): value is CheckoutResponse => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    (candidate.message === undefined || typeof candidate.message === "string") &&
+    (candidate.url === undefined || typeof candidate.url === "string")
+  );
+};
+
 export default function SubscribePage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -34,16 +52,19 @@ export default function SubscribePage() {
         body: JSON.stringify({ email: trimmedEmail }),
       });
 
-      let data: {
-        message?: string;
-        url?: string;
-      };
+      let payload: unknown;
 
       try {
-        data = (await res.json()) as typeof data;
+        payload = await res.json();
       } catch {
         throw new Error("Billing service returned an unreadable checkout response.");
       }
+
+      if (!isCheckoutResponse(payload)) {
+        throw new Error("Billing service returned an invalid checkout response.");
+      }
+
+      const data = payload;
 
       if (!res.ok) {
         throw new Error(data.message || "Unable to create a Stripe checkout session.");
