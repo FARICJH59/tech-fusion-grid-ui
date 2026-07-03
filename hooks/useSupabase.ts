@@ -20,6 +20,9 @@ export function useSupabase(): { user: User | null; supabase: SupabaseClient } {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    // `supabase` is a module-level singleton and will never change between
+    // renders, so it is safe to list it as a dependency without causing
+    // repeated effect executions.
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user ?? null);
     });

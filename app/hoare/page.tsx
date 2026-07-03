@@ -35,6 +35,9 @@ export default function AccessMatrix() {
     };
 
     loadEntitlements();
+    // `supabase` is a module-level singleton; it is stable across renders and
+    // safe to omit from the dependency array without causing stale-closure issues.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (loading) {
