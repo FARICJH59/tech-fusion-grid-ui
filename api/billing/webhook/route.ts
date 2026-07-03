@@ -7,7 +7,7 @@ const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, {
-      apiVersion: "2023-10-16",
+      apiVersion: "2024-06-20",
     })
   : null;
 
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
     const email = session.customer_details?.email;
 
     if (!email) {
-      console.error("No email found in checkout session");
-      return NextResponse.json({ ok: true });
+      console.warn("Skipping entitlement update: no email in checkout session");
+      return NextResponse.json({ received: true });
     }
 
     const { error } = await supabaseAdmin
@@ -55,9 +55,13 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error("Entitlement update error:", error);
-    } else {
-      console.log("Entitlements activated for:", email);
+      return NextResponse.json(
+        { error: "Failed to update entitlement" },
+        { status: 500 }
+      );
     }
+
+    console.log("Entitlements activated for:", email);
   }
 
   return NextResponse.json({ received: true });
