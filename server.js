@@ -18,6 +18,7 @@ let active_subscription_tier = "Blackwell Tensor Plan"; // Unlocked tier state
 
 // AUDITING LOG DATABASE INGRESS CACHE
 let continuous_audit_logs = [];
+let carbon_credit_sessions = [];
 
 const regionalGridSpecs = {
   PJM:   { rate: 0.375, currency: "$", co2_factor: 0.475 },
@@ -93,6 +94,52 @@ expressApp.get('/api/audit/records', (req, res) => {
   res.json({
     success: true,
     records: continuous_audit_logs
+  });
+});
+
+expressApp.post('/api/hoare', (req, res) => {
+  const { sessionId, kind, payload } = req.body || {};
+  const requiredPayloadFields = ["company", "sector", "projectType", "location"];
+  const missingPayloadFields = requiredPayloadFields.filter((field) => {
+    return !payload || typeof payload[field] !== "string" || payload[field].trim() === "";
+  });
+
+  if (typeof sessionId !== "string" || sessionId.trim() === "") {
+    return res.status(400).json({ success: false, error: "INVALID_SESSION_ID" });
+  }
+
+  if (kind !== "carbon") {
+    return res.status(400).json({ success: false, error: "INVALID_KIND" });
+  }
+
+  if (missingPayloadFields.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: "INVALID_PAYLOAD",
+      missing_fields: missingPayloadFields
+    });
+  }
+
+  const normalizedEntry = {
+    sessionId: sessionId.trim(),
+    kind,
+    payload: {
+      company: payload.company.trim(),
+      sector: payload.sector.trim(),
+      projectType: payload.projectType.trim(),
+      location: payload.location.trim()
+    },
+    created_at: new Date().toISOString()
+  };
+
+  carbon_credit_sessions.unshift(normalizedEntry);
+  if (carbon_credit_sessions.length > 100) carbon_credit_sessions.pop();
+
+  res.status(201).json({
+    success: true,
+    status: "CARBON_CREDIT_SESSION_REGISTERED",
+    tracker: "Carbon Credit Tracker",
+    session: normalizedEntry
   });
 });
 
