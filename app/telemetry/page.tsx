@@ -1,77 +1,176 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import GridPipelineCanvas from '@/components/GridPipelineCanvas';
+import { useEffect, useState } from "react";
+import { useSupabase } from "@/hooks/useSupabase";
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue }
+  | JsonValue[];
+
+type TelemetryRecord = {
+  id: string;
+  timestamp: string;
+  event: string;
+  agent: string | null;
+  metadata: JsonValue;
+  payload: JsonValue;
+};
 
 export default function TelemetryPage() {
-  const [telemetry, setTelemetry] = useState({
-    triton: { latency: 0, queueDepth: 0, tps: 0 },
-    z3: { latency: 0, queueDepth: 0, isSolving: false },
-    commit: { latency: 0, queueDepth: 0 },
-  });
-  const [status, setStatus] = useState('DISCONNECTED');
+  const { supabase, user } = useSupabase();
+  const [records, setRecords] = useState<TelemetryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const socketUrl = process.env.NEXT_PUBLIC_TELEMETRY_URL || 'ws://127.0.0.1:8765';
-    const ws = new WebSocket(socketUrl);
+    let isMounted = true;
 
-    ws.onopen = () => setStatus('CONNECTED');
-    ws.onmessage = (event) => {
-      try {
-        setTelemetry(JSON.parse(event.data));
-      } catch (err) {
-        console.error('Failed to parse telemetry frame:', err);
+    const loadTelemetry = async () => {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: queryError } = await supabase
+        .from("telemetry_events")
+        .select("id,timestamp,event,agent,metadata,payload")
+        .order("timestamp", { ascending: false })
+        .limit(100);
+
+      if (!isMounted) return;
+
+      if (queryError) {
+        setError(queryError.message);
+        setRecords([]);
+      } else {
+        setRecords((data ?? []) as TelemetryRecord[]);
       }
+
+      setLoading(false);
     };
-    ws.onclose = () => setStatus('DISCONNECTED');
-    ws.onerror = () => setStatus('ERROR');
 
-    return () => ws.close();
-  }, []);
+    loadTelemetry();
 
-  const mw = telemetry.triton.tps ? Math.round(telemetry.triton.tps * 0.08) : null;
-  const queueDepth = telemetry.z3.queueDepth || telemetry.triton.queueDepth;
-  const workerLoad = telemetry.triton.tps ? Math.min(100, Math.round((telemetry.triton.tps / 2000) * 100)) : null;
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase, user?.id]);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 p-8 flex flex-col gap-6">
-      <header className="border-b border-zinc-800 pb-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-mono font-bold tracking-tight text-white">AESIRGRID // TELEMETRY</h1>
-          <p className="text-sm text-zinc-400 font-mono mt-1">TechFusion Core Fabric Real-time Operations</p>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#0b1220",
+        color: "#fff",
+        padding: "32px",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      <h1 style={{ fontSize: "2rem", marginBottom: 8 }}>Telemetry</h1>
+      <p style={{ color: "#9ca3af", marginBottom: 24 }}>
+        Recent telemetry events from Supabase.
+      </p>
+
+      {loading && <p style={{ color: "#9ca3af" }}>Loading telemetry…</p>}
+
+      {!loading && error && (
+        <div
+          style={{
+            border: "1px solid #7f1d1d",
+            background: "#2b1010",
+            color: "#fecaca",
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 16,
+          }}
+        >
+          Failed to load telemetry: {error}
         </div>
-        <div className="flex items-center gap-2 font-mono text-xs px-3 py-1 rounded border border-zinc-800 bg-zinc-900/50">
-          <span className={`w-2 h-2 rounded-full ${status === 'CONNECTED' ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`} />
-          <span className="text-zinc-400">DAEMON: {status}</span>
+      )}
+
+      {!loading && !error && records.length === 0 && (
+        <p style={{ color: "#9ca3af" }}>No telemetry records found.</p>
+      )}
+
+      {!loading && !error && records.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+          }}
+        >
+          {records.map((record) => (
+            <article
+              key={record.id}
+              style={{
+                background: "#111827",
+                border: "1px solid #263248",
+                borderRadius: 12,
+                padding: 16,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                <strong>{record.event}</strong>
+                <span style={{ color: "#9ca3af", fontSize: 12 }}>
+                  {new Date(record.timestamp).toLocaleString()}
+                </span>
+                <span
+                  style={{
+                    background: "#1f2937",
+                    border: "1px solid #334155",
+                    borderRadius: 9999,
+                    padding: "2px 10px",
+                    fontSize: 12,
+                    color: "#cbd5e1",
+                  }}
+                >
+                  Agent: {record.agent ?? "unknown"}
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 4 }}>Metadata</div>
+                  <pre
+                    style={{
+                      margin: 0,
+                      background: "#0b1220",
+                      border: "1px solid #1f2937",
+                      borderRadius: 8,
+                      padding: 10,
+                      fontSize: 12,
+                      overflowX: "auto",
+                    }}
+                  >
+                    {JSON.stringify(record.metadata, null, 2)}
+                  </pre>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 4 }}>Payload</div>
+                  <pre
+                    style={{
+                      margin: 0,
+                      background: "#0b1220",
+                      border: "1px solid #1f2937",
+                      borderRadius: 8,
+                      padding: 10,
+                      fontSize: 12,
+                      overflowX: "auto",
+                    }}
+                  >
+                    {JSON.stringify(record.payload, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
-      </header>
-
-      <section className="grid grid-cols-1 gap-6">
-        <GridPipelineCanvas telemetry={telemetry} />
-      </section>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono">
-        <section className="border border-zinc-800 bg-zinc-900/30 p-4 rounded-lg">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Power Flow</h2>
-          <p className="text-xl font-bold text-amber-400 mt-1">
-            {mw !== null ? `${mw} MW` : "— MW"}
-          </p>
-        </section>
-
-        <section className="border border-zinc-800 bg-zinc-900/30 p-4 rounded-lg">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Queue Depth</h2>
-          <p className="text-xl font-bold text-zinc-100 mt-1">
-            {queueDepth ?? "—"}
-          </p>
-        </section>
-
-        <section className="border border-zinc-800 bg-zinc-900/30 p-4 rounded-lg">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Worker Fleet Load</h2>
-          <p className="text-xl font-bold text-purple-400 mt-1">
-            {workerLoad !== null ? `${workerLoad}%` : "— %"}
-          </p>
-        </section>
-      </div>
+      )}
     </main>
   );
 }
