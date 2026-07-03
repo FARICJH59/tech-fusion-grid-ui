@@ -33,7 +33,7 @@ export default function SubscribePage() {
     const apiBaseUrl = process.env.NEXT_PUBLIC_HOARE_API_URL;
 
     if (!trimmedEmail) {
-      setError("Enter the email address tied to your HOARE access.");
+      setError("Enter the email address associated with your HOARE account.");
       return;
     }
 
