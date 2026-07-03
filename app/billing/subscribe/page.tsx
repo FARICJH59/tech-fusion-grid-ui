@@ -56,7 +56,7 @@ export default function SubscribePage() {
       window.location.assign(data.url);
     } catch (err) {
       if (err instanceof TypeError) {
-        setError("Unable to connect to billing service. Please check your connection and try again.");
+        setError("Unable to reach the billing service. Please try again.");
       } else {
         setError(err instanceof Error ? err.message : "Unable to start checkout.");
       }
