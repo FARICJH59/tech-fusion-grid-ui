@@ -14,7 +14,8 @@
     "react-dom": "18.2.0",
     "@supabase/supabase-js": "^2.108.1",
     "ioredis": "^5.11.1",
-    "mqtt": "^5.15.1"
+    "mqtt": "^5.15.1",
+    "stripe": "^16.10.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
