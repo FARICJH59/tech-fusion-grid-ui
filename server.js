@@ -5,6 +5,7 @@ const totalCPUs = require('os').cpus().length;
 
 const PORT = process.env.PORT || 3000;
 const expressApp = express();
+const CARBON_TRACKER_NAME = "Carbon Credit Tracker";
 
 expressApp.use(express.json());
 expressApp.use(express.static(path.join(__dirname, '.')));
@@ -138,7 +139,7 @@ expressApp.post('/api/hoare', (req, res) => {
   res.status(201).json({
     success: true,
     status: "CARBON_CREDIT_SESSION_REGISTERED",
-    tracker: "Carbon Credit Tracker",
+    tracker: CARBON_TRACKER_NAME,
     session: normalizedEntry
   });
 });
