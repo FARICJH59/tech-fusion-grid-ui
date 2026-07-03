@@ -66,6 +66,7 @@ export default function HomePage() {
         <Link href="/telemetry">📡 Telemetry</Link>
         <Link href="/execution-plane">⚙️ Execution Plane</Link>
         <Link href="/audit">🛡 Audit Center</Link>
+        <Link href="/hoare">🤖 HOARE AI</Link>
       </div>
     </main>
   );
