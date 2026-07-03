@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 type Tool = {
@@ -9,18 +9,79 @@ type Tool = {
   parameters: Record<string, string>;
 };
 
+const LOCAL_TOOLS: Tool[] = [
+  {
+    name: "telemetry_query",
+    description: "Simulate telemetry query results in the UI",
+    parameters: { deviceId: "string", metric: "string", window: "string" },
+  },
+  {
+    name: "audit_log",
+    description: "Simulate adding an audit entry",
+    parameters: { action: "string", details: "string" },
+  },
+  {
+    name: "execute_command",
+    description: "Simulate command dispatch from the UI",
+    parameters: { deviceId: "string", command: "string", payload: "string" },
+  },
+  {
+    name: "anomaly_detect",
+    description: "Simulate anomaly detection summary",
+    parameters: { stream: "string", threshold: "string" },
+  },
+];
+
+function runLocalTool(tool: Tool, params: Record<string, string>) {
+  const timestamp = new Date().toISOString();
+
+  if (tool.name === "telemetry_query") {
+    return {
+      deviceId: params.deviceId || "demo-device",
+      metric: params.metric || "latency",
+      value: 42.7,
+      unit: "ms",
+      timestamp,
+      source: "frontend-demo",
+    };
+  }
+
+  if (tool.name === "audit_log") {
+    return {
+      logged: true,
+      action: params.action || "demo_action",
+      details: params.details || "frontend-only simulation",
+      timestamp,
+      source: "frontend-demo",
+    };
+  }
+
+  if (tool.name === "execute_command") {
+    return {
+      queued: true,
+      deviceId: params.deviceId || "demo-device",
+      command: params.command || "restart",
+      payload: params.payload || "{}",
+      timestamp,
+      source: "frontend-demo",
+    };
+  }
+
+  return {
+    anomaliesFound: 0,
+    stream: params.stream || "default-stream",
+    threshold: params.threshold || "medium",
+    timestamp,
+    source: "frontend-demo",
+  };
+}
+
 export default function HoareToolsPage() {
-  const [tools, setTools] = useState<Tool[]>([]);
+  const [tools] = useState<Tool[]>(LOCAL_TOOLS);
   const [selected, setSelected] = useState<Tool | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
   const [result, setResult] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/hoare/tools")
-      .then((r) => r.json())
-      .then((d) => setTools(d.tools ?? []));
-  }, []);
 
   function selectTool(tool: Tool) {
     setSelected(tool);
@@ -32,19 +93,12 @@ export default function HoareToolsPage() {
     if (!selected) return;
     setRunning(true);
     setResult(null);
-    try {
-      const res = await fetch("/api/hoare/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: selected.name, parameters: params }),
-      });
-      const data = await res.json();
-      setResult(JSON.stringify(data.result ?? data.error, null, 2));
-    } catch {
-      setResult("Error calling tool.");
-    } finally {
-      setRunning(false);
-    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const output = runLocalTool(selected, params);
+    setResult(JSON.stringify(output, null, 2));
+
+    setRunning(false);
   }
 
   return (

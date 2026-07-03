@@ -1,15 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
 type Message = { role: "user" | "assistant"; content: string };
 
+function buildReply(input: string): string {
+  const lower = input.toLowerCase();
+
+  if (lower.includes("telemetry")) {
+    return "Frontend demo: telemetry status is stable across all connected views.";
+  }
+  if (lower.includes("anomaly") || lower.includes("fault")) {
+    return "Frontend demo: no critical anomalies are currently displayed.";
+  }
+  if (lower.includes("tool") || lower.includes("execute")) {
+    return "Frontend demo: open the Tools page to run local simulated actions.";
+  }
+
+  return `Frontend demo response: received \"${input}\".`;
+}
+
 export default function HoareChatPage() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId] = useState(() =>
+    `ui-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const placeholder = useMemo(
+    () => "Ask HOARE UI demo about telemetry, anomalies, or tools…",
+    []
+  );
 
   async function send() {
     const text = input.trim();
@@ -19,26 +42,10 @@ export default function HoareChatPage() {
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
 
-    try {
-      const res = await fetch("/api/hoare/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, message: text }),
-      });
-      const data = await res.json();
-      if (data.sessionId && !sessionId) setSessionId(data.sessionId);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.reply?.content ?? data.error ?? "No response" },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Error reaching HOARE agent." },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    setMessages((prev) => [...prev, { role: "assistant", content: buildReply(text) }]);
+    setLoading(false);
   }
 
   return (
@@ -56,11 +63,9 @@ export default function HoareChatPage() {
       }}
     >
       <h1 style={{ fontSize: "2rem", marginBottom: 4 }}>💬 HOARE Chat</h1>
-      {sessionId && (
-        <p style={{ color: "#6b7280", fontSize: "0.8rem", marginBottom: 16 }}>
-          Session: {sessionId}
-        </p>
-      )}
+      <p style={{ color: "#6b7280", fontSize: "0.8rem", marginBottom: 16 }}>
+        Local UI session: {sessionId}
+      </p>
 
       <div
         style={{
@@ -75,7 +80,7 @@ export default function HoareChatPage() {
         }}
       >
         {messages.length === 0 && (
-          <p style={{ color: "#6b7280" }}>Send a message to start talking with HOARE.</p>
+          <p style={{ color: "#6b7280" }}>Send a message to start the UI-only HOARE demo.</p>
         )}
         {messages.map((m, i) => (
           <div
@@ -109,7 +114,7 @@ export default function HoareChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Ask HOARE something…"
+          placeholder={placeholder}
           style={{
             flex: 1,
             background: "#162033",
