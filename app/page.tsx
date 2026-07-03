@@ -66,6 +66,12 @@ export default function HomePage() {
         <Link href="/telemetry">📡 Telemetry</Link>
         <Link href="/execution-plane">⚙️ Execution Plane</Link>
         <Link href="/audit">🛡 Audit Center</Link>
+        <Link href="/carbon">
+          <div>
+            <h3>Carbon Credit Compliance</h3>
+            <p>Policy tracking, feasibility scoring, and market dashboards.</p>
+          </div>
+        </Link>
       </div>
     </main>
   );
