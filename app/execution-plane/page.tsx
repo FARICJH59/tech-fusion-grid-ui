@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { mqttClient } from "@/lib/mqtt";
 
+type InverterState = Record<string, any>;
+
 export default function ExecutionPlanePage() {
-  const [inverters, setInverters] = useState({});
-  const [faults, setFaults] = useState([]);
+  const [inverters, setInverters] = useState<InverterState>({});
+  const [faults, setFaults] = useState<string[]>([]);
 
   useEffect(() => {
     mqttClient.subscribe("edge/inverters/#");
@@ -14,7 +16,10 @@ export default function ExecutionPlanePage() {
     mqttClient.on("message", (topic, msg) => {
       if (topic.startsWith("edge/inverters/")) {
         const id = topic.split("/")[2];
-        setInverters((prev) => ({ ...prev, [id]: msg.toString() }));
+        setInverters((prev) => ({
+          ...prev,
+          [id]: msg.toString(),
+        }));
       }
 
       if (topic === "edge/faults") {
@@ -24,16 +29,16 @@ export default function ExecutionPlanePage() {
   }, []);
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <section className="border border-slate-800 rounded-lg p-4">
-        <h2>Inverter Sync Matrix</h2>
-        <pre className="text-xs">{JSON.stringify(inverters, null, 2)}</pre>
-      </section>
+    <div>
+      <h1>Execution Plane</h1>
+      <pre>{JSON.stringify(inverters, null, 2)}</pre>
 
-      <section className="border border-slate-800 rounded-lg p-4">
-        <h2>Fault Stream</h2>
-        <pre className="text-xs">{JSON.stringify(faults, null, 2)}</pre>
-      </section>
+      <h2>Faults</h2>
+      <ul>
+        {faults.map((f, i) => (
+          <li key={i}>{f}</li>
+        ))}
+      </ul>
     </div>
   );
 }

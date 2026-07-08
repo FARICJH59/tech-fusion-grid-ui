@@ -1,10 +1,29 @@
-import React from 'react';
+type Telemetry = {
+  triton: {
+    latency: number;
+    queueDepth: number;
+    tps: number;
+  };
+  z3: {
+    latency: number;
+    queueDepth: number;
+    isSolving: boolean;
+  };
+  commit: {
+    latency: number;
+    queueDepth: number;
+  };
+};
 
-export default function GridPipelineCanvas() {
+export default function GridPipelineCanvas({
+  telemetry,
+}: {
+  telemetry: Telemetry;
+}) {
   return (
-    <div style={{ padding: '24px', border: '2px dashed #3b82f6', borderRadius: '8px', background: '#0f172a', color: '#f8fafc' }}>
-      <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>AesirGrid Core Pipeline Canvas</h3>
-      <p style={{ color: '#94a3b8', fontSize: '14px' }}>Telemetry pipeline initialized. Active websocket stream binding on port 8765.</p>
+    <div>
+      <h2>Grid Pipeline Canvas</h2>
+      <pre>{JSON.stringify(telemetry, null, 2)}</pre>
     </div>
   );
 }
