@@ -3,14 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { mqttClient } from "@/lib/mqtt";
 
-type InverterState = Record<string, unknown>;
+type InverterState = Record<string, string>;
 
 const MAX_FAULTS = 100;
 
 const parsePayload = (payload: string) => {
+  const trimmed = payload.trim();
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
+    return payload;
+  }
+
   try {
-    return JSON.parse(payload) as unknown;
-  } catch {
+    return JSON.parse(trimmed) as unknown;
+  } catch (error) {
+    console.warn("[ExecutionPlane] Failed to parse inverter payload", error);
     return payload;
   }
 };
@@ -33,10 +39,13 @@ export default function ExecutionPlanePage() {
           return;
         }
 
-        const parsed = parsePayload(rawMessage);
-        setInverters((prev) => ({
-          ...(prev[id] === parsed ? prev : { ...prev, [id]: parsed }),
-        }));
+        const message = String(rawMessage);
+        setInverters((prev) => {
+          if (prev[id] === message) {
+            return prev;
+          }
+          return { ...prev, [id]: message };
+        });
       }
 
       if (topic === faultTopic) {
@@ -60,10 +69,12 @@ export default function ExecutionPlanePage() {
     };
   }, []);
 
-  const serializedInverters = useMemo(
-    () => JSON.stringify(inverters, null, 2),
-    [inverters],
-  );
+  const serializedInverters = useMemo(() => {
+    const parsedInverters = Object.fromEntries(
+      Object.entries(inverters).map(([id, payload]) => [id, parsePayload(payload)]),
+    );
+    return JSON.stringify(parsedInverters, null, 2);
+  }, [inverters]);
 
   return (
     <div>
