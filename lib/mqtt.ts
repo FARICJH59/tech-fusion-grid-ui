@@ -2,6 +2,13 @@ type MessageHandler = (topic: string, message: string) => void;
 type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 type ConnectionStateHandler = (state: ConnectionState) => void;
 type ReconnectHandler = () => void;
+type MockMQTTDebugSnapshot = {
+  handlers: number;
+  subscriptions: number;
+  connectionStateHandlers: number;
+  reconnectHandlers: number;
+  state: ConnectionState;
+};
 
 const matchTopic = (subscription: string, topic: string) => {
   if (subscription === topic) {
@@ -142,8 +149,21 @@ class MockMQTT {
       this.reconnectHandlers.delete(handler);
     };
   }
+
+  getDebugSnapshot(): MockMQTTDebugSnapshot {
+    return {
+      handlers: this.handlers.size,
+      subscriptions: this.subscriptions.size,
+      connectionStateHandlers: this.connectionStateHandlers.size,
+      reconnectHandlers: this.reconnectHandlers.size,
+      state: this.state,
+    };
+  }
 }
 
-export type { ConnectionState, MessageHandler };
-export const mqttClient = new MockMQTT();
+const createMockMqttClient = () => new MockMQTT();
+
+export type { ConnectionState, MessageHandler, MockMQTTDebugSnapshot };
+export { MockMQTT, createMockMqttClient };
+export const mqttClient = createMockMqttClient();
 export default mqttClient;
