@@ -18,6 +18,15 @@ class MockMQTT {
   private handlers = new Set<MessageHandler>();
   private subscriptions = new Set<string>();
 
+  private hasMatchingSubscription(topic: string) {
+    for (const subscription of this.subscriptions) {
+      if (matchTopic(subscription, topic)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   publish(topic: string, message: string) {
     console.log(`[MOCK MQTT] ${topic}: ${message}`);
 
@@ -25,7 +34,7 @@ class MockMQTT {
       return;
     }
 
-    if (![...this.subscriptions].some((sub) => matchTopic(sub, topic))) {
+    if (!this.hasMatchingSubscription(topic)) {
       return;
     }
 

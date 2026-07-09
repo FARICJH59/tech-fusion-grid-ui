@@ -5,6 +5,7 @@ import { mqttClient } from "@/lib/mqtt";
 
 type InverterState = Record<string, string>;
 
+// Keep a rolling fault window to cap memory while preserving recent context for operators.
 const MAX_FAULTS = 100;
 
 const parsePayload = (payload: string) => {
