@@ -67,13 +67,14 @@ test("reconnects after close and emits status changes", async () => {
 test("handles malformed telemetry and suppresses duplicate telemetry updates", () => {
   const errors: Array<string | null> = [];
   const telemetryUpdates: TelemetrySnapshot[] = [];
-  let socket: FakeSocket | null = null;
+  const socketRef: { current: FakeSocket | undefined } = { current: undefined };
 
   const runtime = createTelemetryRuntime({
     url: "ws://example.test",
     reconnectDelayMs: 0,
     socketFactory: () => {
-      socket = new FakeSocket();
+      const socket = new FakeSocket();
+      socketRef.current = socket;
       return socket;
     },
     scheduleReconnect: (callback, delayMs) => setTimeout(callback, delayMs),
@@ -87,7 +88,10 @@ test("handles malformed telemetry and suppresses duplicate telemetry updates", (
   });
 
   runtime.start();
-  assert.ok(socket);
+  const socket = socketRef.current;
+  if (!socket) {
+    throw new Error("Expected telemetry socket to be initialized");
+  }
 
   socket.onmessage?.({ data: "not-json" });
   socket.onmessage?.({ data: JSON.stringify({ invalid: true }) });
@@ -103,13 +107,14 @@ test("handles malformed telemetry and suppresses duplicate telemetry updates", (
 });
 
 test("stops runtime without leaking socket handlers", () => {
-  let socket: FakeSocket | null = null;
+  const socketRef: { current: FakeSocket | undefined } = { current: undefined };
 
   const runtime = createTelemetryRuntime({
     url: "ws://example.test",
     reconnectDelayMs: 0,
     socketFactory: () => {
-      socket = new FakeSocket();
+      const socket = new FakeSocket();
+      socketRef.current = socket;
       return socket;
     },
     scheduleReconnect: (callback, delayMs) => setTimeout(callback, delayMs),
@@ -123,7 +128,10 @@ test("stops runtime without leaking socket handlers", () => {
   });
 
   runtime.start();
-  assert.ok(socket);
+  const socket = socketRef.current;
+  if (!socket) {
+    throw new Error("Expected telemetry socket to be initialized");
+  }
   runtime.stop();
 
   assert.equal(socket.closeCount, 1);
