@@ -42,10 +42,10 @@ class MockMQTT {
     console.log(`[MOCK MQTT] Unsubscribed from ${topic}`);
   }
 
-  on(_event: EventType, handler: MessageHandler) {
+  on(event: EventType, handler: MessageHandler) {
     this.handlers.add(handler);
     return () => {
-      this.off("message", handler);
+      this.off(event, handler);
     };
   }
 
