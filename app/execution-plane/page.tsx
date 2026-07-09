@@ -10,7 +10,7 @@ const MAX_FAULTS = 100;
 
 const normalizePayload = (payload: string) => payload.trim();
 
-const parsePayload = (payload: string) => {
+const parsePayload = (payload: string): unknown => {
   const trimmed = normalizePayload(payload);
   if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
     return trimmed;
@@ -42,7 +42,7 @@ export default function ExecutionPlanePage() {
     const handleMessage = (topic: string, rawMessage: string) => {
       if (topic.startsWith("edge/inverters/")) {
         const id = topic.split("/")[2];
-        if (!id) {
+        if (id === undefined) {
           return;
         }
 
@@ -67,7 +67,7 @@ export default function ExecutionPlanePage() {
       }
     };
 
-    const unsubscribeHandler = mqttClient.on("message", handleMessage);
+    const unsubscribeHandler = mqttClient.on(handleMessage);
 
     return () => {
       unsubscribeHandler();

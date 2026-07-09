@@ -1,5 +1,4 @@
 type MessageHandler = (topic: string, message: string) => void;
-type MessageEventType = "message";
 
 const matchTopic = (subscription: string, topic: string) => {
   if (subscription === topic) {
@@ -53,14 +52,14 @@ class MockMQTT {
     console.log(`[MOCK MQTT] Unsubscribed from ${topic}`);
   }
 
-  on(event: MessageEventType, handler: MessageHandler) {
+  on(handler: MessageHandler) {
     this.handlers.add(handler);
     return () => {
-      this.off(event, handler);
+      this.off(handler);
     };
   }
 
-  off(_event: MessageEventType, handler: MessageHandler) {
+  off(handler: MessageHandler) {
     this.handlers.delete(handler);
   }
 }
