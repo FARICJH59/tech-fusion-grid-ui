@@ -1,5 +1,5 @@
 type MessageHandler = (topic: string, message: string) => void;
-type EventType = "message";
+type MessageEventType = "message";
 
 const matchTopic = (subscription: string, topic: string) => {
   if (subscription === topic) {
@@ -15,7 +15,9 @@ const matchTopic = (subscription: string, topic: string) => {
 };
 
 class MockMQTT {
+  // Message callback listeners registered by client components.
   private handlers = new Set<MessageHandler>();
+  // Active topic filters used to determine whether a publish should dispatch.
   private subscriptions = new Set<string>();
 
   private hasMatchingSubscription(topic: string) {
@@ -51,14 +53,14 @@ class MockMQTT {
     console.log(`[MOCK MQTT] Unsubscribed from ${topic}`);
   }
 
-  on(event: EventType, handler: MessageHandler) {
+  on(event: MessageEventType, handler: MessageHandler) {
     this.handlers.add(handler);
     return () => {
       this.off(event, handler);
     };
   }
 
-  off(_event: EventType, handler: MessageHandler) {
+  off(_event: MessageEventType, handler: MessageHandler) {
     this.handlers.delete(handler);
   }
 }

@@ -8,17 +8,23 @@ type InverterState = Record<string, string>;
 // Keep a rolling fault window to cap memory while preserving recent context for operators.
 const MAX_FAULTS = 100;
 
+const normalizePayload = (payload: string) => payload.trim();
+
 const parsePayload = (payload: string) => {
-  const trimmed = payload.trim();
+  const trimmed = normalizePayload(payload);
   if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
-    return payload;
+    return trimmed;
   }
 
   try {
     return JSON.parse(trimmed) as unknown;
   } catch (error) {
-    console.warn("[ExecutionPlane] Failed to parse inverter payload", error);
-    return payload;
+    console.warn(
+      "[ExecutionPlane] Failed to parse inverter payload",
+      trimmed.slice(0, 100),
+      error,
+    );
+    return trimmed;
   }
 };
 
@@ -40,7 +46,7 @@ export default function ExecutionPlanePage() {
           return;
         }
 
-        const message = String(rawMessage);
+        const message = normalizePayload(String(rawMessage));
         setInverters((prev) => {
           if (prev[id] === message) {
             return prev;
