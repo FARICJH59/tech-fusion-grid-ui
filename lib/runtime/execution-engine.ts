@@ -80,8 +80,8 @@ export class ExecutionEngine {
       // When Redis is available: delegate to the TTL-bounded Redis-backed store.
       // When Redis is absent: use a bounded in-memory map (FIFO eviction at 500
       // entries) so idempotency still works in single-process / test environments.
-      // The composite key uses \0 as delimiter to prevent collision between
-      // tenantId and idempotencyKey values that might themselves contain colons.
+      // The composite key uses \0 (null byte) as delimiter to prevent collision
+      // if tenantId or idempotencyKey contains the separator character.
       const result = request.idempotencyKey
         ? process.env.REDIS_URL
           ? (await withIdempotency(request.idempotencyKey, request.tenantId, runner)).data

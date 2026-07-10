@@ -13,6 +13,21 @@ import { appMetrics } from "@/lib/telemetry/metrics";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
+// Rate-limit Lua script
+//
+// Atomically increments the counter and sets the expiry only on first creation.
+// Using Lua ensures the INCR + PEXPIRE pair cannot be split by a crash,
+// preventing keys from persisting without a TTL.
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_LUA_SCRIPT = `
+  local current = redis.call("INCR", KEYS[1])
+  if current == 1 then
+    redis.call("PEXPIRE", KEYS[1], ARGV[1])
+  end
+  return current
+`;
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -87,14 +102,7 @@ async function checkRateLimit(ip: string): Promise<boolean> {
     // Atomic INCR + PEXPIRE via Lua script — prevents a permanent key if the
     // process crashes between the two commands (the race condition in the
     // MULTI/EXEC pipeline approach).
-    const luaScript = `
-      local current = redis.call("INCR", KEYS[1])
-      if current == 1 then
-        redis.call("PEXPIRE", KEYS[1], ARGV[1])
-      end
-      return current
-    `;
-    const count = await client.eval(luaScript, 1, key, String(windowMs)) as number;
+    const count = await client.eval(RATE_LIMIT_LUA_SCRIPT, 1, key, String(windowMs)) as number;
     return count <= max;
   } catch (err) {
     logger.warn("[middleware] Redis rate-limit check failed, using in-process fallback", {

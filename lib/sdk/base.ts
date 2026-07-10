@@ -22,9 +22,7 @@ export class BaseSdkClient {
       config.baseUrl &&
       !config.baseUrl.startsWith("https://")
     ) {
-      throw new Error(
-        `[sdk] baseUrl must use HTTPS in production. Got: ${config.baseUrl.split("?")[0]}`,
-      );
+      throw new Error("[sdk] baseUrl must use HTTPS in production (got non-HTTPS URL)");
     }
     this.config = config;
   }
