@@ -1,6 +1,4 @@
 import mqtt, { type IClientOptions, type MqttClient as MqttJsClient } from "mqtt";
-import { randomBytes } from "node:crypto";
-
 type MessageHandler = (topic: string, message: string) => void;
 type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
 type ConnectionStateHandler = (state: ConnectionState) => void;
@@ -52,6 +50,20 @@ const HEARTBEAT_TIMEOUT_MS = 10_000;
 const TOPIC_PREVIEW_LENGTH = 40;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const generateRandomHex = (byteCount: number) => {
+  const bytes = new Uint8Array(byteCount);
+
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
 
 const computeBackoff = (attempt: number): number => {
   const jitter = Math.random() * 0.3 + 0.85; // 0.85–1.15
@@ -125,7 +137,7 @@ class MqttClient implements MqttClientInterface {
     const {
       username,
       password,
-      clientId = `techfusion-${randomBytes(4).toString("hex")}`,
+      clientId = `techfusion-${generateRandomHex(4)}`,
       ca,
       cert,
       key,
