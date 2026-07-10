@@ -47,6 +47,11 @@ export type ProviderUsage = {
   tokens: number;
   costUsd: number;
 };
+type ProviderUsageInternal = {
+  requests: number;
+  tokens: number;
+  costMicros: number;
+};
 
 export type ProviderAdapter = {
   name: ProviderName;
@@ -81,6 +86,14 @@ function estimateCost(provider: ProviderName, tokens: number): number {
   return Number(((tokens / 1000) * perThousand[provider]).toFixed(6));
 }
 
+function usdToMicros(amountUsd: number): number {
+  return Math.round(amountUsd * 1_000_000);
+}
+
+function microsToUsd(amountMicros: number): number {
+  return Number((amountMicros / 1_000_000).toFixed(6));
+}
+
 export function createDefaultProvider(name: ProviderName): ProviderAdapter {
   return {
     name,
@@ -112,12 +125,12 @@ export function createDefaultProvider(name: ProviderName): ProviderAdapter {
 
 export class AIProviderGateway {
   private readonly providers = new Map<ProviderName, ProviderAdapter>();
-  private readonly usage = new Map<ProviderName, ProviderUsage>();
+  private readonly usage = new Map<ProviderName, ProviderUsageInternal>();
 
   register(provider: ProviderAdapter): void {
     this.providers.set(provider.name, provider);
     if (!this.usage.has(provider.name)) {
-      this.usage.set(provider.name, { requests: 0, tokens: 0, costUsd: 0 });
+      this.usage.set(provider.name, { requests: 0, tokens: 0, costMicros: 0 });
     }
   }
 
@@ -176,20 +189,29 @@ export class AIProviderGateway {
   }
 
   usageSnapshot(): Record<ProviderName, ProviderUsage> {
-    return Object.fromEntries(this.usage.entries()) as Record<ProviderName, ProviderUsage>;
+    return Object.fromEntries(
+      [...this.usage.entries()].map(([name, usage]) => [
+        name,
+        {
+          requests: usage.requests,
+          tokens: usage.tokens,
+          costUsd: microsToUsd(usage.costMicros),
+        },
+      ]),
+    ) as Record<ProviderName, ProviderUsage>;
   }
 
   private trackUsage(response: AIResponse): void {
     const current = this.usage.get(response.provider) ?? {
       requests: 0,
       tokens: 0,
-      costUsd: 0,
+      costMicros: 0,
     };
 
     this.usage.set(response.provider, {
       requests: current.requests + 1,
       tokens: current.tokens + response.usageTokens,
-      costUsd: Number((current.costUsd + response.estimatedCostUsd).toFixed(6)),
+      costMicros: current.costMicros + usdToMicros(response.estimatedCostUsd),
     });
   }
 }

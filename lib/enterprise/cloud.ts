@@ -22,7 +22,7 @@ export function createGoogleCloudProfile(region = "us-central1"): GoogleCloudPro
   ) as GoogleCloudProfile["services"];
 
   return {
-    projectId: "caramel-limiter-495010-b9",
+    projectId: process.env.GOOGLE_CLOUD_PROJECT_ID ?? "caramel-limiter-495010-b9",
     region,
     services,
   };

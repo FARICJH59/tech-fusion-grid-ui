@@ -177,7 +177,7 @@ test("revenue platform performs usage metering and cost aggregation", () => {
 
   const snapshot = revenue.snapshot("tenant-a");
 
-  assert.equal(snapshot.totalCostUsd, 2);
+  assert.equal(snapshot.totalCostUsd, 2.0);
   assert.equal(snapshot.requests, 12);
   assert.equal(snapshot.gpuSeconds, 30);
 });

@@ -22,26 +22,40 @@ export type RevenueSnapshot = {
   requests: number;
   gpuSeconds: number;
 };
+type UsageRecordInternal = {
+  tenantId: string;
+  aiCostMicros: number;
+  gpuSeconds: number;
+  marketplaceCostMicros: number;
+  requests: number;
+};
+
+function usdToMicros(amountUsd: number): number {
+  return Math.round(amountUsd * 1_000_000);
+}
+
+function microsToUsd(amountMicros: number): number {
+  return Number((amountMicros / 1_000_000).toFixed(6));
+}
 
 export class RevenuePlatform {
-  private readonly usage = new Map<string, UsageRecord>();
+  private readonly usage = new Map<string, UsageRecordInternal>();
 
   record(input: UsageRecord): void {
     const current = this.usage.get(input.tenantId) ?? {
       tenantId: input.tenantId,
-      aiCostUsd: 0,
+      aiCostMicros: 0,
       gpuSeconds: 0,
-      marketplaceCostUsd: 0,
+      marketplaceCostMicros: 0,
       requests: 0,
     };
 
     this.usage.set(input.tenantId, {
       tenantId: input.tenantId,
-      aiCostUsd: Number((current.aiCostUsd + input.aiCostUsd).toFixed(6)),
+      aiCostMicros: current.aiCostMicros + usdToMicros(input.aiCostUsd),
       gpuSeconds: current.gpuSeconds + input.gpuSeconds,
-      marketplaceCostUsd: Number(
-        (current.marketplaceCostUsd + input.marketplaceCostUsd).toFixed(6),
-      ),
+      marketplaceCostMicros:
+        current.marketplaceCostMicros + usdToMicros(input.marketplaceCostUsd),
       requests: current.requests + input.requests,
     });
   }
@@ -52,11 +66,11 @@ export class RevenuePlatform {
       return { tenantId, totalCostUsd: 0, requests: 0, gpuSeconds: 0 };
     }
 
-    const totalCostUsd = Number((usage.aiCostUsd + usage.marketplaceCostUsd).toFixed(6));
+    const totalCostMicros = usage.aiCostMicros + usage.marketplaceCostMicros;
 
     return {
       tenantId,
-      totalCostUsd,
+      totalCostUsd: microsToUsd(totalCostMicros),
       requests: usage.requests,
       gpuSeconds: usage.gpuSeconds,
     };

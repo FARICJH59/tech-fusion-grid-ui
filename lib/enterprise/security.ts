@@ -27,10 +27,12 @@ const roleRank: Record<Role, number> = {
   admin: 3,
   service: 4,
 };
+const DEFAULT_REQUIRED_ROLE: Role = "viewer";
+const ALLOWED_ABAC_SCOPES = new Set(["read", "write", "admin"]);
 
 export class EnterpriseSecurity {
   isAuthorized(input: SecurityPolicyInput): boolean {
-    const requiredRole = input.requiredRole ?? "viewer";
+    const requiredRole = input.requiredRole ?? DEFAULT_REQUIRED_ROLE;
     const rbacAllowed = roleRank[input.role] >= roleRank[requiredRole];
     const tenantIsolated = input.tenantId === input.resourceTenantId;
 
@@ -38,7 +40,7 @@ export class EnterpriseSecurity {
 
     if (!input.attributes) return true;
     const abacScope = input.attributes.scope;
-    if (abacScope && !["read", "write", "admin"].includes(abacScope)) {
+    if (abacScope && !ALLOWED_ABAC_SCOPES.has(abacScope)) {
       return false;
     }
     return true;

@@ -73,6 +73,9 @@ const EnvSchema = z.object({
   // OpenTelemetry
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   OTEL_SERVICE_NAME: z.string().default("tech-fusion-grid-ui"),
+
+  // Cloud
+  GOOGLE_CLOUD_PROJECT_ID: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------
