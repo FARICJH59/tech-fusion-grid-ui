@@ -11,6 +11,7 @@ out/
 
 # builds
 dist/
+tsconfig.tsbuildinfo
 
 # database
 data/*.db

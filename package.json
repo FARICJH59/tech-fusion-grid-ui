@@ -6,20 +6,27 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint --dir app --dir components --dir lib",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
     "ioredis": "^5.11.1",
     "mqtt": "^5.15.1",
     "next": "15.5.19",
-    "postcss": "^8.5.16",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },
   "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.5.19",
     "@types/node": "^18.19.130",
     "@types/react": "^18.3.31",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.16"
   }
 }
