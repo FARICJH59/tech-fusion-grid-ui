@@ -10,7 +10,33 @@ export type RuntimeEventType =
   | "tool.executed"
   | "telemetry.received"
   | "audit.event"
-  | "billing.event";
+  | "billing.event"
+  // Autonomous: service lifecycle
+  | "service.registered"
+  | "service.deregistered"
+  | "service.health_changed"
+  // Autonomous: incidents
+  | "incident.created"
+  | "incident.resolved"
+  | "incident.escalated"
+  // Autonomous: deployments
+  | "deployment.started"
+  | "deployment.completed"
+  | "deployment.failed"
+  | "deployment.rolled_back"
+  // Autonomous: fleet
+  | "fleet.node_registered"
+  | "fleet.node_heartbeat"
+  | "fleet.node_offline"
+  // Autonomous: cost
+  | "cost.alert"
+  | "cost.optimized"
+  // Autonomous: compliance
+  | "compliance.violation"
+  | "compliance.remediated"
+  // Autonomous: scheduler
+  | "scheduled.job_triggered"
+  | "scheduled.job_completed";
 
 export type RuntimeEvent = {
   type: RuntimeEventType;
@@ -18,6 +44,10 @@ export type RuntimeEvent = {
   correlationId?: string;
   timestamp: string;
   payload: Record<string, unknown>;
+  /** Semantic version of the event schema. */
+  version?: string;
+  /** Chain of correlation IDs tracing the causal history of this event. */
+  correlationChain?: string[];
 };
 
 export type EventHandler = (event: RuntimeEvent) => void | Promise<void>;
@@ -29,10 +59,19 @@ export interface IEventBus {
   onceAsync(type: RuntimeEventType): Promise<RuntimeEvent>;
 }
 
+const AUDIT_LOG_MAX = 1000;
+
 export class InMemoryEventBus implements IEventBus {
   private readonly handlers = new Map<RuntimeEventType | "*", Set<EventHandler>>();
+  private readonly auditLog: RuntimeEvent[] = [];
 
   emit(event: RuntimeEvent): void {
+    // Maintain bounded audit log
+    this.auditLog.push(event);
+    if (this.auditLog.length > AUDIT_LOG_MAX) {
+      this.auditLog.shift();
+    }
+
     const directHandlers = this.handlers.get(event.type) ?? new Set<EventHandler>();
     const wildcardHandlers = this.handlers.get("*") ?? new Set<EventHandler>();
 
@@ -81,6 +120,29 @@ export class InMemoryEventBus implements IEventBus {
         resolve(event);
       });
     });
+  }
+
+  /** Emit an event after a delay; if the event fails to be handled it is
+   *  retried once more after the same delay. */
+  retryEvent(event: RuntimeEvent, delayMs: number): void {
+    setTimeout(() => {
+      try {
+        this.emit(event);
+      } catch {
+        // single retry
+        setTimeout(() => this.emit(event), delayMs);
+      }
+    }, delayMs);
+  }
+
+  /** Schedule an event to fire exactly once after `delayMs` milliseconds. */
+  scheduleEvent(event: RuntimeEvent, delayMs: number): void {
+    setTimeout(() => this.emit(event), delayMs);
+  }
+
+  /** Return a copy of the audit log (up to last 1000 events). */
+  getAuditLog(): RuntimeEvent[] {
+    return [...this.auditLog];
   }
 }
 

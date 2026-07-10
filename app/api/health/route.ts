@@ -9,6 +9,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { mqttClient } from "@/lib/mqtt";
 import { logger } from "@/lib/telemetry/otel";
 import { withErrorHandler, toNextRoute } from "@/lib/middleware/api";
+import { runtimeSupervisor } from "@/lib/autonomous/supervisor";
+import { fleetManager } from "@/lib/autonomous/fleet";
+import { complianceAutomation } from "@/lib/autonomous/compliance";
+import { selfHealingEngine } from "@/lib/autonomous/healing";
 
 type DependencyStatus = "ok" | "degraded" | "down";
 
@@ -20,6 +24,12 @@ type HealthResponse = {
     mqtt: DependencyStatus;
     supabase: DependencyStatus;
     redis: DependencyStatus;
+  };
+  autonomous: {
+    supervisor: { total: number; running: number; failed: number; degraded: number };
+    fleet: { total: number; online: number; offline: number; degraded: number };
+    compliance: { compliant: number; warnings: number; violations: number };
+    incidents: { total: number; open: number; resolved: number; bySeverity: Record<string, number> };
   };
 };
 
@@ -85,6 +95,12 @@ export const GET = toNextRoute(withErrorHandler(async (_req: NextRequest): Promi
       mqtt: mqttStatus,
       supabase: supabaseStatus,
       redis: redisStatus,
+    },
+    autonomous: {
+      supervisor: runtimeSupervisor.getHealthSummary(),
+      fleet: fleetManager.getFleetHealth(),
+      compliance: complianceAutomation.getComplianceSummary(),
+      incidents: selfHealingEngine.getStats(),
     },
   };
 
