@@ -185,15 +185,6 @@ export function withValidation<TBody, C = Record<string, unknown>>(
 }
 
 // ---------------------------------------------------------------------------
-// toNextRoute — adapts RouteHandler to the Next.js App Router export signature
-//
-// Next.js 15 validates that exported route handlers do not use a second
-// parameter typed as Record<string, unknown>. toNextRoute produces a
-// single-argument function that satisfies that requirement while keeping
-// the full middleware chain.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Error wrapper
 // ---------------------------------------------------------------------------
 
