@@ -1,4 +1,5 @@
 import mqtt, { type IClientOptions, type MqttClient as MqttJsClient } from "mqtt";
+import { randomBytes } from "node:crypto";
 
 type MessageHandler = (topic: string, message: string) => void;
 type ConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
@@ -124,7 +125,7 @@ class MqttClient implements MqttClientInterface {
     const {
       username,
       password,
-      clientId = `techfusion-${Math.random().toString(16).slice(2, 10)}`,
+      clientId = `techfusion-${randomBytes(4).toString("hex")}`,
       ca,
       cert,
       key,
