@@ -5,8 +5,9 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyToken, extractBearerToken, hasMinRole } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
+import { logger } from "@/lib/telemetry/otel";
+import { withAuth, withErrorHandler, toNextRoute, type AuthenticatedContext } from "@/lib/middleware/api";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -20,43 +21,42 @@ type AuditRow = {
   tenant_id: string;
 };
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Auth
-  const token = extractBearerToken(req.headers.get("authorization"));
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = toNextRoute(
+  withErrorHandler(
+    withAuth(
+      async (req: NextRequest, ctx: AuthenticatedContext): Promise<NextResponse> => {
+        const { user } = ctx;
 
-  let user;
-  try {
-    user = verifyToken(token);
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+        const url = new URL(req.url);
+        const rawLimit = parseInt(url.searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);
+        const limit = Number.isFinite(rawLimit)
+          ? Math.min(Math.max(1, rawLimit), MAX_LIMIT)
+          : DEFAULT_LIMIT;
 
-  if (!hasMinRole(user.role, "operator")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+        const { data, error } = await supabaseAdmin
+          .from("audit_events")
+          .select("id, actor_id, action, details, timestamp, tenant_id")
+          .eq("tenant_id", user.tenantId)
+          .order("timestamp", { ascending: false })
+          .limit(limit);
 
-  const url = new URL(req.url);
-  const rawLimit = parseInt(url.searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);
-  const limit = Number.isFinite(rawLimit)
-    ? Math.min(Math.max(1, rawLimit), MAX_LIMIT)
-    : DEFAULT_LIMIT;
+        if (error) {
+          logger.error("[api/audit] Supabase query failed", {
+            tenantId: user.tenantId,
+            error: error.message,
+          });
+          return NextResponse.json({ error: "Failed to fetch audit log" }, { status: 500 });
+        }
 
-  try {
-    const { data, error } = await supabase
-      .from("audit_events")
-      .select("id, actor_id, action, details, timestamp, tenant_id")
-      .eq("tenant_id", user.tenantId)
-      .order("timestamp", { ascending: false })
-      .limit(limit);
+        logger.info("[api/audit] Served audit log", {
+          tenantId: user.tenantId,
+          count: (data ?? []).length,
+          limit,
+        });
 
-    if (error) {
-      return NextResponse.json({ error: "Failed to fetch audit log" }, { status: 500 });
-    }
-
-    return NextResponse.json({ data: (data ?? []) as AuditRow[], count: (data ?? []).length });
-  } catch (err) {
-    console.error("[api/audit] Error", err);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
-}
+        return NextResponse.json({ data: (data ?? []) as AuditRow[], count: (data ?? []).length });
+      },
+      { role: "operator" },
+    ),
+  ),
+);
