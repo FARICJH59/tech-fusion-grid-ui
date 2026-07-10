@@ -145,7 +145,14 @@ class MockMQTT {
 
   onConnectionStateChange(handler: ConnectionStateHandler) {
     this.connectionStateHandlers.add(handler);
-    handler(this.state);
+    // Immediately notify the new subscriber of the current state so callers do not need to
+    // poll getConnectionState(). Wrapped in try/catch to prevent a throwing handler from
+    // disrupting registration or the caller's execution context.
+    try {
+      handler(this.state);
+    } catch (error) {
+      console.error("[MOCK MQTT] onConnectionStateChange initial call threw", error);
+    }
     return () => {
       this.connectionStateHandlers.delete(handler);
     };

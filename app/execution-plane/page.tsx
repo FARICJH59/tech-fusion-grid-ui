@@ -27,7 +27,7 @@ const parsePayload = (payload: string): unknown => {
   } catch (error) {
     console.warn(
       "[ExecutionPlane] Failed to parse inverter payload",
-      trimmed.slice(0, 100),
+      trimmed.slice(0, MESSAGE_PREVIEW_LENGTH),
       error,
     );
     return trimmed;
