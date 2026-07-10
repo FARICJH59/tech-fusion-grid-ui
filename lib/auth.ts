@@ -150,7 +150,7 @@ export function requireRole(actorRole: Role, required: Role): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Extract the bearer token from an Authorization header.
+ * Extract the Bearer token from an Authorization header.
  */
 export function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith("Bearer ")) return null;
