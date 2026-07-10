@@ -2,6 +2,40 @@
 
 A production-ready Next.js application for managing edge grid infrastructure, featuring real-time MQTT telemetry, JWT authentication, PostgreSQL persistence, Redis caching, and OpenTelemetry observability.
 
+## Phase 5 – HOARE Enterprise Platform Foundation
+
+Tech-Fusion-Grid-UI now includes the Enterprise Control Plane foundation for HOARE.ai while preserving the existing App Router, API routes, MQTT execution plane, security, middleware and observability behavior.
+
+### Enterprise layers implemented
+
+1. **Enterprise Control Plane (`lib/enterprise/control-plane.ts`)**
+   - Modules: Organizations, Tenants, Users, Projects, Workspaces, AI Providers, Infrastructure, Billing, Security, Observability, Deployment, Marketplace.
+2. **HOARE Runtime Integration (`lib/enterprise/runtime.ts`)**
+   - Services: Runtime Supervisor, Workflow Engine, Scheduler, Dispatcher, Event Bus, Health Manager, Auto Remediation, Agent Registry, MCP Gateway, SDK Manager, Tool Registry, Plugin Manager.
+3. **AI Provider Abstraction (`lib/enterprise/providers.ts`)**
+   - Providers: Google Gemini, Gemini Nano Banana, Gemini Omni Flash, Gemini 3.5, OpenAI, Anthropic.
+   - Features: common interface, streaming, multimodal/image/video/embeddings/structured outputs, retries, failover, usage and cost tracking.
+4. **Infrastructure Abstraction (`lib/enterprise/infrastructure.ts`)**
+   - Adapter registry for Docker, Kubernetes, Cloud Run, Redis, PostgreSQL, EMQX MQTT, NVIDIA GPU runtime, Object Storage.
+5. **Enterprise Agent Framework (`lib/enterprise/agents.ts`)**
+   - Templates, orchestration, long-running workflows, event log, workflow memory, tool/knowledge-aware definitions, approval-ready lifecycle controls.
+6. **Google Cloud Native (`lib/enterprise/cloud.ts`)**
+   - Standardized profile for project `caramel-limiter-495010-b9` with Cloud Run, Artifact Registry, Secret Manager, Cloud SQL, Pub/Sub, Cloud Scheduler, Cloud Logging, Cloud Monitoring, IAM Workload Identity Federation.
+7. **Enterprise SDK (`lib/enterprise/sdk.ts`)**
+   - TypeScript SDK and Python SDK definitions across REST, Webhooks, WebSocket, MQTT channels.
+8. **Marketplace (`lib/enterprise/marketplace.ts`)**
+   - Extension catalog support for tools, agents, models, workflows, templates, industry packs.
+9. **Enterprise Security (`lib/enterprise/security.ts`)**
+   - RBAC + ABAC policy engine with tenant isolation checks and compatibility with JWT/OAuth/API key based control patterns.
+10. **Revenue Platform (`lib/enterprise/revenue.ts`)**
+    - Usage metering, AI cost tracking, GPU tracking, marketplace billing and aggregated tenant analytics.
+
+### New endpoints and UI
+
+- `GET /api/platform/status` – full enterprise architecture and health snapshot
+- `GET /api/runtime/status` – HOARE runtime service integration status
+- `/platform` – enterprise control plane page
+
 ## Architecture
 
 ```
@@ -186,7 +220,7 @@ Access the local Jaeger UI at **http://localhost:16686** after `docker compose u
 ## Testing
 
 ```bash
-npm run test   # 33 unit tests (MQTT client, telemetry runtime, JWT auth)
+npm run test   # unit tests including Enterprise Platform foundation coverage
 ```
 
 Test files:
@@ -194,6 +228,7 @@ Test files:
 - `tests/mqtt-client.test.ts` — extended MQTT client behavioural tests
 - `tests/auth.test.ts` — JWT creation, verification, RBAC, token extraction
 - `tests/telemetry-runtime.integration.test.ts` — WebSocket telemetry runtime
+- `tests/enterprise-platform.test.ts` — enterprise architecture, provider abstraction, runtime integration, SDK, security, and revenue foundation
 
 ## CI/CD
 
