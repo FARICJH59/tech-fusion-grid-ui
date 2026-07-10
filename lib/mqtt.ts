@@ -146,8 +146,10 @@ class MockMQTT {
   onConnectionStateChange(handler: ConnectionStateHandler) {
     this.connectionStateHandlers.add(handler);
     // Immediately notify the new subscriber of the current state so callers do not need to
-    // poll getConnectionState(). Wrapped in try/catch to prevent a throwing handler from
-    // disrupting registration or the caller's execution context.
+    // poll getConnectionState(). This pattern is intentional for state subscriptions only;
+    // onReconnect is an event (not state) and has no meaningful "current value" to replay.
+    // Wrapped in try/catch to prevent a throwing handler from disrupting registration or
+    // the caller's execution context.
     try {
       handler(this.state);
     } catch (error) {
