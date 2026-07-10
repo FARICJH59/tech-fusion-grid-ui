@@ -11,7 +11,8 @@ import assert from "node:assert/strict";
 
 // Set required env vars before importing modules under test
 process.env.JWT_SECRET = "test-secret-that-is-long-enough-for-validation-32chars";
-process.env.NODE_ENV = "test";
+// NODE_ENV is set to "test" by the test runner; assigning it directly is a TS error
+(process.env as Record<string, string | undefined>).NODE_ENV = "test";
 // Disable Redis for middleware tests so the in-process rate limiter is used
 delete process.env.REDIS_URL;
 
@@ -36,7 +37,7 @@ function makeRequest(
   options: { headers?: Record<string, string>; body?: unknown } = {},
 ): NextRequest {
   const url = `http://localhost${path}`;
-  const init: RequestInit = { method };
+  const init: { method: string; headers?: Record<string, string>; body?: string } = { method };
   if (options.headers) init.headers = options.headers;
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
   return new NextRequest(url, init);
@@ -180,9 +181,10 @@ test("withAuth: injects user into context", async () => {
   const headers = makeAuthHeader({ role: "admin", sub: "u-999", tenantId: "tenant-xyz" });
   await handler(makeRequest("GET", "/ctx", { headers }), {});
   assert.ok(capturedUser !== null);
-  assert.equal(capturedUser!.sub, "u-999");
-  assert.equal(capturedUser!.tenantId, "tenant-xyz");
-  assert.equal(capturedUser!.role, "admin");
+  const user = capturedUser as TokenPayload;
+  assert.equal(user.sub, "u-999");
+  assert.equal(user.tenantId, "tenant-xyz");
+  assert.equal(user.role, "admin");
 });
 
 test("withAuth: admin can access operator-gated route", async () => {

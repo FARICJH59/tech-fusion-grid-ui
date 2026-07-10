@@ -1,0 +1,98 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: tech-fusion-grid-ui
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale down to zero when idle to reduce costs
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        # Use second-generation execution environment for VPC support
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: tech-fusion-grid-sa@PROJECT_ID.iam.gserviceaccount.com
+
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/tech-fusion/tech-fusion-grid-ui:IMAGE_TAG
+          ports:
+            - containerPort: 3000
+
+          resources:
+            limits:
+              cpu: "2"
+              memory: 512Mi
+            requests:
+              cpu: "0.5"
+              memory: 256Mi
+
+          # Liveness probe — restart container if it stops responding
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+
+          # Startup probe — wait for the Next.js server to be ready
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 12
+
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            # All secrets are injected from Google Secret Manager at runtime.
+            # Create secrets with: gcloud secrets create SECRET_NAME --data-file=-
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: latest
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-url
+                  key: latest
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-anon-key
+                  key: latest
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-service-role-key
+                  key: latest
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-url
+                  key: latest
+            - name: MQTT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mqtt-url
+                  key: latest
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: otel-endpoint
+                  key: latest

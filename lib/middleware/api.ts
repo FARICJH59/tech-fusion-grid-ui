@@ -2,12 +2,14 @@
  * Composable Next.js App Router middleware utilities.
  *
  * Usage:
- *   export const GET = withAuth(async (req, ctx) => { … }, { role: "operator" });
+ *   export const GET = toNextRoute(withErrorHandler(withAuth(handler, { role: "operator" })));
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { verifyToken, extractBearerToken, hasMinRole, type Role, type TokenPayload } from "@/lib/auth";
 import { logger } from "@/lib/telemetry/otel";
+import { appMetrics } from "@/lib/telemetry/metrics";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -16,6 +18,11 @@ import { z } from "zod";
 
 export type AuthenticatedContext = {
   user: TokenPayload;
+};
+
+/** Correlation context automatically injected by withCorrelationId. */
+export type CorrelatedContext = {
+  correlationId: string;
 };
 
 export type RouteHandler<C = Record<string, unknown>> = (
@@ -108,6 +115,7 @@ export function withRateLimit<C = Record<string, unknown>>(
     const allowed = await checkRateLimit(ip);
     if (!allowed) {
       logger.warn("[middleware] Rate limit exceeded", { ip });
+      appMetrics.incrementRateLimit({ ip });
       return NextResponse.json(
         { error: "Too Many Requests" },
         {
@@ -141,6 +149,7 @@ export function withAuth<C = Record<string, unknown>>(
     try {
       user = verifyToken(token);
     } catch {
+      appMetrics.incrementAuthFailure({ reason: "invalid_token", route: req.nextUrl?.pathname ?? "/" });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -150,6 +159,7 @@ export function withAuth<C = Record<string, unknown>>(
         required: requiredRole,
         sub: user.sub,
       });
+      appMetrics.incrementAuthFailure({ reason: "forbidden", route: req.nextUrl?.pathname ?? "/" });
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -217,4 +227,53 @@ export function toNextRoute<C = Record<string, unknown>>(
   handler: RouteHandler<C>,
 ): (req: NextRequest) => Promise<NextResponse | Response> {
   return (req: NextRequest) => handler(req, {} as C);
+}
+
+// ---------------------------------------------------------------------------
+// withCorrelationId
+//
+// Reads the X-Correlation-ID request header (or generates a new UUID) and
+// injects it into the response headers and handler context so it can be
+// forwarded to downstream services and log records.
+// ---------------------------------------------------------------------------
+
+export function withCorrelationId<C = Record<string, unknown>>(
+  handler: RouteHandler<C & CorrelatedContext>,
+): RouteHandler<C> {
+  return async (req, ctx) => {
+    const correlationId =
+      req.headers.get("x-correlation-id") ?? randomUUID();
+    const res = await handler(req, { ...ctx, correlationId } as C & CorrelatedContext);
+    if (res instanceof NextResponse || res instanceof Response) {
+      const mutable = new NextResponse(res.body, res);
+      mutable.headers.set("x-correlation-id", correlationId);
+      return mutable;
+    }
+    return res;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// withLatency
+//
+// Wraps a handler to record API latency metrics via appMetrics.
+// ---------------------------------------------------------------------------
+
+export function withLatency<C = Record<string, unknown>>(
+  route: string,
+  handler: RouteHandler<C>,
+): RouteHandler<C> {
+  return async (req, ctx) => {
+    const start = Date.now();
+    const method = req.method;
+    try {
+      const res = await handler(req, ctx);
+      const status = String((res as { status?: number }).status ?? 200);
+      appMetrics.recordApiLatency(Date.now() - start, { route, method, status });
+      return res;
+    } catch (err) {
+      appMetrics.recordApiLatency(Date.now() - start, { route, method, status: "500" });
+      throw err;
+    }
+  };
 }
