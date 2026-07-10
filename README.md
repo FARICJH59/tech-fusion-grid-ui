@@ -244,3 +244,193 @@ App Router routes under `app/api/`. It must not be used in production.
 - [ ] Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for production tracing
 - [ ] Set up log aggregation (Datadog, Loki, etc.) consuming the JSON log output
 - [ ] Add Prometheus scrape endpoint if needed (extend `lib/telemetry/otel.ts`)
+
+---
+
+## Phase 4B — Production Deployment & Observability Hardening
+
+### Deployment target: Google Cloud Run
+
+The primary production deployment target is **Google Cloud Run**. The workflow in
+`.github/workflows/deploy.yml` builds the Docker image, pushes it to Artifact Registry, and deploys
+to Cloud Run in a single pipeline triggered on every push to `main`.
+
+```
+main push
+  → quality gate (lint + typecheck + test + build)
+  → docker build + push to Artifact Registry
+  → gcloud run deploy
+  → smoke test /api/health
+```
+
+**Setup (one-time):**
+
+```bash
+# Create Artifact Registry repository
+gcloud artifacts repositories create tech-fusion \
+  --repository-format=docker --location=us-central1
+
+# Create Secret Manager secrets
+gcloud secrets create jwt-secret            --data-file=-  <<< "$JWT_SECRET"
+gcloud secrets create supabase-url          --data-file=-  <<< "$SUPABASE_URL"
+gcloud secrets create supabase-anon-key     --data-file=-  <<< "$SUPABASE_ANON_KEY"
+gcloud secrets create supabase-service-role-key --data-file=- <<< "$SUPABASE_SERVICE_ROLE_KEY"
+gcloud secrets create redis-url             --data-file=-  <<< "$REDIS_URL"
+gcloud secrets create mqtt-url              --data-file=-  <<< "$MQTT_URL"
+gcloud secrets create otel-endpoint        --data-file=-  <<< "$OTEL_ENDPOINT"
+
+# Grant Secret Manager access to the Cloud Run service account
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:tech-fusion-grid-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+**Required GitHub secrets:**
+
+| Secret | Description |
+|--------|-------------|
+| `GCP_PROJECT_ID` | Google Cloud project ID |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Workload Identity Federation provider |
+| `GCP_SERVICE_ACCOUNT` | Deployer service account email |
+
+### Docker health check
+
+The production Dockerfile now includes a native `HEALTHCHECK`:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
+```
+
+Cloud Run also uses the `/api/health` liveness and startup probes defined in `cloud-run.yaml`.
+
+### Observability: structured metrics
+
+`lib/telemetry/metrics.ts` exposes an `appMetrics` singleton built on the OTel Metrics API:
+
+| Instrument | Type | Attributes |
+|------------|------|------------|
+| `api.latency.ms` | Histogram | `route`, `method`, `status` |
+| `telemetry.ingestion.ms` | Histogram | `tenantId` |
+| `auth.failures.total` | Counter | `reason`, `route` |
+| `ratelimit.events.total` | Counter | `ip` |
+| `execution.events.total` | Counter | `type`, `tenantId` |
+| `telemetry.ingested.total` | Counter | `tenantId` |
+| `mqtt.connection.state` | Gauge | `state` (1=connected / 0=reconnecting / -1=disconnected) |
+
+### Correlation IDs
+
+All API responses automatically include an `X-Correlation-ID` header. Wrap your handler with
+`withCorrelationId` to propagate or generate the ID:
+
+```typescript
+export const GET = toNextRoute(
+  withCorrelationId(withErrorHandler(withAuth(handler))),
+);
+```
+
+### Session revocation
+
+Tokens can be invalidated before natural expiry using the Redis-backed denylist:
+
+```typescript
+import { revokeToken, isTokenRevoked } from "@/lib/auth";
+
+// On logout or security event
+await revokeToken(accessToken);
+
+// In middleware (called automatically by withAuth when REDIS_URL is set)
+const revoked = await isTokenRevoked(token);
+```
+
+Revoked entries expire from Redis after `TOKEN_REVOCATION_TTL` seconds (default: 900 = 15 min).
+
+### Reliability utilities
+
+| Module | Purpose |
+|--------|---------|
+| `lib/utils/retry.ts` | `retry(fn, { maxAttempts, baseDelayMs, jitter })` — exponential backoff with jitter |
+| `lib/utils/circuit-breaker.ts` | `CircuitBreaker` class — CLOSED/OPEN/HALF_OPEN state machine |
+| `lib/utils/shutdown.ts` | `onShutdown(name, fn)` — SIGTERM/SIGINT graceful shutdown with timeout |
+| `lib/utils/idempotency.ts` | `withIdempotency(key, tenantId, fn)` — Redis-backed idempotency for execution actions |
+
+Graceful shutdown is registered in `instrumentation.ts` and calls `redis.quit()` and
+`mqttClient.disconnect()` on SIGTERM.
+
+### MQTT production hardening
+
+For production deployment:
+
+1. Copy `mosquitto-config/mosquitto.production.example.conf` → `mosquitto.conf`
+2. Set `allow_anonymous false`
+3. Generate server certificates and set `cafile`, `certfile`, `keyfile`
+4. Create a password file with `mosquitto_passwd`
+5. Create an ACL file restricting each client to `telemetry/{clientId}/#` and `commands/{clientId}/#`
+
+See `mosquitto-config/mosquitto.production.example.conf` for the full template.
+
+### Updated production checklist
+
+- [x] Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- [x] Set `JWT_SECRET` to a cryptographically random string ≥ 32 chars
+- [x] Run database migrations `001_init.sql` then `002_rls.sql`
+- [x] Configure Supabase JWT secret to match `JWT_SECRET` to activate RLS policies
+- [x] Enable Row Level Security (RLS) policies applied by `002_rls.sql`
+- [x] Redis-backed rate limiter (automatic when `REDIS_URL` is set)
+- [x] Token revocation via Redis denylist (automatic when `REDIS_URL` is set)
+- [x] Cloud Run deployment workflow and `cloud-run.yaml` service configuration
+- [x] Docker HEALTHCHECK pointing to `/api/health`
+- [x] Structured metrics with OTel (api latency, auth failures, rate-limit events, MQTT state)
+- [x] Correlation IDs on all API responses (`X-Correlation-ID` header)
+- [x] Graceful shutdown handlers (SIGTERM → redis.quit + mqtt.disconnect)
+- [ ] Configure MQTT broker with TLS + ACL rules (template provided)
+- [ ] Set `REDIS_URL` to a production Redis instance (TLS recommended: `rediss://`)
+- [ ] Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for production tracing
+- [ ] Set up log aggregation consuming the JSON log output
+- [ ] Configure Workload Identity Federation for keyless Cloud Run deployment
+- [ ] Set Playwright smoke tests to run against staging environment
+
+## Operational runbook
+
+### Health check
+
+```bash
+curl -sf https://your-service.run.app/api/health | python3 -m json.tool
+```
+
+Expected output when healthy:
+```json
+{ "status": "ok", "dependencies": { "mqtt": "ok", "supabase": "ok", "redis": "ok" } }
+```
+
+| `status` | Meaning | HTTP code |
+|----------|---------|-----------|
+| `ok` | All dependencies healthy | 200 |
+| `degraded` | At least one dependency degraded | 200 |
+| `down` | At least one dependency unreachable | 503 |
+
+### Force token revocation
+
+```bash
+# Revoke a specific token (from a serverless job or admin tool)
+node -e "
+  process.env.REDIS_URL = process.env.REDIS_URL;
+  process.env.JWT_SECRET = process.env.JWT_SECRET;
+  const { revokeToken } = require('./lib/auth');
+  revokeToken(process.argv[1]).then(() => console.log('revoked')).catch(console.error);
+" -- TOKEN_VALUE
+```
+
+### Circuit breaker state check
+
+Import `CircuitBreaker` from `lib/utils/circuit-breaker.ts` and call `breaker.getSnapshot()` from
+a `/api/debug/circuit-breakers` admin route (restrict to `service` role).
+
+### Log querying (Cloud Logging)
+
+```bash
+# Error logs in the last hour
+gcloud logging read \
+  'resource.type="cloud_run_revision" severity=ERROR' \
+  --limit=50 --freshness=1h
+```
