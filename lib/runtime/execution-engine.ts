@@ -22,6 +22,8 @@ import { withIdempotency } from "@/lib/utils/idempotency";
 import { deadLetter } from "@/lib/utils/dead-letter";
 
 export class ExecutionEngine {
+  /** Bounded in-memory idempotency store (FIFO eviction) used when Redis is absent. */
+  private static readonly MAX_IDEMPOTENT_ENTRIES = 500;
   private readonly idempotentResults = new Map<string, ExecutionResult>();
 
   constructor(
@@ -33,14 +35,6 @@ export class ExecutionEngine {
   async execute(req: ExecutionRequest, ctx: RuntimeContext): Promise<ExecutionResult> {
     const request: ExecutionRequest = { ...req, id: req.id ?? randomUUID() };
     const startedAt = new Date().toISOString();
-    const idempotencyCacheKey = request.idempotencyKey ? `${request.tenantId}:${request.idempotencyKey}` : null;
-
-    if (idempotencyCacheKey) {
-      const cached = this.idempotentResults.get(idempotencyCacheKey);
-      if (cached) {
-        return cached;
-      }
-    }
 
     this.emitEvent("execution.started", request.tenantId, ctx.correlationId, {
       executionId: request.id ?? "unknown",
@@ -83,13 +77,19 @@ export class ExecutionEngine {
         },
       );
 
+      // When Redis is available: delegate to the TTL-bounded Redis-backed store.
+      // When Redis is absent: use a bounded in-memory map (FIFO eviction at 500
+      // entries) so idempotency still works in single-process / test environments.
+      // The composite key uses \0 as delimiter to prevent collision between
+      // tenantId and idempotencyKey values that might themselves contain colons.
       const result = request.idempotencyKey
-        ? (await withIdempotency(request.idempotencyKey, request.tenantId, runner)).data
+        ? process.env.REDIS_URL
+          ? (await withIdempotency(request.idempotencyKey, request.tenantId, runner)).data
+          : await this.withInMemoryIdempotency(
+              `${request.tenantId}\0${request.idempotencyKey}`,
+              runner,
+            )
         : await runner();
-
-      if (idempotencyCacheKey) {
-        this.idempotentResults.set(idempotencyCacheKey, result);
-      }
 
       this.emitEvent("execution.completed", request.tenantId, ctx.correlationId, {
         executionId: result.id,
@@ -329,5 +329,30 @@ export class ExecutionEngine {
 
   private toWorkflowFailureStatus(error: unknown): WorkflowStatus {
     return error instanceof Error && /timed out/i.test(error.message) ? "timeout" : "failed";
+  }
+
+  /**
+   * In-memory idempotency guard used when Redis is absent.
+   * Bounded to MAX_IDEMPOTENT_ENTRIES entries; evicts the oldest entry (FIFO)
+   * when capacity is reached — prevents unbounded memory growth.
+   */
+  private async withInMemoryIdempotency(
+    compositeKey: string,
+    action: () => Promise<ExecutionResult>,
+  ): Promise<ExecutionResult> {
+    const cached = this.idempotentResults.get(compositeKey);
+    if (cached) return cached;
+
+    const result = await action();
+
+    // FIFO eviction at capacity
+    if (this.idempotentResults.size >= ExecutionEngine.MAX_IDEMPOTENT_ENTRIES) {
+      const firstKey = this.idempotentResults.keys().next().value;
+      if (firstKey !== undefined) {
+        this.idempotentResults.delete(firstKey);
+      }
+    }
+    this.idempotentResults.set(compositeKey, result);
+    return result;
   }
 }

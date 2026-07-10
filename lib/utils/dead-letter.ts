@@ -24,6 +24,8 @@
  *   }
  */
 
+import { randomUUID } from "node:crypto";
+
 export type DeadLetterEntry<T = unknown> = {
   /** Logical queue / category for the event (e.g. "execution-plane", "telemetry"). */
   queue: string;
@@ -81,7 +83,7 @@ export async function deadLetter<T = unknown>(
 
     const stored: StoredDeadLetterEntry<T> = {
       ...entry,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: randomUUID(),
       timestamp: entry.timestamp ?? new Date().toISOString(),
       errorMessage: entry.error instanceof Error ? entry.error.message : String(entry.error),
     };

@@ -84,13 +84,17 @@ async function checkRateLimit(ip: string): Promise<boolean> {
     const max = RATE_LIMIT_MAX();
     const windowMs = RATE_LIMIT_WINDOW_MS();
 
-    const pipeline = client.multi();
-    pipeline.incr(key);
-    pipeline.pexpire(key, windowMs);
-    const results = await pipeline.exec();
-
-    const count = results?.[0]?.[1] as number | null;
-    if (count == null) return checkRateLimitInProcess(ip);
+    // Atomic INCR + PEXPIRE via Lua script — prevents a permanent key if the
+    // process crashes between the two commands (the race condition in the
+    // MULTI/EXEC pipeline approach).
+    const luaScript = `
+      local current = redis.call("INCR", KEYS[1])
+      if current == 1 then
+        redis.call("PEXPIRE", KEYS[1], ARGV[1])
+      end
+      return current
+    `;
+    const count = await client.eval(luaScript, 1, key, String(windowMs)) as number;
     return count <= max;
   } catch (err) {
     logger.warn("[middleware] Redis rate-limit check failed, using in-process fallback", {

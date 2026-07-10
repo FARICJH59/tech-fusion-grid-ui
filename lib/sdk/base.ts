@@ -16,6 +16,16 @@ export class BaseSdkClient {
   protected readonly config: SdkConfig;
 
   constructor(config: SdkConfig) {
+    // Reject non-HTTPS URLs in production to prevent credential leakage
+    if (
+      process.env.NODE_ENV === "production" &&
+      config.baseUrl &&
+      !config.baseUrl.startsWith("https://")
+    ) {
+      throw new Error(
+        `[sdk] baseUrl must use HTTPS in production. Got: ${config.baseUrl.split("?")[0]}`,
+      );
+    }
     this.config = config;
   }
 
