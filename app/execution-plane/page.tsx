@@ -144,7 +144,7 @@ function ExecutionPlaneContent() {
       try {
         handleMessage(topic, rawMessage);
       } catch (error) {
-        const message = rawMessage.slice(0, MESSAGE_PREVIEW_LENGTH);
+        const message = rawMessage.slice(0, MESSAGE_PREVIEW_LENGTH).replace(/[^\x20-\x7E]/g, "?");
         setStreamError(
           `Failed to process MQTT message for topic "${topic}" with payload preview "${message}"`,
         );

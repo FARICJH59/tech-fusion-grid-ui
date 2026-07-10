@@ -90,12 +90,18 @@ class MockMQTT {
 
   publish(topic: unknown, message: unknown) {
     if (!isValidTopic(topic)) {
-      console.warn("[MOCK MQTT] Dropped publish due to invalid topic", topic);
+      const topicPreview =
+        typeof topic === "string" ? topic.slice(0, 40) : `[type: ${typeof topic}]`;
+      console.warn("[MOCK MQTT] Dropped publish due to invalid topic", topicPreview);
       return;
     }
 
     if (!isValidMessage(message)) {
-      console.warn("[MOCK MQTT] Dropped publish due to invalid payload type", typeof message);
+      console.warn(
+        "[MOCK MQTT] Dropped publish due to invalid payload type",
+        typeof message,
+        `(state: ${this.state}, subscriptions: ${this.subscriptions.size})`,
+      );
       return;
     }
 
