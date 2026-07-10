@@ -23,6 +23,8 @@ const matchTopic = (subscription: string, topic: string) => {
   return false;
 };
 
+const TOPIC_PREVIEW_LENGTH = 40;
+
 const isValidTopic = (value: unknown): value is string => {
   return typeof value === "string" && value.trim().length > 0;
 };
@@ -91,7 +93,7 @@ class MockMQTT {
   publish(topic: unknown, message: unknown) {
     if (!isValidTopic(topic)) {
       const topicPreview =
-        typeof topic === "string" ? topic.slice(0, 40) : `[type: ${typeof topic}]`;
+        typeof topic === "string" ? topic.slice(0, TOPIC_PREVIEW_LENGTH) : `[type: ${typeof topic}]`;
       console.warn("[MOCK MQTT] Dropped publish due to invalid topic", topicPreview);
       return;
     }

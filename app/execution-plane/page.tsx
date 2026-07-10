@@ -144,6 +144,8 @@ function ExecutionPlaneContent() {
       try {
         handleMessage(topic, rawMessage);
       } catch (error) {
+        // Strip non-printable ASCII characters (U+0000–U+001F, U+007F+); multi-byte Unicode is
+        // preserved as-is since topic payloads from this MQTT mock are always ASCII strings.
         const message = rawMessage.slice(0, MESSAGE_PREVIEW_LENGTH).replace(/[^\x20-\x7E]/g, "?");
         setStreamError(
           `Failed to process MQTT message for topic "${topic}" with payload preview "${message}"`,
