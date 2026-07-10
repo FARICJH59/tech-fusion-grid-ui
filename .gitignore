@@ -12,6 +12,8 @@ out/
 # builds
 dist/
 tsconfig.tsbuildinfo
+builds/
+vercel.json*
 
 # database
 data/*.db
