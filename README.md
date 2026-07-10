@@ -186,7 +186,7 @@ Access the local Jaeger UI at **http://localhost:16686** after `docker compose u
 ## Testing
 
 ```bash
-npm run test   # 47 unit + integration tests (API middleware, MQTT client, telemetry runtime, JWT auth)
+npm run test   # 87 unit + integration tests
 ```
 
 Test files:
@@ -195,6 +195,11 @@ Test files:
 - `tests/auth.test.ts` — JWT creation, verification, RBAC, token extraction
 - `tests/telemetry-runtime.integration.test.ts` — WebSocket telemetry runtime
 - `tests/api-middleware.test.ts` — withAuth, withRateLimit, withValidation, withErrorHandler
+- `tests/api-integration.test.ts` — full authenticated tenant flows, correlation IDs
+- `tests/health-failure.test.ts` — health probe logic under dependency failures
+- `tests/mqtt-reconnect.test.ts` — MockMQTT reconnect and state-change tests
+- `tests/retry.test.ts` — exponential backoff retry utility
+- `tests/circuit-breaker.test.ts` — circuit breaker state machine
 
 ## CI/CD
 

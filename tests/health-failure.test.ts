@@ -45,7 +45,7 @@ async function checkSupabase(): Promise<DependencyStatus> {
   try {
     const { supabase } = await import("../lib/supabase");
     const { error } = await Promise.race([
-      supabase.from("health_check").select("1").limit(1),
+      supabase.from("health_status").select("id").limit(0),
       new Promise<{ error: Error }>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 500),
       ),

@@ -70,11 +70,14 @@ function ensureInitialized(): void {
     description: "MQTT broker connection state: 1=connected, 0=reconnecting, -1=disconnected",
   });
 
-  // Report MQTT state on every collection cycle
+  // Report MQTT state on every collection cycle.
+  // require() is used because addCallback is synchronous (can't use async import)
+  // and the mqtt module is guaranteed to be loaded before metrics are collected.
   _mqttConnectionState.addCallback((result) => {
     try {
-      // eslint-disable-next-line
+      /* eslint-disable */
       const mod = require("@/lib/mqtt") as { mqttClient: { getConnectionState(): string } };
+      /* eslint-enable */
       const mqttState: string = mod.mqttClient.getConnectionState();
       const value = mqttState === "connected" ? 1 : mqttState === "reconnecting" ? 0 : -1;
       result.observe(value, { state: mqttState });

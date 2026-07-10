@@ -1,5 +1,17 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
+# =============================================================================
+# Cloud Run service configuration — TechFusion Grid UI
+#
+# Before deploying, replace the following placeholder values:
+#   PROJECT_ID  — your GCP project ID (e.g. my-gcp-project-123)
+#   REGION      — Artifact Registry region (e.g. us-central1)
+#   IMAGE_TAG   — Docker image tag (automatically set to $GITHUB_SHA in CI)
+#
+# Deploy via GitHub Actions (.github/workflows/deploy.yml) which handles
+# all substitutions automatically.  Manual deployment:
+#   gcloud run services replace cloud-run.yaml --region=REGION
+# =============================================================================
 metadata:
   name: tech-fusion-grid-ui
   annotations:

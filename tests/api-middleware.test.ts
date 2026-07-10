@@ -11,8 +11,7 @@ import assert from "node:assert/strict";
 
 // Set required env vars before importing modules under test
 process.env.JWT_SECRET = "test-secret-that-is-long-enough-for-validation-32chars";
-// NODE_ENV is set to "test" by the test runner; assigning it directly is a TS error
-(process.env as Record<string, string | undefined>).NODE_ENV = "test";
+// NODE_ENV is already set to "test" by the test runner (package.json: "node --import tsx --test")
 // Disable Redis for middleware tests so the in-process rate limiter is used
 delete process.env.REDIS_URL;
 

@@ -43,8 +43,10 @@ async function checkSupabase(): Promise<DependencyStatus> {
       return "down";
     }
     const { supabase } = await import("@/lib/supabase");
+    // `health_status` is defined in migrations/001_init.sql.
+    // We query it with a 0-row limit purely to verify DB connectivity.
     const { error } = await Promise.race([
-      supabase.from("health_check").select("1").limit(1),
+      supabase.from("health_status").select("id").limit(0),
       new Promise<{ error: Error }>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 3_000),
       ),

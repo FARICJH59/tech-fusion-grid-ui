@@ -70,8 +70,8 @@ export function registerShutdownHooks(options: { timeoutMs?: number } = {}): voi
     process.exit(0);
   };
 
-  process.once("SIGTERM", () => void shutdown("SIGTERM"));
-  process.once("SIGINT",  () => void shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM").catch((err) => console.error("[shutdown] SIGTERM handler failed:", err)));
+  process.once("SIGINT",  () => shutdown("SIGINT").catch((err) => console.error("[shutdown] SIGINT handler failed:", err)));
 }
 
 /**

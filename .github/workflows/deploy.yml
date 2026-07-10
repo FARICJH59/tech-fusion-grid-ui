@@ -158,11 +158,20 @@ jobs:
           URL="${{ steps.deploy.outputs.url }}"
           echo "Testing health endpoint at ${URL}/api/health"
           STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${URL}/api/health" || echo "000")
+          # Accept 200 (healthy) or 503 (degraded) — both indicate the application
+          # is running and responding. 503 is expected immediately after deployment
+          # when external dependencies (Redis, MQTT, Supabase) have not yet
+          # established their connections. Any other status (000, 404, 5xx) indicates
+          # a deployment failure.
           if [ "$STATUS" != "200" ] && [ "$STATUS" != "503" ]; then
             echo "❌ Health check returned unexpected status: $STATUS"
             exit 1
           fi
-          echo "✅ Deployment smoke test passed (status=${STATUS})"
+          if [ "$STATUS" = "503" ]; then
+            echo "⚠️  Service is degraded (dependencies not yet connected) — deployment succeeded"
+          else
+            echo "✅ Deployment smoke test passed (status=${STATUS})"
+          fi
 
       - name: Output service URL
         run: |

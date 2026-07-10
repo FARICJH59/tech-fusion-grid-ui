@@ -52,7 +52,12 @@ export async function withIdempotency<T>(
       // Check for existing result
       const cached = await client.get(storeKey);
       if (cached !== null) {
-        return { data: JSON.parse(cached) as T, replayed: true };
+        try {
+          return { data: JSON.parse(cached) as T, replayed: true };
+        } catch {
+          // Cached value is unparseable (e.g. schema migration) — re-execute
+          console.warn(`[idempotency] Failed to parse cached result for key ${storeKey}, re-executing`);
+        }
       }
 
       // Execute and cache the result
