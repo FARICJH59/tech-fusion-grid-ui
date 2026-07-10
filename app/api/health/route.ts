@@ -7,6 +7,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { mqttClient } from "@/lib/mqtt";
+import { logger } from "@/lib/telemetry/otel";
+import { withErrorHandler, toNextRoute } from "@/lib/middleware/api";
 
 type DependencyStatus = "ok" | "degraded" | "down";
 
@@ -53,7 +55,7 @@ async function checkSupabase(): Promise<DependencyStatus> {
   }
 }
 
-export async function GET(_req: NextRequest): Promise<NextResponse<HealthResponse>> {
+export const GET = toNextRoute(withErrorHandler(async (_req: NextRequest): Promise<NextResponse<HealthResponse>> => {
   const mqttState = mqttClient.getConnectionState();
   const mqttStatus: DependencyStatus =
     mqttState === "connected"
@@ -84,5 +86,9 @@ export async function GET(_req: NextRequest): Promise<NextResponse<HealthRespons
     },
   };
 
+  if (overall !== "ok") {
+    logger.warn("[api/health] Degraded health status", { overall, mqtt: mqttStatus, redis: redisStatus, supabase: supabaseStatus });
+  }
+
   return NextResponse.json(body, { status: overall === "down" ? 503 : 200 });
-}
+}));

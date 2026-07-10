@@ -7,6 +7,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken, extractBearerToken, hasMinRole, type Role, type TokenPayload } from "@/lib/auth";
+import { logger } from "@/lib/telemetry/otel";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ export type AuthOptions = {
 };
 
 // ---------------------------------------------------------------------------
-// Rate limiter (in-process token bucket — replace with Redis for multi-node)
+// Rate limiter — Redis-backed with in-process fallback
 // ---------------------------------------------------------------------------
 
 type Bucket = { tokens: number; last: number };
@@ -39,7 +40,8 @@ const RATE_LIMIT_MAX = () =>
 const RATE_LIMIT_WINDOW_MS = () =>
   parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10) || 60_000;
 
-function checkRateLimit(ip: string): boolean {
+/** In-process token-bucket fallback (single-node only). */
+function checkRateLimitInProcess(ip: string): boolean {
   const now = Date.now();
   const max = RATE_LIMIT_MAX();
   const windowMs = RATE_LIMIT_WINDOW_MS();
@@ -59,6 +61,38 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+/**
+ * Redis-backed sliding-window rate limiter using INCR + PEXPIRE.
+ * Falls back to the in-process bucket on Redis errors so the API stays up.
+ */
+async function checkRateLimit(ip: string): Promise<boolean> {
+  if (!process.env.REDIS_URL) {
+    return checkRateLimitInProcess(ip);
+  }
+
+  try {
+    const { getRedis } = await import("@/lib/redis");
+    const client = getRedis();
+    const key = `rate:${ip}`;
+    const max = RATE_LIMIT_MAX();
+    const windowMs = RATE_LIMIT_WINDOW_MS();
+
+    const pipeline = client.multi();
+    pipeline.incr(key);
+    pipeline.pexpire(key, windowMs);
+    const results = await pipeline.exec();
+
+    const count = results?.[0]?.[1] as number | null;
+    if (count == null) return checkRateLimitInProcess(ip);
+    return count <= max;
+  } catch (err) {
+    logger.warn("[middleware] Redis rate-limit check failed, using in-process fallback", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return checkRateLimitInProcess(ip);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // withRateLimit
 // ---------------------------------------------------------------------------
@@ -71,7 +105,9 @@ export function withRateLimit<C = Record<string, unknown>>(
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       req.headers.get("x-real-ip") ??
       "unknown";
-    if (!checkRateLimit(ip)) {
+    const allowed = await checkRateLimit(ip);
+    if (!allowed) {
+      logger.warn("[middleware] Rate limit exceeded", { ip });
       return NextResponse.json(
         { error: "Too Many Requests" },
         {
@@ -109,6 +145,11 @@ export function withAuth<C = Record<string, unknown>>(
     }
 
     if (!hasMinRole(user.role, requiredRole)) {
+      logger.warn("[middleware] Forbidden: insufficient role", {
+        role: user.role,
+        required: requiredRole,
+        sub: user.sub,
+      });
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -144,6 +185,15 @@ export function withValidation<TBody, C = Record<string, unknown>>(
 }
 
 // ---------------------------------------------------------------------------
+// toNextRoute — adapts RouteHandler to the Next.js App Router export signature
+//
+// Next.js 15 validates that exported route handlers do not use a second
+// parameter typed as Record<string, unknown>. toNextRoute produces a
+// single-argument function that satisfies that requirement while keeping
+// the full middleware chain.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Error wrapper
 // ---------------------------------------------------------------------------
 
@@ -154,8 +204,26 @@ export function withErrorHandler<C = Record<string, unknown>>(
     try {
       return await handler(req, ctx);
     } catch (err) {
-      console.error("[api] Unhandled error", err);
+      logger.error("[api] Unhandled error", {
+        error: err instanceof Error ? err.message : String(err),
+        path: req.nextUrl?.pathname,
+      });
       return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
   };
+}
+
+// ---------------------------------------------------------------------------
+// toNextRoute — adapts RouteHandler to the Next.js App Router export signature
+//
+// Next.js 15 validates that exported route handlers do not accept a second
+// parameter typed as Record<string, unknown>. toNextRoute produces a
+// single-argument function satisfying that constraint while keeping the full
+// middleware chain intact.
+// ---------------------------------------------------------------------------
+
+export function toNextRoute<C = Record<string, unknown>>(
+  handler: RouteHandler<C>,
+): (req: NextRequest) => Promise<NextResponse | Response> {
+  return (req: NextRequest) => handler(req, {} as C);
 }

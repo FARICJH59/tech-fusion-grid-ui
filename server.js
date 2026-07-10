@@ -1,3 +1,21 @@
+/**
+ * DEPRECATED — Legacy Express prototype server.
+ *
+ * This file is superseded by the Next.js App Router API routes under app/api/:
+ *
+ *   POST /api/auth              → app/api/auth/route.ts
+ *   POST /api/auth/refresh      → app/api/auth/refresh/route.ts
+ *   GET  /api/telemetry         → app/api/telemetry/route.ts
+ *   GET  /api/audit             → app/api/audit/route.ts
+ *   GET  /api/health            → app/api/health/route.ts
+ *
+ * All endpoints in this file use in-memory state, simulated data, and
+ * unauthenticated access.  They MUST NOT be used in production.
+ *
+ * To start the production server run:
+ *   npm run build && npm run start
+ */
+
 const express = require('express');
 const path = require('path');
 const cluster = require('cluster');

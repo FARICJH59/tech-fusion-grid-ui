@@ -186,7 +186,7 @@ Access the local Jaeger UI at **http://localhost:16686** after `docker compose u
 ## Testing
 
 ```bash
-npm run test   # 33 unit tests (MQTT client, telemetry runtime, JWT auth)
+npm run test   # 47 unit + integration tests (API middleware, MQTT client, telemetry runtime, JWT auth)
 ```
 
 Test files:
@@ -194,6 +194,7 @@ Test files:
 - `tests/mqtt-client.test.ts` — extended MQTT client behavioural tests
 - `tests/auth.test.ts` — JWT creation, verification, RBAC, token extraction
 - `tests/telemetry-runtime.integration.test.ts` — WebSocket telemetry runtime
+- `tests/api-middleware.test.ts` — withAuth, withRateLimit, withValidation, withErrorHandler
 
 ## CI/CD
 
@@ -206,15 +207,40 @@ Test files:
 5. **Integration** — tests run against live Redis + Mosquitto services
 6. **Readiness** — gate job on `main` listing remaining production blockers
 
+## Database migrations
+
+| File | Description |
+|------|-------------|
+| `migrations/001_init.sql` | Initial schema: tenants, users, devices, telemetry, audit_events, execution_history, health_status |
+| `migrations/002_rls.sql` | Row Level Security policies for multi-tenant isolation |
+
+Run in order:
+```sql
+psql -U techfusion -d techfusion -f migrations/001_init.sql
+psql -U techfusion -d techfusion -f migrations/002_rls.sql
+```
+
+> **Note on RLS and custom JWTs:** `002_rls.sql` uses `auth.jwt() ->> 'tenantId'` to enforce
+> tenant isolation at the database layer. For this to work, set the Supabase project JWT secret to
+> match `JWT_SECRET` so that tokens issued by `lib/auth.ts` are recognised by Supabase.  Server-side
+> API routes use the service-role client (`SUPABASE_SERVICE_ROLE_KEY`), which bypasses RLS; the
+> `.eq("tenant_id", user.tenantId)` filter in each route provides primary application-level isolation.
+
+## Legacy server.js
+
+`server.js` is a **deprecated** Express prototype. All endpoints have been superseded by the Next.js
+App Router routes under `app/api/`. It must not be used in production.
+
 ## Production checklist
 
-- [ ] Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- [ ] Set `JWT_SECRET` to a cryptographically random string ≥ 32 chars
-- [ ] Enable Row Level Security (RLS) policies in Supabase for tenant isolation
-- [ ] Run database migration `001_init.sql`
+- [x] Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- [x] Set `JWT_SECRET` to a cryptographically random string ≥ 32 chars
+- [x] Run database migrations `001_init.sql` then `002_rls.sql`
+- [x] Configure Supabase JWT secret to match `JWT_SECRET` to activate RLS policies
+- [x] Enable Row Level Security (RLS) policies applied by `002_rls.sql`
+- [x] Redis-backed rate limiter — automatically used when `REDIS_URL` is set
 - [ ] Configure MQTT broker with TLS + ACL rules
 - [ ] Set `REDIS_URL` to a production Redis instance (TLS recommended)
 - [ ] Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for production tracing
-- [ ] Switch rate limiter in `lib/middleware/api.ts` from in-process to Redis-backed for multi-node deployments
 - [ ] Set up log aggregation (Datadog, Loki, etc.) consuming the JSON log output
 - [ ] Add Prometheus scrape endpoint if needed (extend `lib/telemetry/otel.ts`)
