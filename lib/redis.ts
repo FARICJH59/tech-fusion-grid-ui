@@ -63,7 +63,16 @@ export async function cached<T>(
   const client = getRedis();
   const raw = await client.get(key).catch(() => null);
   if (raw !== null) {
-    return JSON.parse(raw) as T;
+    try {
+      return JSON.parse(raw) as T;
+    } catch (err) {
+      console.warn("[redis] cache parse failed, treating as miss", (err as Error).message);
+      await client
+        .del(key)
+        .catch((delErr: Error) =>
+          console.warn("[redis] failed to delete corrupted cache key", delErr.message),
+        );
+    }
   }
   const value = await compute();
   await client

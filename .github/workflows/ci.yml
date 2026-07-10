@@ -165,16 +165,17 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      mosquitto:
-        image: eclipse-mosquitto:2
-        ports:
-          - 1883:1883
-        volumes:
-          - ${{ github.workspace }}/mosquitto.conf:/mosquitto/config/mosquitto.conf
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Start Mosquitto
+        run: |
+          docker run -d --name mosquitto \
+            -p 1883:1883 \
+            -v "${{ github.workspace }}/mosquitto-config":/mosquitto/config \
+            eclipse-mosquitto:2
+          timeout 30 bash -c 'until docker exec mosquitto mosquitto_pub -h 127.0.0.1 -t _healthcheck -m ping -q 0 2>/dev/null; do sleep 1; done'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
