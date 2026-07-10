@@ -2,12 +2,30 @@
  * Composable Next.js App Router middleware utilities.
  *
  * Usage:
- *   export const GET = withAuth(async (req, ctx) => { … }, { role: "operator" });
+ *   export const GET = toNextRoute(withErrorHandler(withAuth(handler, { role: "operator" })));
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { verifyToken, extractBearerToken, hasMinRole, type Role, type TokenPayload } from "@/lib/auth";
+import { logger } from "@/lib/telemetry/otel";
+import { appMetrics } from "@/lib/telemetry/metrics";
 import { z } from "zod";
+
+// ---------------------------------------------------------------------------
+// Rate-limit Lua script
+//
+// Atomically increments the counter and sets the expiry only on first creation.
+// Using Lua ensures the INCR + PEXPIRE pair cannot be split by a crash,
+// preventing keys from persisting without a TTL.
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_LUA_SCRIPT = `
+  local current = redis.call("INCR", KEYS[1])
+  if current == 1 then
+    redis.call("PEXPIRE", KEYS[1], ARGV[1])
+  end
+  return current
+`;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,6 +33,11 @@ import { z } from "zod";
 
 export type AuthenticatedContext = {
   user: TokenPayload;
+};
+
+/** Correlation context automatically injected by withCorrelationId. */
+export type CorrelatedContext = {
+  correlationId: string;
 };
 
 export type RouteHandler<C = Record<string, unknown>> = (
@@ -28,7 +51,7 @@ export type AuthOptions = {
 };
 
 // ---------------------------------------------------------------------------
-// Rate limiter (in-process token bucket — replace with Redis for multi-node)
+// Rate limiter — Redis-backed with in-process fallback
 // ---------------------------------------------------------------------------
 
 type Bucket = { tokens: number; last: number };
@@ -39,7 +62,8 @@ const RATE_LIMIT_MAX = () =>
 const RATE_LIMIT_WINDOW_MS = () =>
   parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10) || 60_000;
 
-function checkRateLimit(ip: string): boolean {
+/** In-process token-bucket fallback (single-node only). */
+function checkRateLimitInProcess(ip: string): boolean {
   const now = Date.now();
   const max = RATE_LIMIT_MAX();
   const windowMs = RATE_LIMIT_WINDOW_MS();
@@ -59,6 +83,35 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+/**
+ * Redis-backed sliding-window rate limiter using INCR + PEXPIRE.
+ * Falls back to the in-process bucket on Redis errors so the API stays up.
+ */
+async function checkRateLimit(ip: string): Promise<boolean> {
+  if (!process.env.REDIS_URL) {
+    return checkRateLimitInProcess(ip);
+  }
+
+  try {
+    const { getRedis } = await import("@/lib/redis");
+    const client = getRedis();
+    const key = `rate:${ip}`;
+    const max = RATE_LIMIT_MAX();
+    const windowMs = RATE_LIMIT_WINDOW_MS();
+
+    // Atomic INCR + PEXPIRE via Lua script — prevents a permanent key if the
+    // process crashes between the two commands (the race condition in the
+    // MULTI/EXEC pipeline approach).
+    const count = await client.eval(RATE_LIMIT_LUA_SCRIPT, 1, key, String(windowMs)) as number;
+    return count <= max;
+  } catch (err) {
+    logger.warn("[middleware] Redis rate-limit check failed, using in-process fallback", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return checkRateLimitInProcess(ip);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // withRateLimit
 // ---------------------------------------------------------------------------
@@ -71,7 +124,10 @@ export function withRateLimit<C = Record<string, unknown>>(
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       req.headers.get("x-real-ip") ??
       "unknown";
-    if (!checkRateLimit(ip)) {
+    const allowed = await checkRateLimit(ip);
+    if (!allowed) {
+      logger.warn("[middleware] Rate limit exceeded", { ip });
+      appMetrics.incrementRateLimit({ ip });
       return NextResponse.json(
         { error: "Too Many Requests" },
         {
@@ -105,10 +161,17 @@ export function withAuth<C = Record<string, unknown>>(
     try {
       user = verifyToken(token);
     } catch {
+      appMetrics.incrementAuthFailure({ reason: "invalid_token", route: req.nextUrl?.pathname ?? "/" });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (!hasMinRole(user.role, requiredRole)) {
+      logger.warn("[middleware] Forbidden: insufficient role", {
+        role: user.role,
+        required: requiredRole,
+        sub: user.sub,
+      });
+      appMetrics.incrementAuthFailure({ reason: "forbidden", route: req.nextUrl?.pathname ?? "/" });
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -154,8 +217,75 @@ export function withErrorHandler<C = Record<string, unknown>>(
     try {
       return await handler(req, ctx);
     } catch (err) {
-      console.error("[api] Unhandled error", err);
+      logger.error("[api] Unhandled error", {
+        error: err instanceof Error ? err.message : String(err),
+        path: req.nextUrl?.pathname,
+      });
       return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// toNextRoute — adapts RouteHandler to the Next.js App Router export signature
+//
+// Next.js 15 validates that exported route handlers do not accept a second
+// parameter typed as Record<string, unknown>. toNextRoute produces a
+// single-argument function satisfying that constraint while keeping the full
+// middleware chain intact.
+// ---------------------------------------------------------------------------
+
+export function toNextRoute<C = Record<string, unknown>>(
+  handler: RouteHandler<C>,
+): (req: NextRequest) => Promise<NextResponse | Response> {
+  return (req: NextRequest) => handler(req, {} as C);
+}
+
+// ---------------------------------------------------------------------------
+// withCorrelationId
+//
+// Reads the X-Correlation-ID request header (or generates a new UUID) and
+// injects it into the response headers and handler context so it can be
+// forwarded to downstream services and log records.
+// ---------------------------------------------------------------------------
+
+export function withCorrelationId<C = Record<string, unknown>>(
+  handler: RouteHandler<C & CorrelatedContext>,
+): RouteHandler<C> {
+  return async (req, ctx) => {
+    const correlationId =
+      req.headers.get("x-correlation-id") ?? randomUUID();
+    const res = await handler(req, { ...ctx, correlationId } as C & CorrelatedContext);
+    if (res instanceof NextResponse || res instanceof Response) {
+      const mutable = new NextResponse(res.body, res);
+      mutable.headers.set("x-correlation-id", correlationId);
+      return mutable;
+    }
+    return res;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// withLatency
+//
+// Wraps a handler to record API latency metrics via appMetrics.
+// ---------------------------------------------------------------------------
+
+export function withLatency<C = Record<string, unknown>>(
+  route: string,
+  handler: RouteHandler<C>,
+): RouteHandler<C> {
+  return async (req, ctx) => {
+    const start = Date.now();
+    const method = req.method;
+    try {
+      const res = await handler(req, ctx);
+      const status = String((res as { status?: number }).status ?? 200);
+      appMetrics.recordApiLatency(Date.now() - start, { route, method, status });
+      return res;
+    } catch (err) {
+      appMetrics.recordApiLatency(Date.now() - start, { route, method, status: "500" });
+      throw err;
     }
   };
 }

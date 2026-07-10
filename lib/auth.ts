@@ -156,3 +156,64 @@ export function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith("Bearer ")) return null;
   return authHeader.slice(7);
 }
+
+// ---------------------------------------------------------------------------
+// Session revocation — Redis-backed token denylist
+//
+// Revoked tokens are stored as Redis keys with TTL equal to the remaining
+// token lifetime so the set stays bounded without a background job.
+// Falls back gracefully when Redis is unavailable.
+// ---------------------------------------------------------------------------
+
+const REVOCATION_KEY_PREFIX = "revoked:";
+const DEFAULT_REVOCATION_TTL = (): number =>
+  parseInt(process.env.TOKEN_REVOCATION_TTL ?? "900", 10) || 900;
+
+/**
+ * Revoke a token by storing its sub:iat composite in Redis until it naturally
+ * expires. No-ops when Redis is not configured.
+ */
+export async function revokeToken(token: string): Promise<void> {
+  let payload: TokenPayload & { iat?: number };
+  try {
+    payload = verifyToken(token) as TokenPayload & { iat?: number };
+  } catch {
+    // Token already invalid — nothing to revoke.
+    return;
+  }
+  if (!process.env.REDIS_URL) return;
+
+  try {
+    const { getRedis } = await import("@/lib/redis");
+    const client = getRedis();
+    const key = `${REVOCATION_KEY_PREFIX}${payload.sub}:${payload.iat ?? 0}`;
+    await client.set(key, "1", "EX", DEFAULT_REVOCATION_TTL());
+  } catch (err) {
+    console.warn("[auth] Token revocation Redis write failed:", err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
+ * Returns true when the token has been explicitly revoked.
+ * Returns false on any Redis error (fail-open to preserve availability).
+ */
+export async function isTokenRevoked(token: string): Promise<boolean> {
+  if (!process.env.REDIS_URL) return false;
+
+  let payload: TokenPayload & { iat?: number };
+  try {
+    payload = verifyToken(token) as TokenPayload & { iat?: number };
+  } catch {
+    return true; // expired / malformed → treat as revoked
+  }
+
+  try {
+    const { getRedis } = await import("@/lib/redis");
+    const client = getRedis();
+    const key = `${REVOCATION_KEY_PREFIX}${payload.sub}:${payload.iat ?? 0}`;
+    const val = await client.get(key);
+    return val !== null;
+  } catch {
+    return false; // Redis unavailable — fail-open
+  }
+}

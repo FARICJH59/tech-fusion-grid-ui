@@ -7,6 +7,12 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { mqttClient } from "@/lib/mqtt";
+import { logger } from "@/lib/telemetry/otel";
+import { withErrorHandler, toNextRoute } from "@/lib/middleware/api";
+import { runtimeSupervisor } from "@/lib/autonomous/supervisor";
+import { fleetManager } from "@/lib/autonomous/fleet";
+import { complianceAutomation } from "@/lib/autonomous/compliance";
+import { selfHealingEngine } from "@/lib/autonomous/healing";
 
 type DependencyStatus = "ok" | "degraded" | "down";
 
@@ -18,6 +24,12 @@ type HealthResponse = {
     mqtt: DependencyStatus;
     supabase: DependencyStatus;
     redis: DependencyStatus;
+  };
+  autonomous: {
+    supervisor: { total: number; running: number; failed: number; degraded: number };
+    fleet: { total: number; online: number; offline: number; degraded: number };
+    compliance: { compliant: number; warnings: number; violations: number };
+    incidents: { total: number; open: number; resolved: number; bySeverity: Record<string, number> };
   };
 };
 
@@ -41,8 +53,10 @@ async function checkSupabase(): Promise<DependencyStatus> {
       return "down";
     }
     const { supabase } = await import("@/lib/supabase");
+    // `health_status` is defined in migrations/001_init.sql.
+    // We query it with a 0-row limit purely to verify DB connectivity.
     const { error } = await Promise.race([
-      supabase.from("health_check").select("1").limit(1),
+      supabase.from("health_status").select("id").limit(0),
       new Promise<{ error: Error }>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 3_000),
       ),
@@ -53,7 +67,7 @@ async function checkSupabase(): Promise<DependencyStatus> {
   }
 }
 
-export async function GET(_req: NextRequest): Promise<NextResponse<HealthResponse>> {
+export const GET = toNextRoute(withErrorHandler(async (_req: NextRequest): Promise<NextResponse<HealthResponse>> => {
   const mqttState = mqttClient.getConnectionState();
   const mqttStatus: DependencyStatus =
     mqttState === "connected"
@@ -82,7 +96,17 @@ export async function GET(_req: NextRequest): Promise<NextResponse<HealthRespons
       supabase: supabaseStatus,
       redis: redisStatus,
     },
+    autonomous: {
+      supervisor: runtimeSupervisor.getHealthSummary(),
+      fleet: fleetManager.getFleetHealth(),
+      compliance: complianceAutomation.getComplianceSummary(),
+      incidents: selfHealingEngine.getStats(),
+    },
   };
 
+  if (overall !== "ok") {
+    logger.warn("[api/health] Degraded health status", { overall, mqtt: mqttStatus, redis: redisStatus, supabase: supabaseStatus });
+  }
+
   return NextResponse.json(body, { status: overall === "down" ? 503 : 200 });
-}
+}));

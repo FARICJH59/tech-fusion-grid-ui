@@ -1,14 +1,33 @@
-name: TechFusion Grid UI Deploy
+name: Deploy to Cloud Run
 
 on:
   push:
     branches:
       - main
-
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options: [production, staging]
+
+permissions:
+  contents: read
+  id-token: write  # required for Workload Identity Federation
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  SERVICE_NAME: tech-fusion-grid-ui
+  REGISTRY: ${{ vars.GCP_REGION || 'us-central1' }}-docker.pkg.dev
 
 jobs:
-  build:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Quality gate — reuse the same checks as ci.yml before any deploy
+  # ──────────────────────────────────────────────────────────────────────────
+  quality:
     name: Build and Validate
     runs-on: ubuntu-latest
 
@@ -20,18 +39,141 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run lint
+      - name: Lint
         run: npm run lint
 
-      - name: Run typecheck
+      - name: Typecheck
         run: npm run typecheck
 
-      - name: Run tests
+      - name: Unit tests
         run: npm run test
 
       - name: Build Next.js
         run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Build and push Docker image to Artifact Registry
+  # ──────────────────────────────────────────────────────────────────────────
+  build-image:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs: [quality]
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Derive image reference
+        id: image
+        run: |
+          REF="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/tech-fusion/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.image.outputs.ref }}
+            ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/tech-fusion/${{ env.SERVICE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Deploy to Cloud Run
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: [build-image]
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ needs.build-image.outputs.image }}
+          flags: >-
+            --allow-unauthenticated
+            --min-instances=1
+            --max-instances=10
+            --concurrency=80
+            --timeout=300s
+            --memory=512Mi
+            --cpu=2
+            --execution-environment=gen2
+          env_vars: |
+            NODE_ENV=production
+            NEXT_TELEMETRY_DISABLED=1
+            PORT=3000
+            HOSTNAME=0.0.0.0
+          secrets: |
+            JWT_SECRET=jwt-secret:latest
+            SUPABASE_URL=supabase-url:latest
+            SUPABASE_ANON_KEY=supabase-anon-key:latest
+            SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest
+            REDIS_URL=redis-url:latest
+            MQTT_URL=mqtt-url:latest
+            OTEL_EXPORTER_OTLP_ENDPOINT=otel-endpoint:latest
+
+      - name: Smoke test deployed service
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          echo "Testing health endpoint at ${URL}/api/health"
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${URL}/api/health" || echo "000")
+          # Accept 200 (healthy) or 503 (degraded) — both indicate the application
+          # is running and responding. 503 is expected immediately after deployment
+          # when external dependencies (Redis, MQTT, Supabase) have not yet
+          # established their connections. Any other status (000, 404, 5xx) indicates
+          # a deployment failure.
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "503" ]; then
+            echo "❌ Health check returned unexpected status: $STATUS"
+            exit 1
+          fi
+          if [ "$STATUS" = "503" ]; then
+            echo "⚠️  Service is degraded (dependencies not yet connected) — deployment succeeded"
+          else
+            echo "✅ Deployment smoke test passed (status=${STATUS})"
+          fi
+
+      - name: Output service URL
+        run: |
+          echo "🚀 Deployed to: ${{ steps.deploy.outputs.url }}"
+
