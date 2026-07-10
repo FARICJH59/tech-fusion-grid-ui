@@ -5,11 +5,10 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "[supabase] SUPABASE_URL and SUPABASE_ANON_KEY must be set in production.",
-    );
-  }
+  // Warn at module load time. Throwing here breaks the Next.js build because
+  // the bundler imports route modules during static analysis even when those
+  // routes are never statically rendered.  The runtime will surface errors
+  // when an actual DB query is attempted without credentials.
   console.warn(
     "[supabase] SUPABASE_URL or SUPABASE_ANON_KEY is not configured. " +
       "Database queries will fail at runtime.",
