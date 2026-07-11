@@ -13,6 +13,7 @@ export type EventHandler = (event: AutonomousEvent) => Promise<void>;
 const GROUP_PREFIX = "phase85:group";
 const CONSUMER_PREFIX = "phase85:consumer";
 const MAX_ATTEMPTS = 3;
+const REDIS_ENABLED = Boolean(process.env.REDIS_URL);
 
 export class StreamProcessor {
   private readonly handlers = new Map<AutonomousEvent["type"], EventHandler>();
@@ -24,6 +25,7 @@ export class StreamProcessor {
   }
 
   async ensureConsumerGroup(streamName: string, groupName: string): Promise<void> {
+    if (!REDIS_ENABLED) return;
     await redis
       .xgroup("CREATE", streamName, `${GROUP_PREFIX}:${groupName}`, "$", "MKSTREAM")
       .catch(() => undefined);
@@ -64,9 +66,11 @@ export class StreamProcessor {
         retried += 1;
       }
 
-      await redis
-        .set(`${CONSUMER_PREFIX}:${consumerGroup}:${event.id}`, new Date().toISOString(), "EX", 3600)
-        .catch(() => undefined);
+      if (REDIS_ENABLED) {
+        await redis
+          .set(`${CONSUMER_PREFIX}:${consumerGroup}:${event.id}`, new Date().toISOString(), "EX", 3600)
+          .catch(() => undefined);
+      }
     }
 
     return { processed, retried, deadLettered };

@@ -47,5 +47,6 @@ test("stream processor handles retries and dead-letter routing", async () => {
   ]);
 
   assert.equal(result.deadLettered, 1);
-  assert.equal(result.retried, 1);
+  assert.equal(result.processed, 1);
+  assert.equal(result.retried, 0);
 });

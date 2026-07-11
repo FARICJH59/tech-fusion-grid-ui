@@ -19,9 +19,11 @@ export class CloudActionEventBus {
       dedupeKey: `cloud-action:${event.id}`,
     });
 
-    await redis
-      .xadd(this.streamName, "*", "event", JSON.stringify(event))
-      .catch(() => undefined);
+    if (process.env.REDIS_URL) {
+      await redis
+        .xadd(this.streamName, "*", "event", JSON.stringify(event))
+        .catch(() => undefined);
+    }
 
     try {
       await supabase.from("cloud_actions").insert({

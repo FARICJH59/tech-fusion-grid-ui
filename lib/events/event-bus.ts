@@ -8,6 +8,7 @@ const DEAD_LETTER_STREAM = "phase85:autonomous-events:dlq";
 const IDEMPOTENCY_PREFIX = "phase85:idempotency";
 const MAX_REPLAY_BUFFER = 2_000;
 const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 60 * 60;
+const REDIS_ENABLED = Boolean(process.env.REDIS_URL);
 
 export class AutonomousEventBus {
   private readonly streamName: string;
@@ -33,9 +34,11 @@ export class AutonomousEventBus {
     this.replayBuffer.unshift(prepared);
     if (this.replayBuffer.length > MAX_REPLAY_BUFFER) this.replayBuffer.length = MAX_REPLAY_BUFFER;
 
-    await redis
-      .xadd(this.streamName, "*", "event", JSON.stringify(prepared))
-      .catch(() => undefined);
+    if (REDIS_ENABLED) {
+      await redis
+        .xadd(this.streamName, "*", "event", JSON.stringify(prepared))
+        .catch(() => undefined);
+    }
 
     await Promise.all(
       [...this.subscribers].map(async (subscriber) => {
@@ -66,6 +69,7 @@ export class AutonomousEventBus {
   }
 
   async deadLetter(record: DeadLetterRecord): Promise<void> {
+    if (!REDIS_ENABLED) return;
     await redis
       .xadd(this.deadLetterStream, "*", "event", JSON.stringify(record))
       .catch(() => undefined);
@@ -76,6 +80,12 @@ export class AutonomousEventBus {
   }
 
   private async markIdempotent(key: string): Promise<boolean> {
+    if (!REDIS_ENABLED) {
+      return !this.replayBuffer.some(
+        (event) => `${IDEMPOTENCY_PREFIX}:${event.dedupeKey ?? event.id}` === key,
+      );
+    }
+
     const result = await redis
       .set(key, "1", "EX", DEFAULT_IDEMPOTENCY_TTL_SECONDS, "NX")
       .catch(() => null);

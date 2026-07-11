@@ -9,6 +9,7 @@ export type RedisProductionStatus = {
 
 export class RedisProductionRuntime {
   async ping(): Promise<boolean> {
+    if (!process.env.REDIS_URL) return false;
     try {
       const response = await redis.ping();
       return response === "PONG";
