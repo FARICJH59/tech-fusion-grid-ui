@@ -3,6 +3,7 @@ import { hoareEnterprisePlatform } from "@/lib/enterprise/platform";
 import { autonomousPolicyEngine } from "@/lib/policy/engine";
 import { incidentManager } from "@/lib/incidents/incident-manager";
 import { reliabilityEngine } from "@/lib/reliability/slo-engine";
+import { operatorActionQueue, type OperatorActionRequest } from "@/lib/policy/operator-actions";
 
 export type OperationsSnapshot = {
   timestamp: string;
@@ -22,6 +23,7 @@ export type OperationsSnapshot = {
     sloHealth: "healthy" | "degraded";
     costOptimizationActions: number;
   };
+  autonomousActionQueue: OperatorActionRequest[];
 };
 
 const fleetManager = createDefaultFleetManager();
@@ -45,6 +47,8 @@ export function createOperationsSnapshot(): OperationsSnapshot {
     errorRate: 0.008,
   });
 
+  const queue = operatorActionQueue.list();
+
   return {
     timestamp: new Date().toISOString(),
     fleetStatus: fleetManager.snapshot().map((item) => ({ region: item.region, healthy: item.healthy })),
@@ -57,7 +61,7 @@ export function createOperationsSnapshot(): OperationsSnapshot {
       runtimeServices: runtimeServices.length,
     },
     incidents: { open: incidents.filter((item) => item.status === "open").length },
-    runtimeEvents: { queueDepth: 0 },
+    runtimeEvents: { queueDepth: queue.length },
     workflowExecution: { active: runtimeServices.filter((item) => item.health === "healthy").length },
     aiProviderStatus: hoareEnterprisePlatform.providers
       .list()
@@ -67,12 +71,10 @@ export function createOperationsSnapshot(): OperationsSnapshot {
       autonomousActions: policyDecisions.length,
       scalingDecisions: 1,
       rollbackHistory: 0,
-      approvalQueue: autonomousPolicyEngine
-        .approvals
-        .list()
-        .filter((approval) => approval.status === "pending").length,
+      approvalQueue: queue.filter((approval) => approval.approvalStatus === "pending").length,
       sloHealth: slo?.breached ? "degraded" : "healthy",
       costOptimizationActions: hoareEnterprisePlatform.cost.recommend("tenant-1").length,
     },
+    autonomousActionQueue: queue,
   };
 }

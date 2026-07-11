@@ -1,5 +1,7 @@
 import type { CloudActionEvent, RollbackRequest } from "@/lib/cloud/cloud-types";
 import type { GcpCloudClient } from "@/lib/cloud/gcp-client";
+import { cloudActionEventBus } from "@/lib/cloud/action-events";
+import { recordRollback } from "@/lib/telemetry/autonomous-observability";
 
 export type RollbackResult = {
   request: RollbackRequest;
@@ -36,6 +38,8 @@ export class RollbackEngine {
     };
 
     this.audit.push(event);
+    recordRollback("rollback-engine");
+    await cloudActionEventBus.publish(event);
 
     return {
       request,

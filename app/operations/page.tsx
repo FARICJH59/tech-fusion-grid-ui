@@ -23,9 +23,20 @@ export default function OperationsPage() {
     <main style={{ minHeight: "100vh", background: "#0b1220", color: "#fff", padding: 32 }}>
       <h1>Real-Time Operations</h1>
       <p style={{ color: "#9ca3af" }}>
-        Cloud Control Center with live deployments, autonomous actions, scaling, rollback, incidents, SLO, and approvals.
+        Cloud Control Center with live deployments, autonomous actions, scaling, rollback, incidents, SLO, approvals, and
+        operator governance.
       </p>
-      <pre>{JSON.stringify(snapshot, null, 2)}</pre>
+
+      <section style={{ marginTop: 24 }}>
+        <h2>Autonomous Action Queue</h2>
+        <pre>{JSON.stringify(snapshot?.autonomousActionQueue ?? [], null, 2)}</pre>
+      </section>
+
+      <section style={{ marginTop: 24 }}>
+        <h2>Control Plane Snapshot</h2>
+        <pre>{JSON.stringify(snapshot, null, 2)}</pre>
+      </section>
+
       <p>
         <Link href="/">← Back to dashboard</Link>
       </p>

@@ -1,4 +1,6 @@
 import type { ApprovalStatus } from "@/lib/cloud/cloud-types";
+import { supabase } from "@/lib/supabase";
+import { autonomousEventBus } from "@/lib/events/event-bus";
 
 export type ApprovalRecord = {
   id: string;
@@ -25,6 +27,7 @@ export class ApprovalFlow {
       updatedAt: now,
     };
     this.approvals.set(record.id, record);
+    void this.persist(record);
     return record;
   }
 
@@ -44,6 +47,7 @@ export class ApprovalFlow {
       updatedAt: new Date().toISOString(),
     };
     this.approvals.set(id, updated);
+    void this.persist(updated, approver, reason);
     return updated;
   }
 
@@ -53,5 +57,41 @@ export class ApprovalFlow {
 
   list(): ApprovalRecord[] {
     return [...this.approvals.values()];
+  }
+
+  private async persist(record: ApprovalRecord, approver?: string, reason?: string): Promise<void> {
+    try {
+      await supabase.from("approval_requests").upsert({
+        id: record.id,
+        tenant_id: record.tenantId,
+        organization_id: record.tenantId,
+        action_id: record.actionId,
+        status: record.status,
+        requested_by: "autonomous-policy-engine",
+        approved_by: approver,
+        reason: reason ?? record.reason,
+        metadata: record,
+        updated_at: record.updatedAt,
+      });
+    } catch {
+      // Best-effort persistence in non-configured environments.
+    }
+
+    await autonomousEventBus.publish({
+      id: `approval:${record.id}:${record.updatedAt}`,
+      tenantId: record.tenantId,
+      organizationId: record.tenantId,
+      type: "approval",
+      source: "approval-flow",
+      priority: record.status === "rejected" ? "high" : "medium",
+      timestamp: record.updatedAt,
+      payload: {
+        actionId: record.actionId,
+        status: record.status,
+        approver: approver ?? record.approver,
+        reason: reason ?? record.reason,
+      },
+      dedupeKey: `approval:${record.id}:${record.status}:${record.updatedAt}`,
+    });
   }
 }

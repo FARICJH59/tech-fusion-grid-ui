@@ -10,6 +10,8 @@ import type { RollbackEngine } from "@/lib/cloud/rollback-engine";
 import type { IntelligentScalingEngine } from "@/lib/cloud/scaling-engine";
 import type { GcpCloudClient } from "@/lib/cloud/gcp-client";
 import type { AutonomousPolicyEngine } from "@/lib/policy/engine";
+import { cloudActionEventBus } from "@/lib/cloud/action-events";
+import { traceAutonomousWorkflow } from "@/lib/telemetry/autonomous-observability";
 
 export class CloudRunController {
   private readonly auditTrail: CloudActionEvent[] = [];
@@ -30,88 +32,94 @@ export class CloudRunController {
     spec: CloudRunServiceSpec;
     riskLevel?: "low" | "medium" | "high" | "critical";
   }): Promise<{ deployment: DeploymentRecord; status: CloudRunRevisionStatus }> {
-    const deployment = this.deploymentManager.request({
-      id: input.deploymentId,
-      tenantId: input.tenantId,
-      requestedBy: input.requestedBy,
-      service: input.spec.service,
-      region: input.spec.region,
-      targetImage: input.spec.image,
-      previousRevision: `${input.spec.service}-previous`,
-    });
-
-    this.deploymentManager.transition(deployment.id, "validated", "Pre-deployment checks passed");
-
-    const policyEvent: CloudActionEvent = {
-      id: deployment.id,
-      tenantId: input.tenantId,
-      actionType: "deploy",
-      resource: input.spec.service,
-      requestedBy: input.requestedBy,
-      reason: input.reason,
-      riskLevel: input.riskLevel ?? "medium",
-      previousState: { revision: deployment.previousRevision },
-      newState: { image: input.spec.image },
-      approvalStatus: "pending",
-      executionStatus: "validated",
-      timestamp: new Date().toISOString(),
-    };
-
-    const decision = this.policyEngine.evaluate(policyEvent);
-    if (decision.decision === "reject") {
-      this.deploymentManager.transition(deployment.id, "rolled-back", "Policy rejected deployment");
-      const rejectedEvent: CloudActionEvent = {
-        ...policyEvent,
-        approvalStatus: decision.approvalStatus,
-        executionStatus: decision.executionStatus,
-        reason: decision.reason,
-      };
-      this.auditTrail.push(rejectedEvent);
-      throw new Error(decision.reason);
-    }
-
-    this.deploymentManager.transition(deployment.id, "approved", decision.reason);
-    this.deploymentManager.transition(deployment.id, "deploying", "Cloud Run rollout started");
-
-    const status = await this.cloudClient.deployService(input.spec);
-    this.deploymentManager.setRevision(deployment.id, status.latestRevision);
-    this.deploymentManager.transition(deployment.id, "verifying", "Verifying deployment health");
-
-    const health = await this.cloudClient.verifyHealth(input.spec.service);
-    if (!health.healthy) {
-      await this.rollbackEngine.execute({
+    return traceAutonomousWorkflow("cloud-deployment", async () => {
+      const deployment = this.deploymentManager.request({
+        id: input.deploymentId,
         tenantId: input.tenantId,
+        requestedBy: input.requestedBy,
         service: input.spec.service,
         region: input.spec.region,
-        fromRevision: status.latestRevision,
-        toRevision: deployment.previousRevision ?? `${input.spec.service}-stable`,
-        trigger: "failed-health-check",
-        reason: "Health verification failed after rollout",
+        targetImage: input.spec.image,
+        previousRevision: `${input.spec.service}-previous`,
       });
-      this.deploymentManager.transition(deployment.id, "rolled-back", "Automatic rollback executed");
-    } else {
-      this.deploymentManager.transition(deployment.id, "completed", "Deployment verification succeeded");
-    }
 
-    this.auditTrail.push({
-      id: deployment.id,
-      tenantId: input.tenantId,
-      actionType: "deploy",
-      resource: input.spec.service,
-      requestedBy: input.requestedBy,
-      reason: input.reason,
-      riskLevel: input.riskLevel ?? "medium",
-      previousState: { revision: deployment.previousRevision },
-      newState: { revision: status.latestRevision, image: input.spec.image },
-      approvalStatus: decision.approvalStatus,
-      executionStatus: health.healthy ? "completed" : "rolled-back",
-      timestamp: new Date().toISOString(),
+      this.deploymentManager.transition(deployment.id, "validated", "Pre-deployment checks passed");
+
+      const policyEvent: CloudActionEvent = {
+        id: deployment.id,
+        tenantId: input.tenantId,
+        actionType: "deploy",
+        resource: input.spec.service,
+        requestedBy: input.requestedBy,
+        reason: input.reason,
+        riskLevel: input.riskLevel ?? "medium",
+        previousState: { revision: deployment.previousRevision },
+        newState: { image: input.spec.image },
+        approvalStatus: "pending",
+        executionStatus: "validated",
+        timestamp: new Date().toISOString(),
+      };
+      await cloudActionEventBus.publish(policyEvent);
+
+      const decision = this.policyEngine.evaluate(policyEvent);
+      if (decision.decision === "reject") {
+        this.deploymentManager.transition(deployment.id, "rolled-back", "Policy rejected deployment");
+        const rejectedEvent: CloudActionEvent = {
+          ...policyEvent,
+          approvalStatus: decision.approvalStatus,
+          executionStatus: decision.executionStatus,
+          reason: decision.reason,
+        };
+        this.auditTrail.push(rejectedEvent);
+        await cloudActionEventBus.publish(rejectedEvent);
+        throw new Error(decision.reason);
+      }
+
+      this.deploymentManager.transition(deployment.id, "approved", decision.reason);
+      this.deploymentManager.transition(deployment.id, "deploying", "Cloud Run rollout started");
+
+      const status = await this.cloudClient.deployService(input.spec);
+      this.deploymentManager.setRevision(deployment.id, status.latestRevision);
+      this.deploymentManager.transition(deployment.id, "verifying", "Verifying deployment health");
+
+      const health = await this.cloudClient.verifyHealth(input.spec.service);
+      if (!health.healthy) {
+        await this.rollbackEngine.execute({
+          tenantId: input.tenantId,
+          service: input.spec.service,
+          region: input.spec.region,
+          fromRevision: status.latestRevision,
+          toRevision: deployment.previousRevision ?? `${input.spec.service}-stable`,
+          trigger: "failed-health-check",
+          reason: "Health verification failed after rollout",
+        });
+        this.deploymentManager.transition(deployment.id, "rolled-back", "Automatic rollback executed");
+      } else {
+        this.deploymentManager.transition(deployment.id, "completed", "Deployment verification succeeded");
+      }
+
+      const completedEvent: CloudActionEvent = {
+        id: deployment.id,
+        tenantId: input.tenantId,
+        actionType: "deploy",
+        resource: input.spec.service,
+        requestedBy: input.requestedBy,
+        reason: input.reason,
+        riskLevel: input.riskLevel ?? "medium",
+        previousState: { revision: deployment.previousRevision },
+        newState: { revision: status.latestRevision, image: input.spec.image },
+        approvalStatus: decision.approvalStatus,
+        executionStatus: health.healthy ? "completed" : "rolled-back",
+        timestamp: new Date().toISOString(),
+      };
+      this.auditTrail.push(completedEvent);
+      await cloudActionEventBus.publish(completedEvent);
+
+      return {
+        deployment: this.deploymentManager.get(deployment.id) ?? deployment,
+        status,
+      };
     });
-
-    return {
-      deployment: this.deploymentManager.get(deployment.id) ?? deployment,
-      status,
-    };
   }
 
   async migrateTraffic(service: string, region: string, revisions: Array<{ revision: string; percent: number }>) {

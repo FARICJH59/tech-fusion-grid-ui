@@ -79,6 +79,21 @@ const EnvSchema = z.object({
   GOOGLE_CLOUD_REGION: z.string().optional(),
   GOOGLE_CLOUD_WIF_PROVIDER: z.string().optional(),
   GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT: z.string().optional(),
+  GOOGLE_CLOUD_IMPERSONATE_SERVICE_ACCOUNT: z.string().optional(),
+
+  // Supabase production controls
+  SUPABASE_DB_URL: z.string().optional(),
+  SUPABASE_MIGRATIONS_PATH: z.string().optional(),
+
+  // Redis production controls
+  REDIS_STREAM_PREFIX: z.string().optional(),
+  REDIS_CONSUMER_GROUP: z.string().optional(),
+
+  // EMQX / MQTT production controls
+  EMQX_URL: z.string().optional(),
+  EMQX_MTLS_REQUIRED: boolStr(true),
+  EMQX_ACL_ENABLED: boolStr(true),
+  EMQX_CERT_ROTATION_DAYS: positiveIntStr,
 });
 
 // ---------------------------------------------------------------------------

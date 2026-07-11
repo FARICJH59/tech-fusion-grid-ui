@@ -1,3 +1,5 @@
+import { autonomousEventBus } from "@/lib/events/event-bus";
+
 export const ALERT_CHANNELS = ["slack", "pagerduty", "email"] as const;
 
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
@@ -35,6 +37,21 @@ export class AlertManager {
   dispatch(event: AlertEvent): AlertDispatch[] {
     const channels = this.getTenantChannels(event.tenantId);
     const timestamp = new Date().toISOString();
+    void autonomousEventBus.publish({
+      id: `alert:${event.tenantId}:${Date.now().toString(36)}`,
+      tenantId: event.tenantId,
+      organizationId: event.tenantId,
+      type: "incident",
+      source: "alert-manager",
+      priority: event.severity === "critical" ? "critical" : "high",
+      timestamp,
+      payload: {
+        alertType: event.type,
+        severity: event.severity,
+        message: event.message,
+        metadata: event.metadata ?? {},
+      },
+    });
     return channels.map((channel) => ({ channel, delivered: true, timestamp }));
   }
 }

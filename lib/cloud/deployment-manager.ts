@@ -4,6 +4,7 @@ import type {
   DeploymentRecord,
 } from "@/lib/cloud/cloud-types";
 import { supabase } from "@/lib/supabase";
+import { autonomousEventBus } from "@/lib/events/event-bus";
 
 type DeploymentStore = {
   deployments: DeploymentRecord[];
@@ -102,28 +103,71 @@ export class DeploymentManager {
     message: string,
     metadata?: Record<string, unknown>,
   ): void {
-    this.store.events.push({
+    const event: DeploymentEvent = {
       deploymentId,
       state,
       message,
       metadata,
       timestamp: new Date().toISOString(),
-    });
+    };
+    this.store.events.push(event);
+    void this.persistEvent(event);
   }
 
   private async persist(record: DeploymentRecord): Promise<void> {
     try {
-      await supabase.from("phase8_deployments").upsert({
+      await supabase.from("deployments").upsert({
         id: record.id,
         tenant_id: record.tenantId,
+        organization_id: record.tenantId,
         service: record.service,
         region: record.region,
         status: record.status,
-        payload: record,
+        target_image: record.targetImage,
+        previous_revision: record.previousRevision,
+        next_revision: record.nextRevision,
+        metadata: record,
         updated_at: record.updatedAt,
       });
     } catch {
       // Best-effort persistence in non-configured environments.
     }
+  }
+
+  private async persistEvent(event: DeploymentEvent): Promise<void> {
+    const deployment = this.get(event.deploymentId);
+    if (!deployment) return;
+
+    try {
+      await supabase.from("deployment_events").insert({
+        id: `${event.deploymentId}:${event.timestamp}:${event.state}`,
+        deployment_id: event.deploymentId,
+        tenant_id: deployment.tenantId,
+        organization_id: deployment.tenantId,
+        event_type: event.state,
+        message: event.message,
+        metadata: event.metadata ?? {},
+        created_at: event.timestamp,
+      });
+    } catch {
+      // Best-effort persistence in non-configured environments.
+    }
+
+    await autonomousEventBus.publish({
+      id: `${event.deploymentId}:${event.state}:${Date.now().toString(36)}`,
+      tenantId: deployment.tenantId,
+      organizationId: deployment.tenantId,
+      type: "deployment",
+      source: "deployment-manager",
+      priority: event.state === "rolled-back" ? "high" : "medium",
+      timestamp: event.timestamp,
+      payload: {
+        deploymentId: event.deploymentId,
+        state: event.state,
+        message: event.message,
+        metadata: event.metadata ?? {},
+      },
+      dedupeKey: `deployment:${event.deploymentId}:${event.state}:${event.timestamp}`,
+    });
   }
 }

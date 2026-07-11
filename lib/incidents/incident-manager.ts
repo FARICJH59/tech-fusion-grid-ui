@@ -1,6 +1,7 @@
 import { rootCauseAgent } from "@/lib/incidents/root-cause-agent";
 import { IncidentTimeline } from "@/lib/incidents/timeline";
 import { createPostmortem, type PostmortemReport } from "@/lib/incidents/postmortem";
+import { autonomousEventBus } from "@/lib/events/event-bus";
 
 export type IncidentSeverity = "sev0" | "sev1" | "sev2" | "sev3";
 
@@ -44,6 +45,21 @@ export class IncidentManager {
     this.incidents.set(id, incident);
     this.timeline.push({ incidentId: id, stage: "detected", message: input.reason, timestamp: now });
     this.timeline.push({ incidentId: id, stage: "created", message: "Incident created", timestamp: now });
+    void autonomousEventBus.publish({
+      id: `incident:${id}:created`,
+      tenantId: input.tenantId,
+      organizationId: input.tenantId,
+      type: "incident",
+      source: "incident-manager",
+      priority: input.severity === "sev0" ? "critical" : "high",
+      timestamp: now,
+      payload: {
+        incidentId: id,
+        service: input.service,
+        severity: input.severity,
+        status: "open",
+      },
+    });
     return incident;
   }
 
@@ -65,6 +81,19 @@ export class IncidentManager {
     incident.updatedAt = new Date().toISOString();
     this.timeline.push({ incidentId, stage: "remediated", message: action, timestamp: incident.updatedAt });
     this.incidents.set(incidentId, incident);
+    void autonomousEventBus.publish({
+      id: `incident:${incidentId}:remediation:${Date.now().toString(36)}`,
+      tenantId: incident.tenantId,
+      organizationId: incident.tenantId,
+      type: "recovery",
+      source: "incident-manager",
+      priority: "high",
+      timestamp: incident.updatedAt,
+      payload: {
+        incidentId,
+        action,
+      },
+    });
   }
 
   verify(incidentId: string, passed: boolean): void {
@@ -83,6 +112,19 @@ export class IncidentManager {
     incident.updatedAt = new Date().toISOString();
     this.timeline.push({ incidentId, stage: "resolved", message: "Incident resolved", timestamp: incident.updatedAt });
     this.incidents.set(incidentId, incident);
+    void autonomousEventBus.publish({
+      id: `incident:${incidentId}:resolved`,
+      tenantId: incident.tenantId,
+      organizationId: incident.tenantId,
+      type: "recovery",
+      source: "incident-manager",
+      priority: "medium",
+      timestamp: incident.updatedAt,
+      payload: {
+        incidentId,
+        status: incident.status,
+      },
+    });
     return incident;
   }
 
