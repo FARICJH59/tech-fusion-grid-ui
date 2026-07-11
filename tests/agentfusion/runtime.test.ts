@@ -34,16 +34,17 @@ test("runtime executes registered agents in isolated tenant context", async () =
   });
 
   const agent = buildAgent();
-  const context = runtime.createContext(agent, {
+  const adminContext = runtime.createContext(agent, {
     requestId: "req-1",
     tenant: { tenantId: "tenant-1" },
-    actor: { id: "viewer-1", role: "viewer", type: "user" },
+    actor: { id: "admin-1", role: "admin", type: "user" },
     metadata: { tokenUsage: 42 },
   });
+  const context = { ...adminContext, actor: { id: "viewer-1", role: "viewer" as const, type: "user" as const } };
 
-  await runtime.loadAgent({ tenantId: "tenant-1", agent, context });
-  await runtime.validateAgent(agent, "tenant-1", { ...context, actor: { ...context.actor, role: "admin" } });
-  await runtime.lifecycle.activateAgent(agent.identity.id, "tenant-1", { ...context, actor: { ...context.actor, role: "admin" } }, agent.identity.version);
+  await runtime.loadAgent({ tenantId: "tenant-1", agent, context: adminContext });
+  await runtime.validateAgent(agent, "tenant-1", adminContext);
+  await runtime.lifecycle.activateAgent(agent.identity.id, "tenant-1", adminContext, agent.identity.version);
   runtime.registerExecutionHandler(agent.identity.id, async ({ payload }) => ({ payload, handled: true }));
 
   const result = await runtime.executeAgent({

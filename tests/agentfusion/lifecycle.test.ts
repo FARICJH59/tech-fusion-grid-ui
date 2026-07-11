@@ -23,7 +23,7 @@ function buildAgent(): Agent {
 const context = {
   requestId: "req-1",
   tenant: { tenantId: "tenant-1" },
-  actor: { id: "admin-1", role: "admin", type: "user" as const },
+  actor: { id: "admin-1", role: "admin" as const, type: "user" as const },
 };
 
 test("lifecycle manager enforces transitions and tenant-safe status changes", async () => {

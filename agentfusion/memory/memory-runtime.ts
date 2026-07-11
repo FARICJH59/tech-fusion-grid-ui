@@ -4,9 +4,11 @@ import { InMemoryMemoryProvider, type MemoryProvider, type MemoryQuery, type Mem
 
 export class RedisMemoryAdapter implements MemoryProvider {
   private readonly fallback = new InMemoryMemoryProvider();
+  private readonly redisEnabled = Boolean(process.env.REDIS_URL);
 
   async get(query: MemoryQuery): Promise<MemoryRecord | undefined> {
     const key = this.key(query);
+    if (!this.redisEnabled) return this.fallback.get(query);
     try {
       const raw = await redis.get(key);
       if (!raw) return this.fallback.get(query);
@@ -18,6 +20,7 @@ export class RedisMemoryAdapter implements MemoryProvider {
 
   async set(record: MemoryRecord): Promise<void> {
     await this.fallback.set(record);
+    if (!this.redisEnabled) return;
     try {
       const ttlSeconds = record.expiresAt
         ? Math.max(1, Math.floor((Date.parse(record.expiresAt) - Date.now()) / 1000))
@@ -30,6 +33,7 @@ export class RedisMemoryAdapter implements MemoryProvider {
 
   async delete(query: MemoryQuery): Promise<boolean> {
     const deleted = await this.fallback.delete(query);
+    if (!this.redisEnabled) return deleted;
     try {
       await redis.del(this.key(query));
     } catch {
