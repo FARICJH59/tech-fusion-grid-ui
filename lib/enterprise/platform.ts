@@ -11,6 +11,14 @@ import { RevenuePlatform, REVENUE_FEATURES } from "@/lib/enterprise/revenue";
 import { EnterpriseSecurity, SECURITY_CAPABILITIES } from "@/lib/enterprise/security";
 import { createDefaultSDKRegistry, SDK_CHANNELS } from "@/lib/enterprise/sdk";
 import { RuntimeIntegration, RUNTIME_SERVICES } from "@/lib/enterprise/runtime";
+import { alertManager, ALERT_CHANNELS } from "@/lib/enterprise/alerts";
+import { costOptimizationEngine } from "@/lib/enterprise/cost-engine";
+import { createDefaultFleetManager } from "@/lib/enterprise/fleet";
+import { createDefaultIntegrationLayer, ENTERPRISE_CONNECTORS } from "@/lib/enterprise/integrations";
+import { EnterpriseMessagingRuntime, MQTT_HARDENING_FEATURES } from "@/lib/enterprise/messaging";
+import { policyEngine, POLICY_TYPES } from "@/lib/enterprise/policy-engine";
+import { REDIS_RUNTIME_CAPABILITIES, RUNTIME_STATE_ENTITIES } from "@/lib/enterprise/runtime-state";
+import { autonomousScalingEngine } from "@/lib/enterprise/scaling";
 
 export class HoareEnterprisePlatform {
   readonly controlPlane = buildDefaultControlPlane();
@@ -23,6 +31,13 @@ export class HoareEnterprisePlatform {
   readonly marketplace = createDefaultMarketplace();
   readonly security = new EnterpriseSecurity();
   readonly revenue = new RevenuePlatform();
+  readonly messaging = new EnterpriseMessagingRuntime();
+  readonly fleet = createDefaultFleetManager();
+  readonly integrations = createDefaultIntegrationLayer();
+  readonly policy = policyEngine;
+  readonly alerts = alertManager;
+  readonly cost = costOptimizationEngine;
+  readonly scaling = autonomousScalingEngine;
 
   status() {
     return {
@@ -37,6 +52,13 @@ export class HoareEnterprisePlatform {
         marketplaceExtensionTypes: MARKETPLACE_EXTENSION_TYPES,
         securityCapabilities: SECURITY_CAPABILITIES,
         revenueFeatures: REVENUE_FEATURES,
+        runtimeStateEntities: RUNTIME_STATE_ENTITIES,
+        redisCapabilities: REDIS_RUNTIME_CAPABILITIES,
+        mqttReadiness: MQTT_HARDENING_FEATURES,
+        policyTypes: POLICY_TYPES,
+        notificationChannels: ALERT_CHANNELS,
+        multiRegion: this.fleet.snapshot().map((item) => item.region),
+        integrationConnectors: ENTERPRISE_CONNECTORS,
       },
       health: {
         controlPlane: this.controlPlane.snapshotHealth(),

@@ -69,6 +69,7 @@ export default function HomePage() {
         <Link href="/execution-plane">⚙️ Execution Plane</Link>
         <Link href="/audit">🛡 Audit Center</Link>
         <Link href="/platform">🏢 Enterprise Control Plane</Link>
+        <Link href="/operations">🛰 Real-Time Operations</Link>
         <Link href="/api/platform/status">📊 Platform Status API</Link>
         <Link href="/api/runtime/status">🧠 Runtime Status API</Link>
       </div>

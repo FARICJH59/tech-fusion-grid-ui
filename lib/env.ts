@@ -76,6 +76,9 @@ const EnvSchema = z.object({
 
   // Cloud
   GOOGLE_CLOUD_PROJECT_ID: z.string().optional(),
+  GOOGLE_CLOUD_REGION: z.string().optional(),
+  GOOGLE_CLOUD_WIF_PROVIDER: z.string().optional(),
+  GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------

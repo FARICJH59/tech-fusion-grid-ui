@@ -21,6 +21,8 @@ export type RuntimeService = DeployableService & {
   runtimeName: RuntimeServiceName;
   dependencies: string[];
   independentlyDeployable: true;
+  stateBackend: "supabase-postgresql";
+  coordinationBackend: "redis";
 };
 
 export class RuntimeIntegration {
@@ -39,6 +41,8 @@ export class RuntimeIntegration {
         health: "healthy",
         dependencies: key === "event-bus" ? [] : ["Event Bus"],
         independentlyDeployable: true,
+        stateBackend: "supabase-postgresql",
+        coordinationBackend: "redis",
       });
     }
   }

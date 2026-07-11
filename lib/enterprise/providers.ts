@@ -1,4 +1,5 @@
 import type { ServiceHealth } from "@/lib/enterprise/types";
+import { costOptimizationEngine, type CostTelemetryRecord } from "@/lib/enterprise/cost-engine";
 
 export const PROVIDER_NAMES = [
   "Google Gemini",
@@ -74,6 +75,30 @@ function estimateTokens(prompt: string): number {
   return Math.max(1, Math.ceil(prompt.length / 4));
 }
 
+function deriveCostTelemetry(response: AIResponse, request: AIRequest): CostTelemetryRecord {
+  const promptTokens = Math.max(1, Math.floor(response.usageTokens * 0.45));
+  const completionTokens = Math.max(0, response.usageTokens - promptTokens);
+  const embeddingsTokens = request.operation === "embeddings" ? response.usageTokens : 0;
+  const imageGenerations = request.operation === "image-generation" ? 1 : 0;
+  const videoGenerations = request.operation === "video-generation" ? 1 : 0;
+  const gpuSeconds = request.operation === "video-generation" ? 20 : request.operation === "image-generation" ? 8 : 1;
+  const cloudRunVcpuSeconds = Math.max(1, Math.ceil(response.usageTokens / 50));
+  const cloudRunMemoryGbSeconds = Number((cloudRunVcpuSeconds * 0.5).toFixed(3));
+
+  return {
+    tenantId: request.tenantId,
+    promptTokens,
+    completionTokens,
+    embeddingsTokens,
+    imageGenerations,
+    videoGenerations,
+    gpuSeconds,
+    cloudRunVcpuSeconds,
+    cloudRunMemoryGbSeconds,
+    estimatedCostUsd: response.estimatedCostUsd,
+  };
+}
+
 function estimateCost(provider: ProviderName, tokens: number): number {
   const perThousand: Record<ProviderName, number> = {
     "Google Gemini": 0.001,
@@ -126,6 +151,7 @@ export function createDefaultProvider(name: ProviderName): ProviderAdapter {
 export class AIProviderGateway {
   private readonly providers = new Map<ProviderName, ProviderAdapter>();
   private readonly usage = new Map<ProviderName, ProviderUsageInternal>();
+  private onUsageCallbacks = new Set<(record: CostTelemetryRecord) => void>();
 
   register(provider: ProviderAdapter): void {
     this.providers.set(provider.name, provider);
@@ -171,6 +197,11 @@ export class AIProviderGateway {
         const provider = this.selectProvider(request.operation, request.preferred);
         const response = await provider.call(request);
         this.trackUsage(response);
+        const telemetry = deriveCostTelemetry(response, request);
+        costOptimizationEngine.ingest(telemetry);
+        for (const callback of this.onUsageCallbacks) {
+          callback(telemetry);
+        }
         return response;
       } catch (error) {
         lastError = error;
@@ -199,6 +230,11 @@ export class AIProviderGateway {
         },
       ]),
     ) as Record<ProviderName, ProviderUsage>;
+  }
+
+  onUsage(handler: (record: CostTelemetryRecord) => void): () => void {
+    this.onUsageCallbacks.add(handler);
+    return () => this.onUsageCallbacks.delete(handler);
   }
 
   private trackUsage(response: AIResponse): void {

@@ -2,6 +2,22 @@
 
 A production-ready Next.js application for managing edge grid infrastructure, featuring real-time MQTT telemetry, JWT authentication, PostgreSQL persistence, Redis caching, and OpenTelemetry observability.
 
+## Phase 7 – Cloud Native Enterprise Platform
+
+Phase 7 extends the platform into a cloud-native enterprise operating layer:
+
+- Google Cloud SDK runtime integration (`lib/enterprise/cloud-runtime.ts`) for Cloud Run, Pub/Sub, Secret Manager, Logging, Monitoring, Artifact Registry
+- Workload Identity Federation-only posture (no long-lived service account keys)
+- Durable runtime-state contracts for Supabase/PostgreSQL + Redis (`lib/enterprise/runtime-state.ts`)
+- Enterprise MQTT hardening contracts (`lib/enterprise/messaging.ts`)
+- Policy engine contracts with versioned tenant/deployment/runtime/remediation policy persistence (`lib/enterprise/policy-engine.ts`)
+- AI cost telemetry + optimization recommendations (`lib/enterprise/cost-engine.ts`)
+- Autonomous scaling plan synthesis for Cloud Run (`lib/enterprise/scaling.ts`)
+- Multi-region fleet placement/failover (`lib/enterprise/fleet.ts`)
+- Plugin-based enterprise connector layer (`lib/enterprise/integrations.ts`)
+- Real-time operations streaming via SSE (`app/api/operations/stream/route.ts`, `app/operations/page.tsx`)
+- Alert manager abstractions for Slack/PagerDuty/Email (`lib/enterprise/alerts.ts`)
+
 ## Phase 5 – HOARE Enterprise Platform Foundation
 
 Tech-Fusion-Grid-UI now includes the Enterprise Control Plane foundation for HOARE.ai while preserving the existing App Router, API routes, MQTT execution plane, security, middleware and observability behavior.
@@ -34,7 +50,9 @@ Tech-Fusion-Grid-UI now includes the Enterprise Control Plane foundation for HOA
 
 - `GET /api/platform/status` – full enterprise architecture and health snapshot
 - `GET /api/runtime/status` – HOARE runtime service integration status
+- `GET /api/operations/stream` – SSE live operations stream
 - `/platform` – enterprise control plane page
+- `/operations` – real-time operations dashboard
 
 ## Architecture
 
