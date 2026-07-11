@@ -23,7 +23,7 @@ export default function OperationsPage() {
     <main style={{ minHeight: "100vh", background: "#0b1220", color: "#fff", padding: 32 }}>
       <h1>Real-Time Operations</h1>
       <p style={{ color: "#9ca3af" }}>
-        Live fleet/deployment/telemetry/incidents/runtime/workflow/provider status via SSE.
+        Cloud Control Center with live deployments, autonomous actions, scaling, rollback, incidents, SLO, and approvals.
       </p>
       <pre>{JSON.stringify(snapshot, null, 2)}</pre>
       <p>

@@ -19,6 +19,7 @@ import { EnterpriseMessagingRuntime, MQTT_HARDENING_FEATURES } from "@/lib/enter
 import { policyEngine, POLICY_TYPES } from "@/lib/enterprise/policy-engine";
 import { REDIS_RUNTIME_CAPABILITIES, RUNTIME_STATE_ENTITIES } from "@/lib/enterprise/runtime-state";
 import { autonomousScalingEngine } from "@/lib/enterprise/scaling";
+import { DEFAULT_POLICY_RULES } from "@/lib/policy/rules";
 
 export class HoareEnterprisePlatform {
   readonly controlPlane = buildDefaultControlPlane();
@@ -59,6 +60,19 @@ export class HoareEnterprisePlatform {
         notificationChannels: ALERT_CHANNELS,
         multiRegion: this.fleet.snapshot().map((item) => item.region),
         integrationConnectors: ENTERPRISE_CONNECTORS,
+        autonomousCloudControl: [
+          "cloud-run-controller",
+          "deployment-manager",
+          "scaling-engine",
+          "rollback-engine",
+        ],
+        secretVaultProviders: [
+          "gcp-secret-manager",
+          "vault-compatible",
+          "aws-secrets-manager",
+          "azure-key-vault",
+        ],
+        governancePolicies: DEFAULT_POLICY_RULES.map((rule) => rule.id),
       },
       health: {
         controlPlane: this.controlPlane.snapshotHealth(),
