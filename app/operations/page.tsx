@@ -28,6 +28,11 @@ export default function OperationsPage() {
       </p>
 
       <section style={{ marginTop: 24 }}>
+        <h2>Agent Operations Center</h2>
+        <pre>{JSON.stringify(snapshot?.agentOperations ?? {}, null, 2)}</pre>
+      </section>
+
+      <section style={{ marginTop: 24 }}>
         <h2>Autonomous Action Queue</h2>
         <pre>{JSON.stringify(snapshot?.autonomousActionQueue ?? [], null, 2)}</pre>
       </section>

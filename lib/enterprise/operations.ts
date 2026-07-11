@@ -1,3 +1,4 @@
+import { agentFusionRuntime } from "@/agentfusion";
 import { createDefaultFleetManager } from "@/lib/enterprise/fleet";
 import { hoareEnterprisePlatform } from "@/lib/enterprise/platform";
 import { autonomousPolicyEngine } from "@/lib/policy/engine";
@@ -23,6 +24,16 @@ export type OperationsSnapshot = {
     sloHealth: "healthy" | "degraded";
     costOptimizationActions: number;
   };
+  agentOperations: {
+    activeAgents: number;
+    registeredAgents: number;
+    executions: number;
+    failures: number;
+    approvals: number;
+    averageLatencyMs: number;
+    evaluationScores: { agentId: string; qualityScore: number }[];
+    resourceUsage: { agentId: string; tokenUsage: number }[];
+  };
   autonomousActionQueue: OperatorActionRequest[];
 };
 
@@ -46,8 +57,8 @@ export function createOperationsSnapshot(): OperationsSnapshot {
     latencyMs: 420,
     errorRate: 0.008,
   });
-
   const queue = operatorActionQueue.list();
+  const agentStatus = agentFusionRuntime.status();
 
   return {
     timestamp: new Date().toISOString(),
@@ -74,6 +85,16 @@ export function createOperationsSnapshot(): OperationsSnapshot {
       approvalQueue: queue.filter((approval) => approval.approvalStatus === "pending").length,
       sloHealth: slo?.breached ? "degraded" : "healthy",
       costOptimizationActions: hoareEnterprisePlatform.cost.recommend("tenant-1").length,
+    },
+    agentOperations: {
+      activeAgents: agentStatus.activeAgents,
+      registeredAgents: agentStatus.registeredAgents,
+      executions: agentStatus.executions,
+      failures: agentStatus.failures,
+      approvals: agentStatus.approvalsPending,
+      averageLatencyMs: agentStatus.averageLatencyMs,
+      evaluationScores: agentStatus.evaluationScores,
+      resourceUsage: agentStatus.resourceUsage,
     },
     autonomousActionQueue: queue,
   };

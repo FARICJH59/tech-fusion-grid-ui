@@ -9,6 +9,13 @@ export const AUTONOMOUS_EVENT_TYPES = [
   "recovery",
   "operator-override",
   "operations-snapshot",
+  "agent-registered",
+  "agent-activated",
+  "agent-execution-started",
+  "agent-execution-completed",
+  "agent-execution-failed",
+  "agent-approval-required",
+  "agent-disabled",
 ] as const;
 
 export type AutonomousEventType = (typeof AUTONOMOUS_EVENT_TYPES)[number];
