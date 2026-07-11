@@ -28,6 +28,7 @@ export type AgentRuntimeStatus = {
   averageLatencyMs: number;
   evaluationScores: { agentId: string; qualityScore: number }[];
   resourceUsage: { agentId: string; tokenUsage: number }[];
+  inFlightExecutions: number;
 };
 
 export class AgentRuntime {
@@ -73,12 +74,7 @@ export class AgentRuntime {
   async executeAgent(
     request: Omit<AgentExecutionRequest, "agent" | "handler"> & { agentId: string; version?: string },
   ) {
-    const agent = this.registry.getAgent(request.tenantId, request.agentId, request.version);
-    if (!agent) {
-      throw new AgentValidationError(`Unknown agent '${request.agentId}'.`);
-    }
-
-    const handler = this.handlers.get(request.agentId);
+    const { agent, handler } = this.resolveExecution(request.tenantId, request.agentId, request.version);
     const result = await this.executor.execute({
       ...request,
       agent,
@@ -117,6 +113,19 @@ export class AgentRuntime {
     return result;
   }
 
+  executeAgentAsync(request: Omit<AgentExecutionRequest, "agent" | "handler"> & { agentId: string; version?: string }) {
+    const { agent, handler } = this.resolveExecution(request.tenantId, request.agentId, request.version);
+    return this.executor.executeAsync({
+      ...request,
+      agent,
+      handler,
+    });
+  }
+
+  readAsyncExecution(executionId: string) {
+    return this.executor.readAsyncResult(executionId);
+  }
+
   status(tenantId?: string): AgentRuntimeStatus {
     const records = this.registry.list(tenantId);
     const executionSlice = tenantId ? this.executions.filter((item) => item.tenantId === tenantId) : this.executions;
@@ -143,6 +152,20 @@ export class AgentRuntime {
           .filter((item) => item.agentId === record.agentId)
           .reduce((sum, item) => sum + item.tokenUsage, 0),
       })),
+      inFlightExecutions: this.executor
+        .listTraces()
+        .filter((trace) => trace.status === "running" && (!tenantId || trace.tenantId === tenantId)).length,
     };
+  }
+
+  private resolveExecution(tenantId: string, agentId: string, version?: string): {
+    agent: Agent;
+    handler?: AgentExecutionHandler;
+  } {
+    const agent = this.registry.getAgent(tenantId, agentId, version);
+    if (!agent) {
+      throw new AgentValidationError(`Unknown agent '${agentId}'.`);
+    }
+    return { agent, handler: this.handlers.get(agentId) };
   }
 }

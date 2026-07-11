@@ -21,7 +21,9 @@ export type AgentRegistryRecord = {
   domain: string;
   capabilities: string[];
   permissions: string[];
+  tenantScope: string;
   status: AgentLifecycleState;
+  healthStatus: "healthy" | "degraded" | "unhealthy" | "unknown";
   createdAt: string;
   updatedAt: string;
   metadata?: Record<string, unknown>;
@@ -54,7 +56,9 @@ export class AgentFusionRegistry {
       domain: request.agent.purpose.domain,
       capabilities: request.agent.capabilities.registered.map((capability) => capability.id),
       permissions: request.agent.permissions.map((permission) => permission.id),
+      tenantScope: request.agent.permissions[0]?.tenantScope ?? "current-tenant",
       status: request.status ?? "REGISTERED",
+      healthStatus: "unknown",
       createdAt: now,
       updatedAt: now,
       metadata: request.metadata,
@@ -122,6 +126,31 @@ export class AgentFusionRegistry {
     this.records.set(this.key(tenantId, agentId, updated.version), updated);
     await this.persist(updated);
     return updated;
+  }
+
+  async updateHealthStatus(
+    tenantId: string,
+    agentId: string,
+    healthStatus: AgentRegistryRecord["healthStatus"],
+    version?: string,
+  ): Promise<AgentRegistryRecord> {
+    const current = this.getRecord(tenantId, agentId, version);
+    if (!current) {
+      throw new Error(`Unknown agent '${agentId}'.`);
+    }
+
+    const updated: AgentRegistryRecord = {
+      ...current,
+      healthStatus,
+      updatedAt: new Date().toISOString(),
+    };
+    this.records.set(this.key(tenantId, agentId, updated.version), updated);
+    await this.persist(updated);
+    return updated;
+  }
+
+  healthStatus(tenantId: string, agentId: string, version?: string): AgentRegistryRecord["healthStatus"] {
+    return this.getRecord(tenantId, agentId, version)?.healthStatus ?? "unknown";
   }
 
   async updateMetadata(

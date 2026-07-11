@@ -3,6 +3,7 @@ import type { AutonomousEventType, EventPriority } from "@/lib/events/event-type
 
 export const AGENT_RUNTIME_EVENT_NAMES = {
   AgentRegistered: "AgentRegistered",
+  AgentValidated: "AgentValidated",
   AgentActivated: "AgentActivated",
   AgentExecutionStarted: "AgentExecutionStarted",
   AgentExecutionCompleted: "AgentExecutionCompleted",
@@ -32,6 +33,7 @@ export type AgentRuntimeEventInput = {
 
 const EVENT_TYPE_MAP: Record<AgentRuntimeEventName, AutonomousEventType> = {
   AgentRegistered: "agent-registered",
+  AgentValidated: "agent-validated",
   AgentActivated: "agent-activated",
   AgentExecutionStarted: "agent-execution-started",
   AgentExecutionCompleted: "agent-execution-completed",

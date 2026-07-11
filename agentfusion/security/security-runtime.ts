@@ -19,8 +19,8 @@ const CLOUD_ACTIONS = new Set<CloudActionType>([
 ]);
 
 export type AgentSecurityAuditEvent = {
-  agent: string;
-  tenant: string;
+  agentId: string;
+  tenantId: string;
   action: string;
   resource: string;
   decision: "allow" | "deny" | "require-approval";
@@ -64,8 +64,8 @@ export class AgentSecurityRuntime {
 
     if (request.context.tenant.tenantId !== request.tenantId) {
       return this.finish({
-        agent: request.agentId,
-        tenant: request.tenantId,
+        agentId: request.agentId,
+        tenantId: request.tenantId,
         action: request.action,
         resource: request.resource,
         decision: "deny",
@@ -84,8 +84,8 @@ export class AgentSecurityRuntime {
 
     if (!authorized) {
       return this.finish({
-        agent: request.agentId,
-        tenant: request.tenantId,
+        agentId: request.agentId,
+        tenantId: request.tenantId,
         action: request.action,
         resource: request.resource,
         decision: "deny",
@@ -120,8 +120,8 @@ export class AgentSecurityRuntime {
       approvalRequired = policyDecision.decision === "escalate";
       if (policyDecision.decision === "reject") {
         return this.finish({
-          agent: request.agentId,
-          tenant: request.tenantId,
+          agentId: request.agentId,
+          tenantId: request.tenantId,
           action: request.action,
           resource: request.resource,
           decision: "deny",
@@ -149,8 +149,8 @@ export class AgentSecurityRuntime {
       });
 
       const result = this.finish({
-        agent: request.agentId,
-        tenant: request.tenantId,
+        agentId: request.agentId,
+        tenantId: request.tenantId,
         action: request.action,
         resource: request.resource,
         decision: "require-approval",
@@ -173,8 +173,8 @@ export class AgentSecurityRuntime {
     }
 
     return this.finish({
-      agent: request.agentId,
-      tenant: request.tenantId,
+      agentId: request.agentId,
+      tenantId: request.tenantId,
       action: request.action,
       resource: request.resource,
       decision: "allow",
@@ -184,7 +184,7 @@ export class AgentSecurityRuntime {
   }
 
   listAudit(tenantId?: string): AgentSecurityAuditEvent[] {
-    return tenantId ? this.auditTrail.filter((entry) => entry.tenant === tenantId) : [...this.auditTrail];
+    return tenantId ? this.auditTrail.filter((entry) => entry.tenantId === tenantId) : [...this.auditTrail];
   }
 
   private finish(auditEvent: AgentSecurityAuditEvent, policyDecision?: PolicyDecision): AgentAuthorizationResult {
@@ -202,8 +202,8 @@ export class AgentSecurityRuntime {
   private async persistAudit(event: AgentSecurityAuditEvent): Promise<void> {
     try {
       await runtimeStateStore.save("workflows", {
-        id: `agentfusion-audit:${event.agent}:${event.timestamp}`,
-        tenant_id: event.tenant,
+        id: `agentfusion-audit:${event.agentId}:${event.timestamp}`,
+        tenant_id: event.tenantId,
         payload: {
           kind: "agentfusion-security-audit",
           ...event,

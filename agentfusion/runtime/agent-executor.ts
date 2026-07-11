@@ -26,6 +26,10 @@ export type AgentExecutionRequest = {
   toolCalls?: AgentToolCall[];
   handler?: AgentExecutionHandler;
   resultValidator?: (result: unknown) => boolean;
+  retryPolicy?: {
+    maxRetries?: number;
+    backoffMs?: number;
+  };
 };
 
 export type AgentExecutionResult = {
@@ -38,7 +42,22 @@ export type AgentExecutionResult = {
   error?: string;
 };
 
+export type AgentExecutionTrace = {
+  executionId: string;
+  agentId: string;
+  tenantId: string;
+  status: "running" | "completed" | "failed";
+  attempts: number;
+  startedAt: string;
+  completedAt?: string;
+  error?: string;
+};
+
 export class AgentExecutor {
+  private readonly asyncExecutions = new Map<string, Promise<AgentExecutionResult>>();
+  private readonly asyncResults = new Map<string, AgentExecutionResult>();
+  private readonly traces = new Map<string, AgentExecutionTrace>();
+
   constructor(
     readonly tools = new ToolRegistry(),
     private readonly security = new AgentSecurityRuntime(),
@@ -49,6 +68,77 @@ export class AgentExecutor {
   registerTool = this.tools.register.bind(this.tools);
 
   async execute(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
+    const executionId = `${request.agent.identity.id}:${request.context.requestId}`;
+    const trace: AgentExecutionTrace = {
+      executionId,
+      agentId: request.agent.identity.id,
+      tenantId: request.tenantId,
+      status: "running",
+      attempts: 0,
+      startedAt: new Date().toISOString(),
+    };
+    this.traces.set(executionId, trace);
+
+    const maxRetries = Math.max(0, request.retryPolicy?.maxRetries ?? 0);
+    const backoffMs = Math.max(0, request.retryPolicy?.backoffMs ?? 0);
+    let attempt = 0;
+    let lastResult: AgentExecutionResult | undefined;
+
+    while (attempt <= maxRetries) {
+      trace.attempts = attempt + 1;
+      lastResult = await this.executeAttempt(request);
+      if (lastResult.status === "completed") {
+        trace.status = "completed";
+        trace.completedAt = new Date().toISOString();
+        return lastResult;
+      }
+      attempt += 1;
+      if (attempt <= maxRetries && backoffMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      }
+    }
+
+    trace.status = "failed";
+    trace.completedAt = new Date().toISOString();
+    trace.error = lastResult?.error;
+    return lastResult ?? {
+      agentId: request.agent.identity.id,
+      status: "failed",
+      toolResults: [],
+      durationMs: 0,
+      error: "Unknown execution failure.",
+    };
+  }
+
+  executeAsync(request: AgentExecutionRequest): { executionId: string } {
+    const executionId = `${request.agent.identity.id}:${request.context.requestId}`;
+    const task = this.execute(request).then((result) => {
+      this.asyncResults.set(executionId, result);
+      this.asyncExecutions.delete(executionId);
+      return result;
+    });
+    this.asyncExecutions.set(executionId, task);
+    return { executionId };
+  }
+
+  async readAsyncResult(executionId: string): Promise<{
+    status: "running" | "completed";
+    result?: AgentExecutionResult;
+    trace?: AgentExecutionTrace;
+  }> {
+    if (this.asyncExecutions.has(executionId)) {
+      return { status: "running", trace: this.traces.get(executionId) };
+    }
+    const result = this.asyncResults.get(executionId);
+    return { status: "completed", result, trace: this.traces.get(executionId) };
+  }
+
+  listTraces(agentId?: string): AgentExecutionTrace[] {
+    const traces = [...this.traces.values()];
+    return agentId ? traces.filter((item) => item.agentId === agentId) : traces;
+  }
+
+  private async executeAttempt(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
     const startedAt = Date.now();
     const toolResults: ToolExecutionRecord<unknown>[] = [];
     await this.events.emit(AGENT_RUNTIME_EVENT_NAMES.AgentExecutionStarted, {

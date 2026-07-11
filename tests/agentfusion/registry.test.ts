@@ -31,8 +31,12 @@ test("agents register, version, discover, and expose capability metadata", async
   const registry = new AgentFusionRegistry();
   await registry.register({ tenantId: "tenant-1", agent: buildAgent("1.0.0") });
   await registry.register({ tenantId: "tenant-1", agent: buildAgent("1.1.0"), status: "ACTIVE" });
+  await registry.updateHealthStatus("tenant-1", "style-agent", "healthy", "1.1.0");
 
-  assert.equal(registry.getRecord("tenant-1", "style-agent")?.version, "1.1.0");
+  const latest = registry.getRecord("tenant-1", "style-agent");
+  assert.equal(latest?.version, "1.1.0");
+  assert.equal(latest?.tenantScope, "current-tenant");
+  assert.equal(registry.healthStatus("tenant-1", "style-agent"), "healthy");
   assert.deepEqual(registry.listVersions("tenant-1", "style-agent"), ["1.1.0", "1.0.0"]);
   assert.equal(registry.lookupCapabilities("tenant-1", "style-agent")[0], "style");
   assert.equal(registry.discover({ tenantId: "tenant-1", domain: "fashion", status: "ACTIVE" }).length, 1);

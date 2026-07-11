@@ -36,8 +36,8 @@ AgentFusion reuses existing platform controls rather than creating a new auth sy
 
 Every agent action produces an audit record with:
 
-- agent
-- tenant
+- agentId
+- tenantId
 - action
 - resource
 - decision
@@ -49,6 +49,7 @@ Every agent action produces an audit record with:
 AgentFusion publishes these runtime events through the existing event infrastructure:
 
 - `AgentRegistered`
+- `AgentValidated`
 - `AgentActivated`
 - `AgentExecutionStarted`
 - `AgentExecutionCompleted`
@@ -59,6 +60,7 @@ AgentFusion publishes these runtime events through the existing event infrastruc
 These are bridged onto the existing autonomous event bus as:
 
 - `agent-registered`
+- `agent-validated`
 - `agent-activated`
 - `agent-execution-started`
 - `agent-execution-completed`

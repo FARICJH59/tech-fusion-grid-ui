@@ -41,7 +41,14 @@ export class AgentLifecycleManager {
 
   async validateAgent(agentId: string, tenantId: string, context: AgentExecutionContext, version?: string) {
     await this.authorize(agentId, tenantId, "validate-agent", context, "operator");
-    return this.transition(agentId, tenantId, "VALIDATED", context, version);
+    const record = await this.transition(agentId, tenantId, "VALIDATED", context, version);
+    await this.events.emit(AGENT_RUNTIME_EVENT_NAMES.AgentValidated, {
+      agentId,
+      tenantId,
+      correlationId: context.correlationId,
+      payload: { version: record.version },
+    });
+    return record;
   }
 
   async activateAgent(agentId: string, tenantId: string, context: AgentExecutionContext, version?: string) {
