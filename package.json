@@ -6,9 +6,9 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint --dir app --dir components --dir lib",
+    "lint": "next lint --dir app --dir components --dir lib --dir tests --dir packages --dir agentfusion",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts tests/agent-sdk/*.test.ts"
   },
   "dependencies": {
     "@google-cloud/artifact-registry": "^4.7.1",

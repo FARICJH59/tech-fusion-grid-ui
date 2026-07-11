@@ -2,6 +2,15 @@
 
 A production-ready Next.js application for managing edge grid infrastructure, featuring real-time MQTT telemetry, JWT authentication, PostgreSQL persistence, Redis caching, and OpenTelemetry observability.
 
+## Phase 9B – Agent SDK Foundation
+
+Phase 9B adds an additive Agent SDK contract layer without changing existing Tech Fusion Grid UI, HOARE-Agent runtime APIs, or Vercel deployment behavior.
+
+- `packages/agent-sdk/` provides modular agent, capability, tool, memory, workflow, permission, evaluation, context, and event contracts
+- `agentfusion/adapters/hoare-agent-adapter.ts` exposes the current `EnterpriseAgentFramework` through the new Agent SDK interfaces
+- `docs/agent-platform/AGENT_SDK_ARCHITECTURE.md` documents the extension model, security posture, and integration path
+- `tests/agent-sdk/` validates the SDK contracts, registries, permission evaluation, and HOARE adapter behavior
+
 ## Phase 7 – Cloud Native Enterprise Platform
 
 Phase 7 extends the platform into a cloud-native enterprise operating layer:
