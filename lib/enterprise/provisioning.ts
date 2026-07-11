@@ -36,10 +36,14 @@ function slugify(input: string): string {
   return normalized || "tenant";
 }
 
-function deterministicTenantSlug(email: string, organizationName?: string): string {
+export function deterministicTenantSlug(
+  email: string,
+  userId: string,
+  organizationName?: string,
+): string {
   const local = email.split("@")[0] ?? "tenant";
   const base = slugify(organizationName ?? local);
-  const suffix = slugify(local).slice(0, 12);
+  const suffix = slugify(`${local}-${userId.slice(0, 8)}`).slice(0, 20);
   return `${base}-${suffix}`.slice(0, 63);
 }
 
@@ -51,8 +55,9 @@ export async function ensureTenantProvisioning(
   }
 
   const userRole: Role = input.role ?? "viewer";
-  const tenantSlug = deterministicTenantSlug(input.email, input.organizationName);
-  const tenantName = input.organizationName?.trim() || `${input.email.split("@")[0]}'s Workspace`;
+  const tenantSlug = deterministicTenantSlug(input.email, input.userId, input.organizationName);
+  const organizationDisplayName =
+    input.organizationName?.trim() || `${input.email.split("@")[0]}'s Workspace`;
 
   const existingUser = await supabaseAdmin
     .from("users")
@@ -88,7 +93,7 @@ export async function ensureTenantProvisioning(
     .upsert(
       {
         slug: tenantSlug,
-        name: tenantName,
+        name: organizationDisplayName,
       },
       { onConflict: "slug" },
     )

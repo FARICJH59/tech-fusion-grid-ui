@@ -49,7 +49,7 @@ export function resolveEntitlements(
     cloudDeployments: tier !== "free" && hasCredits,
     advancedPolicy: tier === "enterprise",
     aiOrchestration: tier !== "free",
-    auditExports: tier !== "free" || role === "admin",
+    auditExports: tier !== "free",
     fleetOps: tier !== "free",
     billingPortal: role === "admin" || role === "operator",
   };

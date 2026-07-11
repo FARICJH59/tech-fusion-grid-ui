@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL,
   type        TEXT NOT NULL CHECK (type IN ('purchase', 'grant', 'consume', 'reconcile')),
-  amount      INTEGER NOT NULL CHECK (amount >= 0),
+  credit_delta INTEGER NOT NULL,
   metadata    JSONB NOT NULL DEFAULT '{}',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -154,63 +154,63 @@ BEGIN
     SELECT 1 FROM pg_policies WHERE tablename = 'workspaces' AND policyname = 'workspaces_tenant_isolation'
   ) THEN
     CREATE POLICY workspaces_tenant_isolation ON workspaces
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'subscriptions' AND policyname = 'subscriptions_tenant_isolation'
   ) THEN
     CREATE POLICY subscriptions_tenant_isolation ON subscriptions
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'invoices' AND policyname = 'invoices_tenant_isolation'
   ) THEN
     CREATE POLICY invoices_tenant_isolation ON invoices
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'credit_ledger' AND policyname = 'credit_ledger_tenant_isolation'
   ) THEN
     CREATE POLICY credit_ledger_tenant_isolation ON credit_ledger
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'usage_records' AND policyname = 'usage_records_tenant_isolation'
   ) THEN
     CREATE POLICY usage_records_tenant_isolation ON usage_records
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'agent_registry' AND policyname = 'agent_registry_tenant_isolation'
   ) THEN
     CREATE POLICY agent_registry_tenant_isolation ON agent_registry
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'deployment_history_v2' AND policyname = 'deployment_history_v2_tenant_isolation'
   ) THEN
     CREATE POLICY deployment_history_v2_tenant_isolation ON deployment_history_v2
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'cost_analytics_daily' AND policyname = 'cost_analytics_daily_tenant_isolation'
   ) THEN
     CREATE POLICY cost_analytics_daily_tenant_isolation ON cost_analytics_daily
-      USING (tenant_id::text = auth.jwt() ->> 'tenant_id')
-      WITH CHECK (tenant_id::text = auth.jwt() ->> 'tenant_id');
+      USING (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id')
+      WITH CHECK (coalesce(auth.jwt() ->> 'tenant_id', '') <> '' AND tenant_id::text = auth.jwt() ->> 'tenant_id');
   END IF;
 END $$;

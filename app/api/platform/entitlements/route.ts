@@ -12,7 +12,7 @@ type SubscriptionRow = {
 };
 
 type CreditRow = {
-  amount: number;
+  credit_delta: number;
   type: string;
 };
 
@@ -51,19 +51,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const { data: creditEvents } = await supabaseAdmin
     .from("credit_ledger")
-    .select("amount, type")
+    .select("credit_delta, type")
     .eq("tenant_id", user.tenantId)
     .returns<CreditRow[]>();
 
   if (creditEvents) {
     credits = creditEvents.reduce((total, event) => {
       if (event.type === "purchase" || event.type === "grant") {
-        return total + event.amount;
+        return total + Math.abs(event.credit_delta);
       }
       if (event.type === "consume") {
-        return total - event.amount;
+        return total - Math.abs(event.credit_delta);
       }
-      return total;
+      return total + event.credit_delta;
     }, 0);
   }
 
