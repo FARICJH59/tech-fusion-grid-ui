@@ -112,9 +112,8 @@ export class DeploymentManager {
   }
 
   private async persist(record: DeploymentRecord): Promise<void> {
-    await supabase
-      .from("phase8_deployments")
-      .upsert({
+    try {
+      await supabase.from("phase8_deployments").upsert({
         id: record.id,
         tenant_id: record.tenantId,
         service: record.service,
@@ -122,8 +121,9 @@ export class DeploymentManager {
         status: record.status,
         payload: record,
         updated_at: record.updatedAt,
-      })
-      .throwOnError()
-      .catch(() => undefined);
+      });
+    } catch {
+      // Best-effort persistence in non-configured environments.
+    }
   }
 }

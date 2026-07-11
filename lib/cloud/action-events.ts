@@ -10,18 +10,18 @@ export class CloudActionEventBus {
       .xadd(this.streamName, "*", "event", JSON.stringify(event))
       .catch(() => undefined);
 
-    await supabase
-      .from("phase8_cloud_action_events")
-      .insert({
+    try {
+      await supabase.from("phase8_cloud_action_events").insert({
         id: event.id,
         tenant_id: event.tenantId,
         action_type: event.actionType,
         resource: event.resource,
         payload: event,
         created_at: event.timestamp,
-      })
-      .throwOnError()
-      .catch(() => undefined);
+      });
+    } catch {
+      // Best-effort persistence in non-configured environments.
+    }
   }
 }
 

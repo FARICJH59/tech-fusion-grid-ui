@@ -6,24 +6,10 @@ import type {
   CloudRunTrafficTarget,
 } from "@/lib/cloud/cloud-types";
 
-type RunClientLike = {
-  createService?: (...args: unknown[]) => Promise<unknown>;
-  updateService?: (...args: unknown[]) => Promise<unknown>;
-  getService?: (...args: unknown[]) => Promise<unknown>;
-};
-
-type MonitoringClientLike = {
-  listTimeSeries?: (...args: unknown[]) => Promise<unknown>;
-};
-
-type LoggingClientLike = {
-  getEntries?: (...args: unknown[]) => Promise<unknown>;
-};
-
 export type GcpClientSet = {
-  run: RunClientLike | null;
-  monitoring: MonitoringClientLike | null;
-  logging: LoggingClientLike | null;
+  run: unknown | null;
+  monitoring: unknown | null;
+  logging: unknown | null;
 };
 
 export type GcpCloudClientOptions = {
@@ -42,6 +28,12 @@ export class GcpCloudClient {
     this.projectId = options.projectId ?? wif.projectId;
     this.region = options.region ?? wif.region;
     this.clients = options.clients ?? { run: null, monitoring: null, logging: null };
+  }
+
+  private getCallable(client: unknown, method: string): ((...args: unknown[]) => unknown) | null {
+    if (!client || typeof client !== "object") return null;
+    const candidate = (client as Record<string, unknown>)[method];
+    return typeof candidate === "function" ? ((...args: unknown[]) => candidate(...args)) : null;
   }
 
   static async create(options: Omit<GcpCloudClientOptions, "clients"> = {}): Promise<GcpCloudClient> {
@@ -75,8 +67,9 @@ export class GcpCloudClient {
   }
 
   async deployService(spec: CloudRunServiceSpec): Promise<CloudRunRevisionStatus> {
-    if (this.clients.run?.createService) {
-      await this.clients.run.createService([{ spec }]);
+    const createService = this.getCallable(this.clients.run, "createService");
+    if (createService) {
+      await Promise.resolve(createService([{ spec }]));
     }
 
     const revision = `${spec.service}-${spec.revisionSuffix ?? Date.now().toString(36)}`;
@@ -95,8 +88,9 @@ export class GcpCloudClient {
     region: string,
     traffic: CloudRunTrafficTarget[],
   ): Promise<CloudRunRevisionStatus> {
-    if (this.clients.run?.updateService) {
-      await this.clients.run.updateService([{ service, region, traffic }]);
+    const updateService = this.getCallable(this.clients.run, "updateService");
+    if (updateService) {
+      await Promise.resolve(updateService([{ service, region, traffic }]));
     }
 
     return {
@@ -110,8 +104,9 @@ export class GcpCloudClient {
   }
 
   async getDeploymentStatus(service: string, region: string): Promise<CloudRunRevisionStatus> {
-    if (this.clients.run?.getService) {
-      await this.clients.run.getService([{ service, region }]);
+    const getService = this.getCallable(this.clients.run, "getService");
+    if (getService) {
+      await Promise.resolve(getService([{ service, region }]));
     }
 
     return {
@@ -125,11 +120,13 @@ export class GcpCloudClient {
   }
 
   async verifyHealth(service: string): Promise<CloudProviderHealth> {
-    if (this.clients.monitoring?.listTimeSeries) {
-      await this.clients.monitoring.listTimeSeries([{ service }]);
+    const listTimeSeries = this.getCallable(this.clients.monitoring, "listTimeSeries");
+    if (listTimeSeries) {
+      await Promise.resolve(listTimeSeries([{ service }]));
     }
-    if (this.clients.logging?.getEntries) {
-      await this.clients.logging.getEntries({ filter: `resource.labels.service_name=\"${service}\"` });
+    const getEntries = this.getCallable(this.clients.logging, "getEntries");
+    if (getEntries) {
+      await Promise.resolve(getEntries({ filter: `resource.labels.service_name=\"${service}\"` }));
     }
 
     return {
