@@ -9,8 +9,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const supabaseUrl = "https://ijqlhwikttzeqqanjyfv.supabase.co";
-        const supabaseKey = "sb_publishable_BXsCBzgsDDcEiUAzRvf83Q_fr-PgKHa"; // Swap with your real key
+        const supabaseUrl = window.SUPABASE_URL || "https://replace_with_your_project_id.supabase.co";
+        const supabaseKey = window.SUPABASE_ANON_KEY || "replace_with_your_publishable_or_anon_key";
         const supabase = supabasejs.createClient(supabaseUrl, supabaseKey);
 
         async function loginWithProvider(providerName) {

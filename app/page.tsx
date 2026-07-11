@@ -70,8 +70,12 @@ export default function HomePage() {
         <Link href="/audit">🛡 Audit Center</Link>
         <Link href="/platform">🏢 Enterprise Control Plane</Link>
         <Link href="/operations">🛰 Real-Time Operations</Link>
+        <Link href="/auth/login">🔐 Login</Link>
+        <Link href="/auth/signup">🧾 Sign Up</Link>
+        <Link href="/auth/forgot-password">🛠 Forgot Password</Link>
         <Link href="/api/platform/status">📊 Platform Status API</Link>
         <Link href="/api/runtime/status">🧠 Runtime Status API</Link>
+        <Link href="/api/platform/entitlements">🎛 Entitlements API</Link>
       </div>
     </main>
   );

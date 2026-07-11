@@ -51,6 +51,7 @@ Tech-Fusion-Grid-UI now includes the Enterprise Control Plane foundation for HOA
 - `GET /api/platform/status` – full enterprise architecture and health snapshot
 - `GET /api/runtime/status` – HOARE runtime service integration status
 - `GET /api/operations/stream` – SSE live operations stream
+- `/auth/login`, `/auth/signup`, `/auth/verify`, `/auth/forgot-password` – account-first auth surfaces
 - `/platform` – enterprise control plane page
 - `/operations` – real-time operations dashboard
 
@@ -137,10 +138,17 @@ npm run test       # Node.js native test runner
 | Method | Route               | Auth          | Description                  |
 |--------|---------------------|---------------|------------------------------|
 | `POST` | `/api/auth`         | —             | Login → JWT tokens           |
+| `POST` | `/api/auth/login`   | —             | Login alias for account-first UX |
+| `POST` | `/api/auth/signup`  | —             | Signup + tenant provisioning bootstrap |
+| `POST` | `/api/auth/verify`  | —             | OTP/email verification + token issue |
+| `POST` | `/api/auth/forgot-password` | —    | Password reset initiation    |
 | `POST` | `/api/auth/refresh` | —             | Refresh access token         |
 | `GET`  | `/api/telemetry`    | viewer+       | Recent telemetry (tenant-scoped) |
 | `GET`  | `/api/audit`        | operator+     | Audit log (tenant-scoped)    |
 | `GET`  | `/api/health`       | —             | Liveness + dependency status |
+| `GET`  | `/api/platform/entitlements` | viewer+ | Subscription + credit feature gates |
+| `POST` | `/api/billing/portal` | viewer+     | Billing portal entrypoint    |
+| `POST` | `/api/billing/stripe/webhook` | Stripe signature | Subscription activation sync |
 
 ### Auth flow
 
