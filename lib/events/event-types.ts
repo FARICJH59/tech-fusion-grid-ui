@@ -10,6 +10,7 @@ export const AUTONOMOUS_EVENT_TYPES = [
   "operator-override",
   "operations-snapshot",
   "agent-registered",
+  "agent-validated",
   "agent-activated",
   "agent-execution-started",
   "agent-execution-completed",
