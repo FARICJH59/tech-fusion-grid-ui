@@ -9,6 +9,8 @@ const metrics = [
   { title: "Anomalies", value: "3" },
   { title: "Runtime Health", value: "99.98%" },
   { title: "Tenants", value: "42" },
+  { title: "Control Plane Modules", value: "12" },
+  { title: "Runtime Services", value: "12" },
 ];
 
 export default function HomePage() {
@@ -66,6 +68,14 @@ export default function HomePage() {
         <Link href="/telemetry">📡 Telemetry</Link>
         <Link href="/execution-plane">⚙️ Execution Plane</Link>
         <Link href="/audit">🛡 Audit Center</Link>
+        <Link href="/platform">🏢 Enterprise Control Plane</Link>
+        <Link href="/operations">🛰 Real-Time Operations</Link>
+        <Link href="/auth/login">🔐 Login</Link>
+        <Link href="/auth/signup">🧾 Sign Up</Link>
+        <Link href="/auth/forgot-password">🛠 Forgot Password</Link>
+        <Link href="/api/platform/status">📊 Platform Status API</Link>
+        <Link href="/api/runtime/status">🧠 Runtime Status API</Link>
+        <Link href="/api/platform/entitlements">🎛 Entitlements API</Link>
       </div>
     </main>
   );

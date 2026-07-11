@@ -6,11 +6,17 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint --dir app --dir components --dir lib",
+    "lint": "next lint --dir app --dir components --dir lib --dir packages --dir agentfusion",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts tests/agent-sdk/*.test.ts tests/agentfusion/*.test.ts"
   },
   "dependencies": {
+    "@google-cloud/artifact-registry": "^4.7.1",
+    "@google-cloud/logging": "^11.2.3",
+    "@google-cloud/monitoring": "^5.4.0",
+    "@google-cloud/pubsub": "^5.3.1",
+    "@google-cloud/run": "^3.3.0",
+    "@google-cloud/secret-manager": "^6.2.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/auto-instrumentations-node": "^0.78.0",
     "@opentelemetry/exporter-otlp-http": "^0.26.0",

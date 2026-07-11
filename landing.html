@@ -9,8 +9,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const supabaseUrl = "https://ijqlhwikttzeqqanjyfv.supabase.co";
-        const supabaseKey = "sb_publishable_BXsCBzgsDDcEiUAzRvf83Q_fr-PgKHa"; // Swap with your real key
+        const supabaseUrl = window.SUPABASE_URL || "";
+        const supabaseKey = window.SUPABASE_ANON_KEY || "";
+        if (!supabaseUrl || !supabaseKey) {
+            throw new Error("Supabase configuration required: define window.SUPABASE_URL and window.SUPABASE_ANON_KEY before loading landing.html (for example via an inline script in your host template).");
+        }
         const supabase = supabasejs.createClient(supabaseUrl, supabaseKey);
 
         async function loginWithProvider(providerName) {
