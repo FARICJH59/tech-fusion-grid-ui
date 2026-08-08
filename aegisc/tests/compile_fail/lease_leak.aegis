@@ -1,0 +1,9 @@
+intent ApplyDamage { target: String; amount: Int; }
+
+adapter DamageSystem for ApplyDamage {
+    timeout: 16ms,
+    max_retries: 0,
+    execute(fenced Lease<ApplyDamage> lease) {
+        lease.inspect(result);
+    }
+}
