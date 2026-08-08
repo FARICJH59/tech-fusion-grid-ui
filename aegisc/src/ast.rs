@@ -28,4 +28,9 @@ pub enum Stmt {
     Commit(String),
     Abort(String),
     Use(String),
+    If {
+        condition: String,
+        then_body: Vec<Stmt>,
+        else_body: Vec<Stmt>,
+    },
 }
