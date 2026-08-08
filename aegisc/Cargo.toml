@@ -5,6 +5,10 @@ edition = "2021"
 description = "Aegis compiler prototype with linear Lease<T> checking"
 license = "Apache-2.0"
 
+[lib]
+name = "aegisc"
+path = "src/lib.rs"
+
 [[bin]]
 name = "aegisc"
 path = "src/main.rs"
