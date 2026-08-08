@@ -6,6 +6,7 @@ mod linear;
 mod types;
 mod effects;
 mod ir;
+mod backend_sqlite;
 
 use std::{env, fs, process};
 
@@ -31,6 +32,9 @@ fn main() {
             println!("AIR lowering................. PASS");
             println!("AIR adapter: {}", air.adapter);
             println!("AIR operations: {}", air.ops.len());
+            let sql = backend_sqlite::generate_sql(&air);
+            println!("SQLite backend generation... PASS");
+            println!("Generated SQLite protocol: {} bytes", sql.len());
         }
     }
 
