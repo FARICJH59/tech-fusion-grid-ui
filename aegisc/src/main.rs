@@ -4,6 +4,7 @@ mod parser;
 mod cfg;
 mod linear;
 mod types;
+mod effects;
 
 use std::{env, fs, process};
 
@@ -17,6 +18,8 @@ fn main() {
     println!("Parser....................... PASS");
     if let Err(e) = types::check_program(&ast) { eprintln!("{e}"); process::exit(1); }
     println!("Type checking................ PASS");
+    if let Err(e) = effects::check_program(&ast) { eprintln!("{e}"); process::exit(1); }
+    println!("Policy effects............... PASS");
     if let Err(e) = linear::check_program(&ast) { eprintln!("{e}"); process::exit(1); }
     println!("Linear lease checking........ PASS");
     println!("CFG construction............. PASS");
