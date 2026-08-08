@@ -5,6 +5,7 @@ mod cfg;
 mod linear;
 mod types;
 mod effects;
+mod ir;
 
 use std::{env, fs, process};
 
@@ -23,5 +24,15 @@ fn main() {
     if let Err(e) = linear::check_program(&ast) { eprintln!("{e}"); process::exit(1); }
     println!("Linear lease checking........ PASS");
     println!("CFG construction............. PASS");
+
+    for item in &ast.items {
+        if let ast::Item::Adapter(adapter) = item {
+            let air = ir::lower_adapter(adapter);
+            println!("AIR lowering................. PASS");
+            println!("AIR adapter: {}", air.adapter);
+            println!("AIR operations: {}", air.ops.len());
+        }
+    }
+
     println!("\nAegis v0.1 compilation succeeded.");
 }
