@@ -10,7 +10,7 @@ pub fn check_program(program: &Program) -> Result<(), String> {
 }
 
 fn check_adapter(adapter: &AdapterDecl) -> Result<(), String> {
-    let cfg = ControlFlowGraph::linear_body(&adapter.body);
+    let cfg = ControlFlowGraph::from_body(&adapter.body);
     let mut states = HashMap::new();
     states.insert(adapter.lease_name.clone(), LeaseState::Live);
     verify_block(&cfg, cfg.entry, states, adapter, &mut Vec::new())
@@ -40,31 +40,27 @@ fn verify_block(
                     }
                 }
             }
+            Stmt::If { .. } => unreachable!("branches are lowered into CFG blocks"),
         }
     }
 
-    match block.terminator {
-        Terminator::Exit => {
-            match states.get(&adapter.lease_name) {
-                Some(LeaseState::Committed | LeaseState::Aborted) => {}
-                Some(LeaseState::Live) => return Err(format!(
-                    "error[E1001]: unterminated lease '{}' on reachable exit path\nhelp: every execution path must finalize the lease exactly once",
-                    adapter.lease_name
-                )),
-                None => return Err("error[E1005]: lease parameter disappeared during CFG analysis".into()),
-            }
-        }
-        Terminator::Fallthrough => {}
+    let result = match block.terminator {
+        Terminator::Exit => match states.get(&adapter.lease_name) {
+            Some(LeaseState::Committed | LeaseState::Aborted) => Ok(()),
+            Some(LeaseState::Live) => Err(format!(
+                "error[E1001]: unterminated lease '{}' on reachable exit path\nhelp: every execution path must finalize the lease exactly once",
+                adapter.lease_name
+            )),
+            None => Err("error[E1005]: lease parameter disappeared during CFG analysis".into()),
+        },
         Terminator::Branch { then_block, else_block } => {
             let then_result = verify_block(cfg, then_block, states.clone(), adapter, path);
             let else_result = verify_block(cfg, else_block, states, adapter, path);
-            then_result?;
-            else_result?;
+            then_result.and(else_result)
         }
-    }
-
+    };
     path.pop();
-    Ok(())
+    result
 }
 
 fn consume(
