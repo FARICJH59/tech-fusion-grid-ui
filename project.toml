@@ -1,0 +1,56 @@
+# HOARE Build Contract v0.1
+#
+# This file describes how HOARE builds and packages this application.
+# It is intentionally provider-neutral: Vercel, Cloud Run, Kubernetes,
+# AWS, Azure, and other runtimes are deployment targets, not build semantics.
+
+[project]
+name = "tech-fusion-grid-ui"
+version = "1.0.0"
+framework = "nextjs"
+node = "22"
+package_manager = "npm"
+
+[build]
+command = "npm run build"
+output = ".next/standalone"
+artifact = "oci"
+dockerfile = "Dockerfile"
+
+[build.environment]
+NEXT_TELEMETRY_DISABLED = "1"
+NODE_ENV = "production"
+
+[runtime]
+port = 3000
+protocol = "http"
+user = "nextjs"
+health_path = "/api/health"
+
+[security]
+non_root = true
+provider_neutral = true
+secrets_at_runtime = true
+long_lived_cloud_credentials = false
+
+[observability]
+open_telemetry = true
+
+[aegis]
+# Deployment actions are represented as an executable contract and must be
+# validated by Aegis before a worker performs a security-sensitive mutation.
+execution_contract = true
+require_plan_integrity = true
+require_fencing_for_mutations = true
+require_lease_finalization = true
+
+[deployment]
+# These are capabilities, not mandatory providers. HOARE selects the target
+# from tenant policy, runtime availability, and deployment intent.
+targets = ["cloud-run", "kubernetes", "aws", "azure"]
+
+[provenance]
+include_source_revision = true
+include_build_timestamp = true
+include_dependency_lock = true
+include_artifact_digest = true
