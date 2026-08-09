@@ -1,6 +1,7 @@
 import { agentFusionRuntime } from "@/agentfusion";
 import { createDefaultFleetManager } from "@/lib/enterprise/fleet";
 import { hoareEnterprisePlatform } from "@/lib/enterprise/platform";
+import { BUILD_CONTRACT_VERSION } from "@/lib/enterprise/build-contract";
 import { autonomousPolicyEngine } from "@/lib/policy/engine";
 import { incidentManager } from "@/lib/incidents/incident-manager";
 import { reliabilityEngine } from "@/lib/reliability/slo-engine";
@@ -8,6 +9,11 @@ import { operatorActionQueue, type OperatorActionRequest } from "@/lib/policy/op
 
 export type OperationsSnapshot = {
   timestamp: string;
+  buildContract: {
+    version: string;
+    lifecycle: string[];
+    aegisGate: "required";
+  };
   fleetStatus: { region: string; healthy: boolean }[];
   deploymentStatus: { runtimeHealth: string; controlPlaneHealth: string };
   telemetry: { providers: number; runtimeServices: number };
@@ -62,6 +68,20 @@ export function createOperationsSnapshot(): OperationsSnapshot {
 
   return {
     timestamp: new Date().toISOString(),
+    buildContract: {
+      version: BUILD_CONTRACT_VERSION,
+      lifecycle: [
+        "draft",
+        "validated",
+        "planned",
+        "awaiting-approval",
+        "executing",
+        "completed",
+        "failed",
+        "rolled-back",
+      ],
+      aegisGate: "required",
+    },
     fleetStatus: fleetManager.snapshot().map((item) => ({ region: item.region, healthy: item.healthy })),
     deploymentStatus: {
       runtimeHealth: platform.health.runtime,
