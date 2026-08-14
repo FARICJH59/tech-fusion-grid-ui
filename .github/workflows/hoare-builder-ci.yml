@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'builder/**'
+      - 'lib/builder/**'
       - 'lib/cloud/**'
       - 'tests/**'
       - '.github/workflows/hoare-builder-ci.yml'
@@ -30,7 +31,7 @@ jobs:
         run: npm ci
 
       - name: Run builder tests
-        run: npm test -- --runInBand
+        run: npm test
 
       - name: Verify deployment gate files
         run: |
