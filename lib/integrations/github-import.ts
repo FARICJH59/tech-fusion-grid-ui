@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 export type GitHubRepository = {
   id: number;
   name: string;
@@ -24,7 +22,11 @@ function githubToken(): string {
 }
 
 function repositoryPath(input: string): string {
-  const value = input.trim().replace(/^https?:\/\/(www\.)?github\.com\//, "").replace(/\.git$/, "").replace(/^\/+|\/+$/g, "");
+  const value = input
+    .trim()
+    .replace(/^https?:\/\/(www\.)?github\.com\//, "")
+    .replace(/\.git$/, "")
+    .replace(/^\/+|\/+$/g, "");
   const parts = value.split("/").filter(Boolean);
   if (parts.length !== 2 || parts.some((part) => !/^[A-Za-z0-9_.-]+$/.test(part))) {
     throw new Error("GitHub repository must be owner/name or a github.com/owner/name URL");
@@ -52,12 +54,18 @@ export async function importGitHubRepository(repository: string): Promise<GitHub
   const path = repositoryPath(repository);
   const repo = await githubRequest<GitHubRepository>(`repos/${path}`);
   const branch = repo.default_branch ?? "main";
-  const ref = await githubRequest<{ object?: { sha?: string } }>(`repos/${path}/git/ref/heads/${encodeURIComponent(branch)}`);
+  const ref = await githubRequest<{ object?: { sha?: string } }>(
+    `repos/${path}/git/ref/heads/${encodeURIComponent(branch)}`,
+  );
   const sha = ref.object?.sha;
-  if (!sha) throw new Error("GitHub repository default branch SHA was not returned");
+  if (!sha || !/^[0-9a-f]{40}$/i.test(sha)) {
+    throw new Error("GitHub repository default branch commit SHA was not returned");
+  }
 
+  // source_sha is the immutable Git commit identity, not a locally-derived digest.
+  // This lets PASOR/AEGIS reproduce and verify the exact source revision imported by HOARE.
   return {
     repository: repo,
-    source_sha: createHash("sha256").update(`${repo.id}:${sha}`).digest("hex"),
+    source_sha: sha,
   };
 }
