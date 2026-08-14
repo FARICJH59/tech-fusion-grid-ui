@@ -2,16 +2,14 @@ import type { CloudRunController } from "@/lib/cloud/cloud-run-controller";
 import type { CloudRunServiceSpec } from "@/lib/cloud/cloud-types";
 import type { CloudRunClient } from "./cloud-run-adapter";
 
-/**
- * Bridges the builder deployment contract to the existing autonomous
- * CloudRunController. The builder does not call GCP directly.
- */
+/** Bridges the builder deployment contract to the existing autonomous CloudRunController. */
 export class CloudRunControllerClient implements CloudRunClient {
   constructor(
     private readonly controller: Pick<CloudRunController, "deploy">,
     private readonly defaults: {
       tenantId: string;
       requestedBy: string;
+      projectId: string;
       reason?: string;
     },
   ) {}
@@ -25,8 +23,9 @@ export class CloudRunControllerClient implements CloudRunClient {
     const spec: CloudRunServiceSpec = {
       service: request.serviceName,
       region: request.region ?? "us-central1",
+      projectId: this.defaults.projectId,
       image: request.image ?? "",
-      environment: request.environment ?? {},
+      env: request.environment ?? {},
     };
 
     const result = await this.controller.deploy({
@@ -37,8 +36,6 @@ export class CloudRunControllerClient implements CloudRunClient {
       spec,
     });
 
-    return {
-      deploymentId: result.deployment.id,
-    };
+    return { deploymentId: result.deployment.id };
   }
 }
