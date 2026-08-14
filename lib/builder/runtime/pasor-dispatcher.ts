@@ -1,5 +1,6 @@
 import type { ExecutionUnit, PasorPlan } from "../pasor/brain-adapter";
 import type { SimulationResult } from "../simulation/pasor-simulator";
+import { authorizeExecution, type ExecutionGateRequest } from "../governance/execution-gate";
 
 export type DispatchStatus = "EXECUTED" | "DEFERRED" | "DENIED" | "FAILED";
 
@@ -15,15 +16,21 @@ export type DispatchRecord = {
 export type RuntimeExecutor = (unit: ExecutionUnit) => Promise<void>;
 export type RuntimeScheduler = (unit: ExecutionUnit) => Promise<void>;
 
+export type DispatchAuthorization = Omit<ExecutionGateRequest, "action" | "quotaCost"> & {
+  quotaRemaining?: number;
+};
+
 /**
- * Runtime boundary for PASOR. The dispatcher accepts only a simulation result
- * produced for the same plan and never accepts a raw Brain proposal.
+ * Runtime boundary for PASOR. A raw Brain proposal cannot reach the executor:
+ * the plan must have a matching simulation decision and must pass the tenant
+ * IAM/capability/quota admission gate.
  */
 export async function dispatchPasorPlan(
   plan: PasorPlan,
   simulation: SimulationResult,
   executor: RuntimeExecutor,
   scheduler: RuntimeScheduler,
+  authorization: DispatchAuthorization,
 ): Promise<DispatchRecord[]> {
   const planUnits = new Map(plan.execution_units.map((unit) => [unit.unit_id, unit]));
   const simulated = new Map(simulation.decisions.map((decision) => [decision.unit_id, decision]));
@@ -44,12 +51,24 @@ export async function dispatchPasorPlan(
       await scheduler(unit);
       status = "DEFERRED";
     } else {
-      try {
-        await executor(unit);
-        status = "EXECUTED";
-      } catch (error) {
-        status = "FAILED";
-        reason = error instanceof Error ? error.message : "RUNTIME_EXECUTION_FAILED";
+      const gate = authorizeExecution({
+        principal: authorization.principal,
+        entitlement: authorization.entitlement,
+        action: unit.command_id,
+        quotaCost: unit.quota_cost,
+      });
+
+      if (!gate.allowed) {
+        status = "DENIED";
+        reason = gate.reason;
+      } else {
+        try {
+          await executor(unit);
+          status = "EXECUTED";
+        } catch (error) {
+          status = "FAILED";
+          reason = error instanceof Error ? error.message : "RUNTIME_EXECUTION_FAILED";
+        }
       }
     }
 
