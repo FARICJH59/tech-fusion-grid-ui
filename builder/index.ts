@@ -5,3 +5,4 @@ export * from "./contracts/simulation";
 export * from "./contracts/provenance";
 export * from "./contracts/tenant";
 export * from "./contracts/target";
+export * from "./governance";
