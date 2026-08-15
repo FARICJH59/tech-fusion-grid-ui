@@ -1,8 +1,7 @@
 import { GcpCloudClient } from "@/lib/cloud/gcp-client";
 import { GcpRuntimeProvider } from "@/lib/hoare/runtime/gcp-provider";
-import { createRuntimeBuilderExecutor } from "./runtime-integration";
-import type { BuilderRuntimeResolver } from "./runtime-adapter";
-import type { BuilderExecutor } from "./executor";
+import { BuilderExecutor } from "./executor";
+import { RuntimeProviderAdapter, type BuilderRuntimeResolver } from "./runtime-adapter";
 
 export type GcpRuntimeCompositionOptions = {
   resolver: BuilderRuntimeResolver;
@@ -22,12 +21,7 @@ export async function createGcpRuntimeBuilderExecutor(
     region: options.region,
   });
   const runtime = new GcpRuntimeProvider(client);
-
-  return createRuntimeBuilderExecutor(
-    { providers: { gcp: runtime }, resolver: options.resolver },
-    (adapters) => {
-      // The concrete executor factory is injected by the application composition root.
-      throw new Error(`Builder executor factory is required to install ${adapters.length} runtime adapter(s)`);
-    },
-  );
+  const executor = new BuilderExecutor();
+  executor.register(new RuntimeProviderAdapter("gcp", runtime, options.resolver));
+  return executor;
 }
