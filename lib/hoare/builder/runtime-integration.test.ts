@@ -15,15 +15,13 @@ const node = {
 
 const plan = {
   id: "plan-1",
-  intent: { tenantId: "tenant-1", description: "deploy demo-app" },
+  intent: { tenantId: "tenant-1", name: "demo", description: "deploy demo-app", resources: ["infrastructure", "application"] },
   resources: [
     { kind: "infrastructure", name: "gcp-node", dependsOn: [] },
     { kind: "application", name: "demo-app", dependsOn: ["gcp-node"] },
   ],
-  status: "approved",
-  operations: [
-    { id: "op-1", kind: "application", resource: "demo-app", provider: "gcp", status: "pending" },
-  ],
+  deployment: { provider: "gcp", environment: "development" },
+  status: "building",
 } as any;
 
 describe("HOARE live runtime Builder integration", () => {
@@ -36,23 +34,29 @@ describe("HOARE live runtime Builder integration", () => {
     const resolver = new BuilderResourceResolver(store);
     let deployed = false;
     const runtime: RuntimeProvider = {
-      provider: "gcp",
-      async deploy(request: any) {
+      kind: "gcp",
+      async deploy(request) {
         deployed = request.application.id === "app-1" && request.node.id === "node-1";
-        return { accepted: deployed, message: deployed ? "deployment accepted" : "invalid resources" };
+        return {
+          provider: "gcp",
+          accepted: deployed,
+          mode: "dry-run",
+          deploymentId: "test-deployment",
+          message: deployed ? "deployment accepted" : "invalid resources",
+        };
       },
-    } as RuntimeProvider;
+    };
 
     const adapter = new RuntimeProviderAdapter("gcp", runtime, {
-      resolveApplication: (name, p) => resolver.resolveApplication({ resource: name, kind: "application" } as any, p),
-      resolveInfrastructure: (name, p) => resolver.resolveInfrastructure({ resource: name, kind: "infrastructure" } as any, p),
-      resolvePlan: async () => plan,
-    } as any);
+      resolveApplication: (operation) => resolver.resolveApplication(operation, plan),
+      resolveNode: (operation) => resolver.resolveInfrastructure(operation, plan),
+    });
 
-    const executor = new BuilderExecutor([adapter]);
+    const executor = new BuilderExecutor();
+    executor.register(adapter);
     const result = await executor.execute(plan);
 
-    expect(result.success).toBe(true);
+    expect(result.accepted).toBe(true);
     expect(deployed).toBe(true);
   });
 });
