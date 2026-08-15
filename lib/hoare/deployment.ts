@@ -8,6 +8,7 @@ export interface DeploymentRequest {
   tenantId: string;
   artifact: HoareArtifact;
   target: DeploymentTarget;
+  environment?: string;
 }
 
 export interface DeploymentResult {
@@ -42,7 +43,7 @@ export function deployResource(request: DeploymentRequest): DeploymentResult {
     return reject(request, "ARTIFACT_NOT_DEPLOYABLE");
   }
 
-  const digest = crypto.createHash("sha256").update(JSON.stringify({ artifact, target: request.target })).digest("hex");
+  const digest = crypto.createHash("sha256").update(JSON.stringify({ artifact, target: request.target, environment: request.environment || "managed" })).digest("hex");
   return {
     decision: "ALLOW",
     reason: "DEPLOYMENT_APPROVED",
@@ -52,6 +53,10 @@ export function deployResource(request: DeploymentRequest): DeploymentResult {
     artifact: { ...artifact, status: "APPROVED" },
     release: { status: "APPROVED", version: artifact.version, digest },
   };
+}
+
+export function listDeploymentTargets(): DeploymentTarget[] {
+  return ["cloud", "edge", "pi", "jetson", "local"];
 }
 
 function reject(request: DeploymentRequest, reason: string): DeploymentResult {
