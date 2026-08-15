@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 const modules = [
@@ -21,9 +21,21 @@ const activity = [
   ["TENANT", "Provisioning capability available", "11m ago"],
 ];
 
+type Status = { status?: string; mode?: string; runtime?: string; reason?: string };
+
 export default function ControlPlanePage() {
   const [selected, setSelected] = useState("agents");
+  const [status, setStatus] = useState<Status>({ status: "CHECKING", mode: "LOCAL" });
   const selectedModule = useMemo(() => modules.find((m) => m.id === selected)!, [selected]);
+
+  useEffect(() => {
+    fetch("/api/control-plane/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(setStatus)
+      .catch(() => setStatus({ status: "DEGRADED", mode: "LOCAL", runtime: "UNREACHABLE" }));
+  }, []);
+
+  const online = status.status === "ONLINE";
 
   return (
     <main style={{ minHeight: "100vh", background: "#07101f", color: "#e8eef8", fontFamily: "Inter, Arial, sans-serif", padding: 24 }}>
@@ -34,9 +46,11 @@ export default function ControlPlanePage() {
             <h1 style={{ margin: "8px 0 4px", fontSize: 32 }}>HOARE Control Plane</h1>
             <p style={{ margin: 0, color: "#8fa2bd" }}>The builder and governance surface for the autonomous platform.</p>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Link href="/" style={buttonStyle}>Overview</Link>
-            <span style={{ ...buttonStyle, background: "#123b32", color: "#7ee2b8", borderColor: "#1e6b57" }}>● SYSTEM ONLINE</span>
+            <span style={{ ...buttonStyle, background: online ? "#123b32" : "#3a2b14", color: online ? "#7ee2b8" : "#f5c77a", borderColor: online ? "#1e6b57" : "#76541e" }}>
+              ● {status.status || "CHECKING"}
+            </span>
           </div>
         </header>
 
@@ -67,6 +81,7 @@ export default function ControlPlanePage() {
                   <div style={{ color: "#7dd3fc", fontSize: 12, letterSpacing: 1, textTransform: "uppercase" }}>Builder workspace</div>
                   <h2 style={{ margin: "8px 0 8px", fontSize: 25 }}>{selectedModule.label}</h2>
                   <p style={{ margin: 0, color: "#93a6c0", maxWidth: 700 }}>{selectedModule.description}</p>
+                  {!online && <p style={{ margin: "12px 0 0", color: "#f5c77a", fontSize: 13 }}>Control plane is available locally; runtime connection is not configured yet.</p>}
                 </div>
                 <button style={{ ...buttonStyle, background: "#0e7490", borderColor: "#0891b2", color: "white", cursor: "pointer" }}>+ Create</button>
               </div>
@@ -93,6 +108,7 @@ export default function ControlPlanePage() {
                   </div>
                 ))}
               </div>
+              {status.reason && <div style={{ marginTop: 12, color: "#647b98", fontSize: 12 }}>Adapter: {status.mode}. {status.reason}</div>}
             </div>
           </div>
         </section>
