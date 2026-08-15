@@ -33,19 +33,13 @@ export function deployResource(request: DeploymentRequest): DeploymentResult {
     runtime: artifact.runtime,
   };
 
-  if (artifact.tenantId !== tenantId) {
-    return reject(request, "TENANT_ISOLATION_FAILED");
-  }
+  if (artifact.tenantId !== tenantId) return reject(request, "TENANT_ISOLATION_FAILED");
 
   const governance = governResource(builderRequest, artifact);
   if (governance.decision !== "ALLOW") return reject(request, governance.reason);
 
   if (artifact.status !== "DESIGNED" && artifact.status !== "APPROVED") {
     return reject(request, "ARTIFACT_NOT_DEPLOYABLE");
-  }
-
-  if (artifact.mode === "autonomous" && request.target === "iot") {
-    return reject(request, "UNSUPPORTED_AUTONOMOUS_TARGET");
   }
 
   const digest = crypto.createHash("sha256").update(JSON.stringify({ artifact, target: request.target })).digest("hex");
