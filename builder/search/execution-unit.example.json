@@ -1,0 +1,16 @@
+{
+  "unit_id": "research-001",
+  "command_id": "search.web",
+  "parameters": {
+    "query": "QGPS anomaly detection quantum autoencoder",
+    "location": "United States",
+    "engine": "google"
+  },
+  "dependencies": [],
+  "energy_cost": 1,
+  "quota_cost": 1,
+  "optional": false,
+  "secret_ref": "tenant://search/serpapi",
+  "simulation_hash": "generated-by-pasor",
+  "provenance_hash": "generated-after-result"
+}
