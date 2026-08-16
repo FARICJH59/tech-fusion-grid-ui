@@ -13,6 +13,7 @@ test("owned runtime store persists a generated workspace", async () => {
 
   try {
     const { persistRuntime, loadRuntime } = await import("../lib/hoare/deployment/runtime-store");
+    const { createRuntimeServiceGraph } = await import("../lib/hoare/deployment/service-contract");
     const value = {
       manifest: {
         version: "1" as const,
@@ -35,6 +36,7 @@ test("owned runtime store persists a generated workspace", async () => {
         healthPath: "/api/health",
         status: "ready" as const,
         runtimeDigest: "runtime-1",
+        services: createRuntimeServiceGraph("app-1"),
       },
       workspace: {
         root: "generated/tenant-1/project-1/app-1",
@@ -47,6 +49,9 @@ test("owned runtime store persists a generated workspace", async () => {
     await persistRuntime(value);
     const loaded = await loadRuntime(deploymentId);
     assert.deepEqual(loaded, value);
+    assert.equal(value.runtime.services.backend.public, false);
+    assert.equal(value.runtime.services.frontend.port, 3000);
+    assert.equal(value.runtime.services.backend.port, 8080);
   } finally {
     if (previous === undefined) delete process.env.HOARE_RUNTIME_DATA_DIR;
     else process.env.HOARE_RUNTIME_DATA_DIR = previous;
