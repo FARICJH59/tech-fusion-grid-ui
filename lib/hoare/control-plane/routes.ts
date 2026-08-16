@@ -1,6 +1,6 @@
-import { provisionTenant } from './provisioning';
-import { DOMAIN_CATALOG, NODE_CATALOG } from './catalog';
-import type { Application, IsolationLevel } from './types';
+import { provisionTenant } from "./provisioning";
+import { DOMAIN_CATALOG, NODE_CATALOG } from "./catalog";
+import type { ApplicationResource, IsolationLevel } from "./types";
 
 export type CreateTenantRequest = {
   organizationId: string;
@@ -12,8 +12,11 @@ export type CreateTenantRequest = {
 export type CreateApplicationRequest = {
   tenantId: string;
   name: string;
-  runtime: string;
+  runtime: ApplicationResource["runtime"];
   domain?: string;
+  vertical?: string;
+  image?: string;
+  desiredNodeId?: string;
 };
 
 export function listControlPlaneResources() {
@@ -25,7 +28,7 @@ export function listControlPlaneResources() {
 
 export function createTenant(request: CreateTenantRequest) {
   return provisionTenant({
-    id: `tenant_${request.organizationId}_${request.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    id: `tenant_${request.organizationId}_${request.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     organizationId: request.organizationId,
     name: request.name,
     region: request.region,
@@ -33,13 +36,17 @@ export function createTenant(request: CreateTenantRequest) {
   });
 }
 
-export function createApplication(request: CreateApplicationRequest): Application {
+export function createApplication(
+  request: CreateApplicationRequest,
+): ApplicationResource {
   return {
-    id: `app_${request.tenantId}_${request.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    id: `app_${request.tenantId}_${request.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     tenantId: request.tenantId,
     name: request.name,
+    vertical: request.vertical ?? "general",
     runtime: request.runtime,
-    domain: request.domain,
-    status: 'pending',
+    image: request.image,
+    desiredNodeId: request.desiredNodeId,
+    status: "draft",
   };
 }
