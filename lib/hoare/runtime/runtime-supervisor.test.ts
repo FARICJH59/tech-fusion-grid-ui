@@ -4,13 +4,10 @@ import { RuntimeSupervisor } from "./runtime-supervisor";
 
 test("runtime supervisor deploys and stops an application", async () => {
   const supervisor = new RuntimeSupervisor();
-  const command = process.execPath;
   const plan = {
     applicationId: "demo-app",
     root: "/tmp/demo-app",
-    services: [
-      { id: "demo-backend", command, args: ["-e", "setTimeout(() => {}, 5000)"] },
-    ],
+    services: [{ id: "demo-backend", command: process.execPath, args: ["-e", "setTimeout(() => {}, 5000)"] }],
   };
 
   const deployed = supervisor.deploy(plan);
