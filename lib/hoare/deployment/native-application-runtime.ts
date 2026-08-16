@@ -14,17 +14,13 @@ export type NativeApplicationRuntime = {
 };
 
 type Managed = { child: ChildProcess; deploymentId: string; component: "frontend" | "backend" };
-
 const managed = new Map<string, Managed[]>();
 
-function safeName(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "") || "application";
-}
-
 async function materialize(root: string, files: Array<{ path: string; content: string }>): Promise<void> {
+  const resolvedRoot = path.resolve(root);
   for (const file of files) {
-    const target = path.resolve(root, file.path);
-    if (!target.startsWith(`${path.resolve(root)}${path.sep}`)) throw new Error(`Unsafe workspace path: ${file.path}`);
+    const target = path.resolve(resolvedRoot, file.path);
+    if (!target.startsWith(`${resolvedRoot}${path.sep}`)) throw new Error(`Unsafe workspace path: ${file.path}`);
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, file.content, "utf8");
   }
@@ -41,12 +37,7 @@ function run(command: string, args: string[], cwd: string): Promise<void> {
   });
 }
 
-function startProcess(
-  deployment: DeploymentRecord,
-  component: "frontend" | "backend",
-  cwd: string,
-  port: number,
-): ChildProcess {
+function startProcess(deployment: DeploymentRecord, component: "frontend" | "backend", cwd: string, port: number): ChildProcess {
   const args = component === "frontend" ? ["run", "start", "--", "-p", String(port)] : ["run", "start"];
   const child = spawn("npm", args, {
     cwd,
@@ -65,29 +56,25 @@ function startProcess(
   return child;
 }
 
-export async function buildAndStartNativeApplication(
-  deployment: DeploymentRecord,
-  intent: ApplicationIntent,
-): Promise<NativeApplicationRuntime> {
+export async function buildAndStartNativeApplication(deployment: DeploymentRecord, intent: ApplicationIntent): Promise<NativeApplicationRuntime> {
   const plan = createApplicationBuildPlan({ ...intent, tenantId: deployment.tenantId, projectId: deployment.projectId, name: deployment.name });
   validateApplicationBuildPlan(plan);
   const execution = await executeNativeApplication(plan);
-  if (execution.lifecycle !== "completed" || !execution.build.ok) {
-    throw new Error("HOARE application build failed");
-  }
+  if (execution.lifecycle !== "ready" || !execution.build.ok) throw new Error("HOARE application build failed");
 
   const root = path.resolve(process.cwd(), "generated", deployment.tenantId, deployment.projectId, execution.applicationId);
   await materialize(root, execution.workspace.files);
-
   const frontendRoot = path.join(root, "frontend");
   const backendRoot = path.join(root, "backend");
+
   await run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], frontendRoot);
   await run("npm", ["run", "build"], frontendRoot);
   await run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], backendRoot);
   await run("npm", ["run", "build"], backendRoot);
 
-  const frontendPort = Number(process.env.HOARE_FRONTEND_PORT ?? 3100) + managed.size;
-  const backendPort = Number(process.env.HOARE_BACKEND_PORT ?? 8100) + managed.size;
+  const slot = managed.size;
+  const frontendPort = Number(process.env.HOARE_FRONTEND_PORT ?? 3100) + slot;
+  const backendPort = Number(process.env.HOARE_BACKEND_PORT ?? 8100) + slot;
   const backend = startProcess(deployment, "backend", backendRoot, backendPort);
   const frontend = startProcess(deployment, "frontend", frontendRoot, frontendPort);
 
@@ -98,23 +85,11 @@ export async function buildAndStartNativeApplication(
     manifest: { ...(deployment.manifest ?? {}), applicationId: execution.applicationId, workspace: root, ports: { frontend: frontendPort, backend: backendPort } },
   });
 
-  return {
-    deploymentId: deployment.id,
-    applicationId: execution.applicationId,
-    root,
-    frontend: { pid: frontend.pid, port: frontendPort, status: "running" },
-    backend: { pid: backend.pid, port: backendPort, status: "running" },
-  };
+  return { deploymentId: deployment.id, applicationId: execution.applicationId, root, frontend: { pid: frontend.pid, port: frontendPort, status: "running" }, backend: { pid: backend.pid, port: backendPort, status: "running" } };
 }
 
 export async function stopNativeApplication(tenantId: string, deploymentId: string): Promise<void> {
   for (const entry of managed.get(deploymentId) ?? []) entry.child.kill("SIGTERM");
   managed.delete(deploymentId);
   await deploymentRegistry.update(tenantId, deploymentId, { status: "stopped" });
-}
-
-export function nativeApplicationStatus(deploymentId: string): NativeApplicationRuntime | null {
-  const processes = managed.get(deploymentId);
-  if (!processes?.length) return null;
-  return { deploymentId, applicationId: String(processes[0].child.pid ?? deploymentId), root: "", frontend: undefined, backend: undefined };
 }
