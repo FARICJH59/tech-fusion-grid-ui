@@ -7,6 +7,19 @@ export interface ProvisioningPlan {
   steps: string[];
 }
 
+export function provisionTenant(
+  input: Pick<
+    TenantResource,
+    "id" | "organizationId" | "name" | "region" | "isolation"
+  >,
+): TenantResource {
+  return {
+    ...input,
+    dataResidency: input.region,
+    status: "provisioning",
+  };
+}
+
 export function planProvisioning(
   tenant: TenantResource,
   application: ApplicationResource,
