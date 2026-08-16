@@ -39,6 +39,7 @@ export interface ApplicationResource {
   name: string;
   vertical: string;
   runtime: "container" | "vm" | "edge";
+  image?: string;
   desiredNodeId?: string;
   status: "draft" | "building" | "deploying" | "running" | "failed";
 }
