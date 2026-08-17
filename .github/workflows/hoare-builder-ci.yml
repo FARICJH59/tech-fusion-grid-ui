@@ -42,7 +42,7 @@ jobs:
 
       - name: Ensure no deployment credentials are committed
         run: |
-          if grep -RInE --exclude-dir=node_modules --exclude-dir=.git '(BEGIN PRIVATE KEY|GOOGLE_APPLICATION_CREDENTIALS=|service_account_key|private_key)' builder .github; then
+          if grep -RInE --exclude-dir=node_modules --exclude-dir=.git --exclude='hoare-builder-ci.yml' '(BEGIN PRIVATE KEY|GOOGLE_APPLICATION_CREDENTIALS=|service_account_key|private_key)' builder .github; then
             echo 'Potential long-lived credential material detected.'
             exit 1
           fi
