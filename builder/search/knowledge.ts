@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { EvidenceBundle, SearchEvidence } from "./types";
+import type { EvidenceBundle, SearchEvidence, SearchSourceType } from "./types";
 
 export type KnowledgeLicenseStatus =
   | "known-permitted"
@@ -66,6 +66,21 @@ function candidateId(tenantId: string, projectId: string, evidence: SearchEviden
     .digest("hex");
 }
 
+function sourceClass(sourceType: SearchSourceType): KnowledgeSourceClass {
+  switch (sourceType) {
+    case "web":
+      return "web";
+    case "document":
+      return "document";
+    case "api":
+      return "api";
+    case "repository":
+      return "repository";
+    default:
+      return "internal";
+  }
+}
+
 /**
  * Converts untrusted search evidence into explicitly governed knowledge
  * candidates. This does not persist, authorize, or execute anything.
@@ -92,7 +107,7 @@ export function acquireKnowledgeCandidates(
     confidence_score: evidence.confidence_score,
     provenance: {
       source: evidence.url ?? evidence.provider,
-      source_class: evidence.source_type === "web" ? "web" : "api",
+      source_class: sourceClass(evidence.source_type),
       acquisition_method: evidence.provider,
       acquired_at: evidence.acquired_at,
       ...(evidence.source_published_at ? { source_published_at: evidence.source_published_at } : {}),
