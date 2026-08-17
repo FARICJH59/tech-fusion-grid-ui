@@ -58,35 +58,31 @@ function freshnessScore(candidate: KnowledgeCandidate, now: number): number {
 }
 
 function contradictionGroups(candidates: KnowledgeCandidate[]): KnowledgeCandidate[][] {
-  const groups = new Map<string, KnowledgeCandidate[]>();
-  for (const candidate of candidates) {
-    const text = `${candidate.title} ${candidate.snippet ?? ""} ${candidate.content ?? ""}`;
-    const numbers = text.match(/\b\d+(?:\.\d+)?\s*(?:%|USD|dollars?|million|billion)\b/gi) ?? [];
-    for (const value of numbers) {
-      const key = value.toLowerCase().replace(/\s+/g, " ");
-      const group = groups.get(key) ?? [];
-      group.push(candidate);
-      groups.set(key, group);
-    }
-  }
+  const byUnit = new Map<string, Map<string, KnowledgeCandidate[]>>();
 
-  // Only groups with multiple distinct candidates are potentially contradictory.
-  const byIdentity = new Map<string, KnowledgeCandidate[]>();
   for (const candidate of candidates) {
     const text = `${candidate.title} ${candidate.snippet ?? ""} ${candidate.content ?? ""}`;
-    const values = (text.match(/\b\d+(?:\.\d+)?\s*(?:%|USD|dollars?|million|billion)\b/gi) ?? [])
-      .map((value) => value.toLowerCase().replace(/\s+/g, " "));
-    for (const value of values) {
-      const group = byIdentity.get(value) ?? [];
+    const values = text.match(/\b\d+(?:\.\d+)?\s*(%|USD|dollars?|million|billion)\b/gi) ?? [];
+    for (const raw of values) {
+      const match = raw.match(/^(\d+(?:\.\d+)?)\s*(%|USD|dollars?|million|billion)$/i);
+      if (!match) continue;
+      const unit = match[2].toLowerCase();
+      const value = match[1];
+      const valueMap = byUnit.get(unit) ?? new Map<string, KnowledgeCandidate[]>();
+      const group = valueMap.get(value) ?? [];
       if (!group.some((item) => item.id === candidate.id)) group.push(candidate);
-      byIdentity.set(value, group);
+      valueMap.set(value, group);
+      byUnit.set(unit, valueMap);
     }
   }
 
-  return [...groups.values()]
-    .filter((group) => group.length > 1)
-    .filter((group) => new Set(group.map((candidate) => candidate.id)).size > 1)
-    .map((group) => [...new Map(group.map((candidate) => [candidate.id, candidate])).values()]);
+  const contradictions: KnowledgeCandidate[][] = [];
+  for (const valueMap of byUnit.values()) {
+    if (valueMap.size < 2) continue;
+    const candidatesByValue = [...valueMap.values()].map((group) => group[0]).filter(Boolean);
+    if (candidatesByValue.length > 1) contradictions.push(candidatesByValue);
+  }
+  return contradictions;
 }
 
 /**
