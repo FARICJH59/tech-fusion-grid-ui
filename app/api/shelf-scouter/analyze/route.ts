@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { analyzeShelfImage } from "@/lib/shelf-scouter/analyzer";
-import { findCatalogLocation } from "@/lib/shelf-scouter/catalog";
-import type { ShelfScanResult } from "@/lib/shelf-scouter/types";
+import { executeShelfScan } from "@/agentfusion/adapters/shelf-scouter-agent";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const tenantId = request.headers.get("x-tenant-id")?.trim() || "local-demo";
+  const actorId = request.headers.get("x-actor-id")?.trim() || "shelf-scouter-client";
 
   try {
     const form = await request.formData();
@@ -24,33 +23,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "IMAGE_TOO_LARGE", requestId }, { status: 413 });
     }
 
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const analysis = await analyzeShelfImage(bytes, file.type);
-    const location = await findCatalogLocation(analysis.observation, storeId);
-
-    const result: ShelfScanResult = {
+    const result = await executeShelfScan({
       tenantId,
-      observation: analysis.observation,
-      location,
-      guidance: location
-        ? [
-            `Go to aisle ${location.aisle}.`,
-            location.section ? `Look in ${location.section}.` : "Use the section signage to narrow the search.",
-            location.bay ? `Target bay ${location.bay}.` : "Scan the shelf left-to-right if the bay is not marked.",
-          ]
-        : [
-            "Product identified, but no store-layout match was found.",
-            "Use the retailer catalog adapter or scan a clearer shelf label.",
-          ],
-      mode: analysis.mode === "vision" ? "vision+catalog" : "demo",
+      actorId,
       requestId,
-    };
+      storeId,
+      bytes: Buffer.from(await file.arrayBuffer()),
+      mimeType: file.type,
+    });
 
-    return NextResponse.json(result, {
-      headers: { "cache-control": "no-store" },
+    if (result.status !== "completed") {
+      return NextResponse.json(
+        { error: "SHELF_SCAN_FAILED", requestId, executionId: `shelf-scouter:${requestId}`, details: result.error },
+        { status: 500, headers: { "cache-control": "no-store" } },
+      );
+    }
+
+    return NextResponse.json(result.output, {
+      headers: { "cache-control": "no-store", "x-hoare-agent": "shelf-scouter@1.0.0" },
     });
   } catch (error) {
-    console.error("[shelf-scouter] scan failed", { requestId, error });
+    console.error("[hoare:shelf-scouter] scan failed", { requestId, error });
     return NextResponse.json(
       { error: "SHELF_SCAN_FAILED", requestId },
       { status: 500, headers: { "cache-control": "no-store" } },
