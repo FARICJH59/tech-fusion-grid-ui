@@ -3,3 +3,4 @@ export * from "./serpapi-adapter";
 export * from "./evidence";
 export * from "./fusion-search";
 export * from "./knowledge";
+export * from "./substrate";
