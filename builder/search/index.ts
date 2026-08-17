@@ -4,3 +4,4 @@ export * from "./evidence";
 export * from "./fusion-search";
 export * from "./knowledge";
 export * from "./substrate";
+export * from "./intelligence";
