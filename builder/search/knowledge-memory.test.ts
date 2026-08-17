@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { InMemoryMemoryProvider } from "../../packages/agent-sdk/src/memory";
-import { AgentMemoryRuntime } from "../../agentfusion/memory/memory-runtime";
 import { persistKnowledgeAcquisition } from "./knowledge-memory";
 import type { KnowledgeAcquisitionResult } from "./knowledge";
+import type { AgentMemoryRuntime } from "../../agentfusion/memory/memory-runtime";
 
 function result(): KnowledgeAcquisitionResult {
   return {
@@ -35,9 +35,12 @@ function result(): KnowledgeAcquisitionResult {
 }
 
 test("persists governed knowledge through the existing tenant memory boundary", async () => {
-  const runtime = new AgentMemoryRuntime();
   const memory = new InMemoryMemoryProvider();
-  runtime.longTerm = memory as never;
+  const runtime = {
+    writeTenantKnowledge: async (record: Parameters<AgentMemoryRuntime["writeTenantKnowledge"]>[0]) => {
+      await memory.set({ ...record, tier: "long-term" });
+    },
+  } as AgentMemoryRuntime;
 
   const records = await persistKnowledgeAcquisition(result(), runtime);
 
