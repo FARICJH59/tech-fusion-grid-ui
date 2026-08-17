@@ -80,7 +80,9 @@ function contradictionGroups(candidates: KnowledgeCandidate[]): KnowledgeCandida
   for (const valueMap of byUnit.values()) {
     if (valueMap.size < 2) continue;
     const candidatesByValue = [...valueMap.values()].map((group) => group[0]).filter(Boolean);
-    if (candidatesByValue.length > 1) contradictions.push(candidatesByValue);
+    if (new Set(candidatesByValue.map((candidate) => candidate.id)).size > 1) {
+      contradictions.push(candidatesByValue);
+    }
   }
   return contradictions;
 }
