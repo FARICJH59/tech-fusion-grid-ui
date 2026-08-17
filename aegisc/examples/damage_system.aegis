@@ -1,0 +1,16 @@
+intent ApplyDamage {
+    target: String;
+    amount: Int;
+}
+
+policy DamagePolicy for ApplyDamage {
+    lease.commit(result);
+}
+
+adapter DamageSystem for ApplyDamage {
+    timeout: 16ms,
+    max_retries: 0,
+    execute(fenced Lease<ApplyDamage> lease) {
+        lease.commit(result);
+    }
+}
