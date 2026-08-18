@@ -1,0 +1,38 @@
+name: HOARE Native Workflow Contract CI
+
+on:
+  pull_request:
+    paths:
+      - 'builder/automation/hoare-workflow.ts'
+      - 'builder/automation/workflow-compiler.ts'
+      - 'builder/automation/workflow-adapters.ts'
+      - 'builder/automation/hoare-workflow.test.ts'
+      - 'docs/architecture/HOARE_WORKFLOW_MODEL.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hoare-workflow-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test native workflow contract
+        run: node --import tsx --test builder/automation/hoare-workflow.test.ts
