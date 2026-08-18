@@ -15,13 +15,13 @@ function stableHash(value: string): string {
 
 export function compileAegis(policy: AegisPolicy): AegisIR {
   validatePolicy(policy);
+  const rules = policy.rules.map((rule) => ({
+    ...rule,
+    roles: rule.roles ? [...rule.roles] : undefined,
+    environments: rule.environments ? [...rule.environments] : undefined,
+  }));
   const canonical = JSON.stringify({ name: policy.name, version: policy.version, rules: policy.rules });
-  return Object.freeze({
-    name: policy.name,
-    version: policy.version,
-    rules: Object.freeze(policy.rules.map((rule) => Object.freeze({ ...rule, roles: rule.roles ? Object.freeze([...rule.roles]) : undefined, environments: rule.environments ? Object.freeze([...rule.environments]) : undefined }))),
-    hash: stableHash(canonical),
-  });
+  return Object.freeze({ name: policy.name, version: policy.version, rules: Object.freeze(rules), hash: stableHash(canonical) });
 }
 
 export function parseAegis(source: string): AegisPolicy {
