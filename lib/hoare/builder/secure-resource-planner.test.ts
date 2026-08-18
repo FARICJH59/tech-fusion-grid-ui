@@ -26,15 +26,33 @@ const target: ResourceTarget = {
   acceleratorCount: 8, cpu: 96, memoryGiB: 1024, availability: 0.9999, estimatedLatencyMs: 100, estimatedCostPerHour: 10,
 };
 
-test("secure planner selects only after AEGISC policy passes", () => {
+test("valid policy reaches resource selection", () => {
   const result = planResourcesWithSecurity(plan, [target], policy);
   assert.equal(result.security.allowed, true);
   assert.equal(result.selected?.id, "h200");
 });
 
-test("secure planner blocks placement when AEGISC policy fails", () => {
+test("provider outside AEGISC policy is denied before placement", () => {
   const result = planResourcesWithSecurity(plan, [target], { ...policy, allowedProviders: ["gcp"] });
   assert.equal(result.security.allowed, false);
   assert.equal(result.selected, null);
   assert.equal(result.candidates.length, 0);
+});
+
+test("region outside AEGISC policy is denied before placement", () => {
+  const result = planResourcesWithSecurity(plan, [target], { ...policy, allowedRegions: ["secure-west"] });
+  assert.equal(result.security.allowed, false);
+  assert.equal(result.selected, null);
+});
+
+test("egress mismatch is denied before placement", () => {
+  const result = planResourcesWithSecurity(plan, [target], { ...policy, egressAllowed: true });
+  assert.equal(result.security.allowed, false);
+  assert.equal(result.selected, null);
+});
+
+test("unapproved accelerator is denied before placement", () => {
+  const result = planResourcesWithSecurity(plan, [target], { ...policy, approvedAccelerators: ["A100"] });
+  assert.equal(result.security.allowed, false);
+  assert.equal(result.selected, null);
 });
