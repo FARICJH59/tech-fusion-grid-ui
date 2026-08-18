@@ -15,17 +15,16 @@ const node = {
 
 const plan = {
   id: "plan-1",
-  intent: { tenantId: "tenant-1", name: "demo", description: "deploy demo-app", resources: ["infrastructure", "application"] },
+  intent: { tenantId: "tenant-1", name: "demo", description: "deploy demo-app", resources: ["application"] },
   resources: [
-    { kind: "infrastructure", name: "gcp-node", dependsOn: [] },
-    { kind: "application", name: "demo-app", dependsOn: ["gcp-node"] },
+    { kind: "application", name: "demo-app", dependsOn: [] },
   ],
   deployment: { provider: "gcp", environment: "development" },
   status: "building",
 } as any;
 
 describe("HOARE live runtime Builder integration", () => {
-  it("resolves authoritative resources and invokes the runtime provider", async () => {
+  it("resolves authoritative application and infrastructure resources and invokes the runtime provider", async () => {
     const store = new InMemoryBuilderResourceStore();
     store.addTenant(tenant);
     store.addApplication(application);
