@@ -1,49 +1,98 @@
 # HOARE GitHub Actions Execution Fabric
 
-This layer translates GitHub Actions fundamentals into provider-neutral HOARE control-plane primitives. GitHub Actions is an execution adapter; it is not the HOARE control plane.
+## Architectural position
+
+HOARE owns the customer-facing workflow abstraction. GitHub Actions is an optional execution adapter.
 
 ```text
+CUSTOMER
+   ↓
 Intent
-  ↓
-HOARE Planner
-  ↓
-Action Authorization
-  ↓
-Environment Governance
-  ↓
-Runbook / Action Registry
-  ↓
-Identity Broker (short-lived credentials)
-  ↓
-Execution Coordinator
-  ↓
-GitHub Actions / Cloud Run / Kubernetes / Edge
-  ↓
-Observation + Verification
-  ↓
-Release Gate / Remediation / Audit
+   ↓
+HOARE
+   ├── Understand
+   ├── Plan
+   ├── Policy
+   ├── Authorize
+   └── Construct HOARE Workflow
+              ↓
+        HOARE Workflow
+              ↓
+       Execution Fabric
+        ┌─────┼─────┬─────┐
+        ▼     ▼     ▼     ▼
+      GitHub GCP   AWS   Azure ...
+      Actions
 ```
 
-## Added control-plane boundaries
+## Native workflow source of truth
 
-- **Action Authorization** — allowlist actions and classify autonomous versus approval-required risk.
-- **Runbook Registry** — version reusable operational procedures rather than generating every procedure from scratch.
-- **Environment Manager** — distinguish development, staging, and production autonomy and destructive-action controls.
-- **Identity Broker contract** — require short-lived credentials and keep provider authentication outside the builder.
-- **Execution Coordinator** — prevent conflicting concurrent operations with tenant/target/action leases.
-- **Action SDK** — provide a provider-neutral contract for custom HOARE actions and optional rollback.
-- **GitHub Actions Adapter** — dispatch and observe workflows without moving governance into GitHub-specific code.
+`HoareWorkflow` is the canonical representation of customer intent after planning and governance. Provider-specific workflow syntax is an implementation detail.
 
-## Security invariants
+A customer does not need to know GitHub Actions YAML.
 
-1. Authorization precedes execution.
-2. Tenant and project context are mandatory.
-3. Production and destructive operations can require explicit approval.
-4. Provider credentials are short-lived and injected by the control plane.
-5. CI validates the boundary but does not deploy.
-6. Execution is correlated and coordinated to prevent duplicate/conflicting operations.
-7. Existing artifact attestation, provenance, deployment verification, release gating, self-healing, and tenant metering remain upstream/downstream governance boundaries.
+For example:
 
-## Result
+> Deploy my application to Google Cloud Run in production, run security checks, verify health, and roll back on failed verification.
 
-HOARE can use GitHub Actions as one execution substrate while retaining the ability to execute the same governed action model against GCP, AWS, Azure, Kubernetes, private runners, and edge infrastructure.
+HOARE constructs a workflow containing the trigger, environment, policy, identity requirements, actions, dependencies, concurrency, execution target, verification, rollback, observability, and audit context.
+
+## GitHub Actions role
+
+GitHub Actions remains valuable for customers that already use GitHub repositories, environments, runners, and workflows. HOARE can compile or dispatch governed work through the GitHub Actions adapter without transferring control-plane authority to GitHub.
+
+Direct GCP, AWS, Azure, Kubernetes, private-runner, and edge adapters can execute the same native workflow contract without GitHub Actions.
+
+## Control-plane invariant
+
+**HOARE Workflow ≠ GitHub Workflow.**
+
+HOARE retains authority over:
+
+- intent
+- planning
+- policy
+- authorization
+- environment governance
+- identity
+- tenant isolation
+- execution coordination
+- provenance
+- verification
+- remediation
+- audit
+- metering
+
+Execution adapters only translate and execute an already-governed plan.
+
+## Existing governance boundaries
+
+The execution fabric composes with artifact attestation, deployment verification, release gates, self-healing, tenant isolation, and metering already established in the deployment architecture.
+
+## Lifecycle
+
+```text
+Customer Intent
+      ↓
+Workflow Generation
+      ↓
+Validation
+      ↓
+Policy Evaluation
+      ↓
+Authorization
+      ↓
+Identity Acquisition
+      ↓
+Execution Planning
+      ↓
+Provider Adapter
+      ↓
+Execution
+      ↓
+Observation
+      ↓
+Verification
+      ├── Success → Audit / Metering
+      └── Failure → Remediation / Rollback → Verification
+```
