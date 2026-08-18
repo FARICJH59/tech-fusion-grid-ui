@@ -1,6 +1,17 @@
 # TechFusion Grid UI
 
-A production-ready Next.js application for managing edge grid infrastructure, featuring real-time MQTT telemetry, JWT authentication, PostgreSQL persistence, Redis caching, and OpenTelemetry observability.
+A production-ready Next.js application for managing edge grid infrastructure and the HOARE enterprise/defense execution platform.
+
+## HOARE Defense — DIB Supply Chain
+
+The defense mission layer now includes a tenant-scoped **Defense Industrial Base (DIB) Supply Chain** service for supply-chain graph assessment, supplier risk scoring, provenance-gap detection, resilience analysis, critical-path identification, and governed response planning.
+
+- `lib/enterprise/defense/dib-supply-chain.ts` — deterministic DIB graph/risk/action contracts
+- `app/api/defense/dib/supply-chain/route.ts` — authenticated tenant-scoped API
+- `docs/defense/DIB_SUPPLY_CHAIN_ARCHITECTURE.md` — architecture and execution boundary
+- `tests/dib-supply-chain.test.ts` — assessment and boundary tests
+
+The service is intentionally additive: intelligence is separated from execution, while approved actions remain inside the existing HOARE authorization, runtime, runbook, audit, and evidence layers.
 
 ## Phase 9B – Agent SDK Foundation
 
@@ -34,25 +45,25 @@ Tech-Fusion-Grid-UI now includes the Enterprise Control Plane foundation for HOA
 ### Enterprise layers implemented
 
 1. **Enterprise Control Plane (`lib/enterprise/control-plane.ts`)**
-   - Modules: Organizations, Tenants, Users, Projects, Workspaces, AI Providers, Infrastructure, Billing, Security, Observability, Deployment, Marketplace.
+   - Modules: Organizations, Tenants, Users, Projects, Workspaces, AI Providers, Infrastructure, Billing, Security, Observability, Deployment, Marketplace, DIB Supply Chain.
 2. **HOARE Runtime Integration (`lib/enterprise/runtime.ts`)**
    - Services: Runtime Supervisor, Workflow Engine, Scheduler, Dispatcher, Event Bus, Health Manager, Auto Remediation, Agent Registry, MCP Gateway, SDK Manager, Tool Registry, Plugin Manager.
 3. **AI Provider Abstraction (`lib/enterprise/providers.ts`)**
    - Providers: Google Gemini, Gemini Nano Banana, Gemini Omni Flash, Gemini 3.5, OpenAI, Anthropic.
    - Features: common interface, streaming, multimodal/image/video/embeddings/structured outputs, retries, failover, usage and cost tracking.
-4. **Infrastructure Abstraction (`lib/enterprise/infrastructure.ts`)**
+4. **Infrastructure Abstraction (`lib/enterprise/infrastructure.ts`)
    - Adapter registry for Docker, Kubernetes, Cloud Run, Redis, PostgreSQL, EMQX MQTT, NVIDIA GPU runtime, Object Storage.
-5. **Enterprise Agent Framework (`lib/enterprise/agents.ts`)**
+5. **Enterprise Agent Framework (`lib/enterprise/agents.ts`)
    - Templates, orchestration, long-running workflows, event log, workflow memory, tool/knowledge-aware definitions, approval-ready lifecycle controls.
-6. **Google Cloud Native (`lib/enterprise/cloud.ts`)**
+6. **Google Cloud Native (`lib/enterprise/cloud.ts`)
    - Standardized profile for project `caramel-limiter-495010-b9` with Cloud Run, Artifact Registry, Secret Manager, Cloud SQL, Pub/Sub, Cloud Scheduler, Cloud Logging, Cloud Monitoring, IAM Workload Identity Federation.
-7. **Enterprise SDK (`lib/enterprise/sdk.ts`)**
+7. **Enterprise SDK (`lib/enterprise/sdk.ts`)
    - TypeScript SDK and Python SDK definitions across REST, Webhooks, WebSocket, MQTT channels.
-8. **Marketplace (`lib/enterprise/marketplace.ts`)**
+8. **Marketplace (`lib/enterprise/marketplace.ts`)
    - Extension catalog support for tools, agents, models, workflows, templates, industry packs.
-9. **Enterprise Security (`lib/enterprise/security.ts`)**
+9. **Enterprise Security (`lib/enterprise/security.ts`)
    - RBAC + ABAC policy engine with tenant isolation checks and compatibility with JWT/OAuth/API key based control patterns.
-10. **Revenue Platform (`lib/enterprise/revenue.ts`)**
+10. **Revenue Platform (`lib/enterprise/revenue.ts`)
     - Usage metering, AI cost tracking, GPU tracking, marketplace billing and aggregated tenant analytics.
 
 ### New endpoints and UI
@@ -60,6 +71,8 @@ Tech-Fusion-Grid-UI now includes the Enterprise Control Plane foundation for HOA
 - `GET /api/platform/status` – full enterprise architecture and health snapshot
 - `GET /api/runtime/status` – HOARE runtime service integration status
 - `GET /api/operations/stream` – SSE live operations stream
+- `GET /api/defense/dib/supply-chain` – DIB service metadata
+- `POST /api/defense/dib/supply-chain` – tenant-scoped DIB assessment
 - `/auth/login`, `/auth/signup`, `/auth/verify`, `/auth/forgot-password` – account-first auth surfaces
 - `/platform` – enterprise control plane page
 - `/operations` – real-time operations dashboard
@@ -142,23 +155,6 @@ npm run typecheck  # tsc --noEmit
 npm run test       # Node.js native test runner
 ```
 
-## API routes
-
-| Method | Route               | Auth          | Description                  |
-|--------|---------------------|---------------|------------------------------|
-| `POST` | `/api/auth`         | —             | Login → JWT tokens           |
-| `POST` | `/api/auth/login`   | —             | Login alias for account-first UX |
-| `POST` | `/api/auth/signup`  | —             | Signup + tenant provisioning bootstrap |
-| `POST` | `/api/auth/verify`  | —             | OTP/email verification + token issue |
-| `POST` | `/api/auth/forgot-password` | —    | Password reset initiation    |
-| `POST` | `/api/auth/refresh` | —             | Refresh access token         |
-| `GET`  | `/api/telemetry`    | viewer+       | Recent telemetry (tenant-scoped) |
-| `GET`  | `/api/audit`        | operator+     | Audit log (tenant-scoped)    |
-| `GET`  | `/api/health`       | —             | Liveness + dependency status |
-| `GET`  | `/api/platform/entitlements` | viewer+ | Subscription + credit feature gates |
-| `POST` | `/api/billing/portal` | viewer+     | Billing portal entrypoint    |
-| `POST` | `/api/billing/stripe/webhook` | Stripe signature | Subscription activation sync |
-
 ### Auth flow
 
 ```
@@ -171,99 +167,11 @@ GET /api/telemetry
 → { "data": [...], "count": N }
 ```
 
-## MQTT client
-
-`lib/mqtt.ts` exports a `mqttClient` singleton. When `MQTT_URL` is set it uses the real mqtt.js client; otherwise it falls back to `MockMQTT` for local development without a broker.
-
-### Real client features
-- TLS/mTLS via `mqtts://` with custom CA, client cert + key
-- MQTT username / password authentication
-- QoS 0, 1, 2 per publish/subscribe
-- Retained messages
-- Wildcard subscriptions (`#`, `+`)
-- Last Will and Testament (LWT)
-- Automatic exponential back-off reconnect (1 s → 30 s with jitter)
-- Heartbeat monitoring via `packetreceive`
-- Typed events preserving the existing execution-plane API
-
-### API
-
-```typescript
-import { mqttClient } from "@/lib/mqtt";
-
-mqttClient.connect();
-const unsub = mqttClient.subscribe("edge/inverters/#", { qos: 1 });
-const offMsg = mqttClient.on((topic, message) => console.log(topic, message));
-mqttClient.publish("edge/faults", "overvoltage", { qos: 1, retain: false });
-const offState = mqttClient.onConnectionStateChange((state) => console.log(state));
-mqttClient.disconnect();
-```
-
-## Database migrations
-
-SQL migrations live in `migrations/`. `001_init.sql` creates:
-
-- `tenants` — multi-tenant root entity
-- `users` — with role enum (`admin | operator | viewer | service`)
-- `devices` — edge devices keyed by `tenant_id + device_key`
-- `telemetry` — append-only JSONB time-series, indexed for range queries
-- `audit_events` — structured audit log with actor reference
-- `execution_history` — workflow run records with status enum
-- `health_status` — periodic health snapshots
-
-Run in PostgreSQL:
-```sql
-psql -U techfusion -d techfusion -f migrations/001_init.sql
-```
-
-## Authentication & RBAC
-
-JWT access tokens (15 min) and refresh tokens (7 days) are signed with `JWT_SECRET`.
-
-Role hierarchy (highest → lowest): `service > admin > operator > viewer`
-
-```typescript
-import { createTokens, verifyToken, hasMinRole } from "@/lib/auth";
-
-const tokens = createTokens({ sub: userId, email, role: "operator", tenantId });
-const payload = verifyToken(accessToken);
-if (hasMinRole(payload.role, "admin")) { /* ... */ }
-```
-
-## Redis utilities
-
-```typescript
-import { cached, invalidate, acquireLock, subscribePubSub } from "@/lib/redis";
-
-// Cache-aside pattern
-const data = await cached("key", 60, () => fetchFromDB());
-
-// Distributed lock (10 s TTL)
-const release = await acquireLock("job:nightly-report");
-if (release) { try { /* ... */ } finally { await release(); } }
-
-// Pub/Sub
-const unsubscribe = subscribePubSub(["events:telemetry"], (ch, msg) => {});
-```
-
-## Observability
-
-OpenTelemetry is bootstrapped in `instrumentation.ts` (Next.js instrumentation hook). When `OTEL_EXPORTER_OTLP_ENDPOINT` is set, traces are exported via OTLP HTTP. The structured logger in `lib/telemetry/otel.ts` outputs JSON in production, colourised text in development.
-
-Access the local Jaeger UI at **http://localhost:16686** after `docker compose up`.
-
 ## Testing
 
 ```bash
-npm run test   # unit tests including Enterprise Platform foundation coverage
+npm run test   # unit tests including Enterprise Platform and DIB coverage
 ```
-
-Test files:
-- `tests/mqtt.integration.test.ts` — MockMQTT API contract
-- `tests/mqtt-client.test.ts` — extended MQTT client behavioural tests
-- `tests/auth.test.ts` — JWT creation, verification, RBAC, token extraction
-- `tests/telemetry-runtime.integration.test.ts` — WebSocket telemetry runtime
-- `tests/enterprise-platform.test.ts` — enterprise architecture, provider abstraction, runtime integration, SDK, security, and revenue foundation
 
 ## CI/CD
 
@@ -275,16 +183,3 @@ Test files:
 4. **Docker** — multi-stage image build verification
 5. **Integration** — tests run against live Redis + Mosquitto services
 6. **Readiness** — gate job on `main` listing remaining production blockers
-
-## Production checklist
-
-- [ ] Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- [ ] Set `JWT_SECRET` to a cryptographically random string ≥ 32 chars
-- [ ] Enable Row Level Security (RLS) policies in Supabase for tenant isolation
-- [ ] Run database migration `001_init.sql`
-- [ ] Configure MQTT broker with TLS + ACL rules
-- [ ] Set `REDIS_URL` to a production Redis instance (TLS recommended)
-- [ ] Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for production tracing
-- [ ] Switch rate limiter in `lib/middleware/api.ts` from in-process to Redis-backed for multi-node deployments
-- [ ] Set up log aggregation (Datadog, Loki, etc.) consuming the JSON log output
-- [ ] Add Prometheus scrape endpoint if needed (extend `lib/telemetry/otel.ts`)
