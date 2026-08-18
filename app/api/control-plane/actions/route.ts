@@ -3,7 +3,7 @@ import { customActionControlPlane, type ActionRequest, type ActionPolicy } from 
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { operation?: "authorize" | "execute" | "policy"; action?: ActionRequest; policy?: ActionPolicy; handlerResult?: unknown };
+    const body = (await request.json()) as { operation?: "authorize" | "policy"; action?: ActionRequest; policy?: ActionPolicy };
     if (!body.operation) return NextResponse.json({ error: "operation is required" }, { status: 400 });
 
     if (body.operation === "policy") {
@@ -13,9 +13,7 @@ export async function POST(request: Request) {
     }
 
     if (!body.action) return NextResponse.json({ error: "action is required" }, { status: 400 });
-    if (body.operation === "authorize") return NextResponse.json(customActionControlPlane.authorize(body.action));
-
-    const result = await customActionControlPlane.execute(body.action, async () => body.handlerResult);
+    const result = customActionControlPlane.authorize(body.action);
     return NextResponse.json(result, { status: result.decision === "DENY" ? 403 : result.decision === "ESCALATE" ? 202 : 200 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
