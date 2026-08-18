@@ -1,0 +1,1 @@
+Stage 8 is implemented on the Stage 7 line. It introduces deterministic artifact SHA-256 attestation bound to execution-unit and provenance metadata. Deployment adapters should require verified attestations.

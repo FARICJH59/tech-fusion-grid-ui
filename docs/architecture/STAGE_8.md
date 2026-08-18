@@ -1,0 +1,1 @@
+Stage 8: artifact verification and attestation.

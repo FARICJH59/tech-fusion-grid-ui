@@ -1,0 +1,51 @@
+name: HOARE Builder CI
+
+on:
+  pull_request:
+    paths:
+      - 'builder/**'
+      - 'lib/builder/**'
+      - 'lib/cloud/**'
+      - 'tests/**'
+      - '.github/workflows/hoare-builder-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  builder-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run builder tests
+        run: npm test
+
+      - name: Verify deployment gate files
+        run: |
+          test -f builder/deployment/deployment-adapter.ts
+          test -f builder/deployment/cloud-run-adapter.ts
+          test -f builder/deployment/deployment-gate.ts
+          test -f builder/deployment/deployment-verifier.ts
+
+      - name: Ensure no deployment credentials are committed
+        run: |
+          if grep -RInE --exclude-dir=node_modules --exclude-dir=.git --exclude='hoare-builder-ci.yml' '(BEGIN PRIVATE KEY|GOOGLE_APPLICATION_CREDENTIALS=|service_account_key|private_key)' builder .github; then
+            echo 'Potential long-lived credential material detected.'
+            exit 1
+          fi
+
+      - name: Builder CI summary
+        run: echo 'HOARE builder verification completed; deployment is intentionally not performed by CI.'

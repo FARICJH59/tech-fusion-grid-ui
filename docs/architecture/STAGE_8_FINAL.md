@@ -1,0 +1,1 @@
+Stage 8 implementation is based on deterministic artifact attestation. Deployment integration remains downstream and must require verified attestations.
