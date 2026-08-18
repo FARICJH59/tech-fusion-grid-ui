@@ -1,4 +1,4 @@
-import type { BuilderRequirements } from "./capability-planner";
+import type { BuilderRequirements, SecurityClassification } from "./capability-planner";
 
 export type SecurityPolicySource = "aegisc" | "hoare";
 
@@ -6,7 +6,7 @@ export interface CompiledSecurityPolicy {
   version: "1";
   policyId: string;
   source: SecurityPolicySource;
-  classification?: BuilderRequirements["security"]["classification"];
+  classification?: SecurityClassification;
   allowedProviders?: readonly string[];
   allowedRegions?: readonly string[];
   egressAllowed?: boolean;
