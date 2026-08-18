@@ -30,7 +30,7 @@ export class RuntimeProviderAdapter implements BuildProviderAdapter {
   }
 
   canBuild(kind: BuildOperation["kind"]): boolean {
-    return kind === "application" || kind === "infrastructure";
+    return kind === "application";
   }
 
   async provision(operation: BuildOperation): Promise<void> {
