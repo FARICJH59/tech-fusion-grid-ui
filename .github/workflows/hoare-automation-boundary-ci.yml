@@ -1,0 +1,45 @@
+name: HOARE Automation Boundary CI
+
+on:
+  pull_request:
+    paths:
+      - 'builder/automation/**'
+      - '.github/workflows/hoare-automation-boundary-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hoare-automation-boundary-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  automation-boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify automation boundaries
+        run: node --import tsx --test builder/automation/automation-boundaries.test.ts
+
+      - name: Verify no long-lived credential material
+        run: |
+          if grep -RInE --exclude-dir=node_modules --exclude-dir=.git '(BEGIN PRIVATE KEY|service_account_key|private_key|GOOGLE_APPLICATION_CREDENTIALS=)' builder/automation .github; then
+            echo 'Potential long-lived credential material detected.'
+            exit 1
+          fi
+
+      - name: Summary
+        run: echo 'HOARE automation boundary verification completed; this workflow does not deploy.'
