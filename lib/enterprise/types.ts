@@ -10,7 +10,8 @@ export type LayerName =
   | "sdk"
   | "marketplace"
   | "security"
-  | "revenue";
+  | "revenue"
+  | "defense-mission-service";
 
 export type DeployableService = {
   name: string;
