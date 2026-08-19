@@ -4,22 +4,7 @@
   "title": "HOARE OT Attack Assessment",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "event_id",
-    "tenant_id",
-    "site_id",
-    "asset_id",
-    "timestamp",
-    "digital_twin",
-    "ml",
-    "attack_hypotheses",
-    "confidence",
-    "severity",
-    "evidence_refs",
-    "source_revision",
-    "model_versions",
-    "trace_id"
-  ],
+  "required": ["event_id", "tenant_id", "site_id", "asset_id", "timestamp", "digital_twin", "ml", "attack_hypotheses", "confidence", "severity", "evidence_refs", "source_revision", "model_versions", "trace_id", "execution_allowed"],
   "properties": {
     "event_id": { "type": "string", "minLength": 1 },
     "tenant_id": { "type": "string", "minLength": 1 },
@@ -80,6 +65,7 @@
     "evidence_refs": { "type": "array", "items": { "type": "string" } },
     "source_revision": { "type": "string", "minLength": 1 },
     "model_versions": { "type": "array", "items": { "type": "string" } },
-    "trace_id": { "type": "string", "minLength": 1 }
+    "trace_id": { "type": "string", "minLength": 1 },
+    "execution_allowed": { "const": false }
   }
 }
