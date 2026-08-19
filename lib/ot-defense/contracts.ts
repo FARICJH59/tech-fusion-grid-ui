@@ -80,7 +80,6 @@ export function fuseEvidence(
   physics: PhysicsResidual,
   detectors: DetectorResult[],
 ): Pick<AttackAssessment, "fusedScore" | "severity"> {
-  const scores = [physics.score, ...detectors.map((d) => d.anomalyScore)];
   const confidenceWeighted = detectors.reduce(
     (sum, d) => sum + d.anomalyScore * d.confidence,
     physics.score,
