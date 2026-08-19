@@ -21,9 +21,13 @@ provider "aws" {
   }
 }
 
-resource "aws_s3_bucket" "evidence" {
-  bucket = var.evidence_bucket_name
+resource "aws_iam_openid_connect_provider" "github_actions" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+}
 
+resource "aws_s3_bucket" "evidence" {
+  bucket        = var.evidence_bucket_name
   force_destroy = true
 }
 
@@ -58,7 +62,7 @@ resource "aws_iam_role" "github_actions" {
       Effect = "Allow"
       Action = "sts:AssumeRoleWithWebIdentity"
       Principal = {
-        Federated = var.github_oidc_provider_arn
+        Federated = aws_iam_openid_connect_provider.github_actions.arn
       }
       Condition = {
         StringEquals = {
