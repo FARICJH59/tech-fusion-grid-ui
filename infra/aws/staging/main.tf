@@ -91,15 +91,3 @@ resource "aws_iam_role_policy" "github_actions_readonly_staging" {
     }]
   })
 }
-
-output "evidence_bucket" {
-  value = aws_s3_bucket.evidence.bucket
-}
-
-output "log_group" {
-  value = aws_cloudwatch_log_group.hoare.name
-}
-
-output "github_actions_role_arn" {
-  value = aws_iam_role.github_actions.arn
-}
