@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hoare.ai/schemas/ot-attack-assessment.schema.json",
+  "title": "HOARE OT Attack Assessment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "tenant_id",
+    "site_id",
+    "asset_id",
+    "timestamp",
+    "digital_twin",
+    "ml",
+    "attack_hypotheses",
+    "confidence",
+    "severity",
+    "evidence_refs",
+    "source_revision",
+    "model_versions",
+    "trace_id"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "site_id": { "type": "string", "minLength": 1 },
+    "asset_id": { "type": "string", "minLength": 1 },
+    "asset_type": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "process_state": { "type": "object", "additionalProperties": true },
+    "observations": { "type": "object", "additionalProperties": true },
+    "digital_twin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_state", "residuals"],
+      "properties": {
+        "expected_state": { "type": "object", "additionalProperties": true },
+        "residuals": { "type": "object", "additionalProperties": { "type": "number" } },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "model_version": { "type": "string" }
+      }
+    },
+    "ml": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["models"],
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "score", "model_version"],
+            "properties": {
+              "name": { "type": "string" },
+              "score": { "type": "number", "minimum": 0, "maximum": 1 },
+              "model_version": { "type": "string" },
+              "observation_window_ms": { "type": "integer", "minimum": 0 },
+              "calibration": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "attack_hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "confidence"],
+        "properties": {
+          "type": { "type": "string", "enum": ["FALSE_DATA_INJECTION", "REPLAY", "NULL_SPACE", "ANOMALOUS_PROCESS_BEHAVIOR", "UNKNOWN"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "severity": { "type": "string", "enum": ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+    "evidence_refs": { "type": "array", "items": { "type": "string" } },
+    "source_revision": { "type": "string", "minLength": 1 },
+    "model_versions": { "type": "array", "items": { "type": "string" } },
+    "trace_id": { "type": "string", "minLength": 1 }
+  }
+}
