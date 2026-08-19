@@ -1,6 +1,10 @@
 import type { HoareBuildPlan } from "./native-control-plane";
 import { isNativeControlPlanePlan } from "./native-control-plane";
-import { isSafeProviderAdapterPlan, compileProviderAdapterPlan, type ProviderAdapterPlan } from "./provider-adapters";
+import {
+  isSafeProviderAdapterPlan,
+  compileProviderAdapterPlan,
+  type ProviderAdapterPlan,
+} from "./provider-adapters";
 import type { HoareDeploymentPlan } from "./domain-https-planner";
 import { isSafeDeploymentPlan } from "./domain-https-planner";
 import type { HoareBuilderPlan } from "./hoare-builder-planner";
@@ -25,9 +29,7 @@ export function validateExecutionRequest(request: HoareExecutionRequest): string
   const reasons: string[] = [];
   if (!isNativeControlPlanePlan(request.controlPlanePlan)) reasons.push("invalid-control-plane-plan");
   if (!request.builderPlan.validation.providerNeutral) reasons.push("provider-neutrality-required");
-  if (!request.builderPlan.validation.longLivedCredentialsAllowed === true) {
-    // Intentionally unreachable for the typed contract; retained as a defensive guard.
-  }
+  if (request.builderPlan.validation.longLivedCredentialsAllowed) reasons.push("long-lived-credentials-forbidden");
   if (!isSafeDeploymentPlan(request.deploymentPlan)) reasons.push("unsafe-deployment-plan");
   if (request.deploymentPlan.approval === "required" && !request.approved) reasons.push("approval-required");
   return reasons;
