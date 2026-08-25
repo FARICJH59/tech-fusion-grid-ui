@@ -65,6 +65,7 @@ export default function HomePage() {
           gap: 20,
         }}
       >
+        <Link href="/workspace">🧠 Open Native HOARE Workspace</Link>
         <Link href="/telemetry">📡 Telemetry</Link>
         <Link href="/execution-plane">⚙️ Execution Plane</Link>
         <Link href="/audit">🛡 Audit Center</Link>
