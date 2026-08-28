@@ -95,3 +95,10 @@ resource "aws_iam_role_policy" "github_actions_readonly_staging" {
     }]
   })
 }
+
+resource "aws_iam_role_policy" "github_actions_translate_staging" {
+  name = "hoare-staging-translate"
+  role = aws_iam_role.github_actions.id
+
+  policy = file("${path.module}/policies/translate-staging.json")
+}

@@ -1,6 +1,10 @@
-import type { DomainResource, InfrastructureNode, TenantResource } from "./types";
+import type {
+  DomainResource,
+  InfrastructureNode,
+  TenantResource,
+} from "./types";
 
-export const techFusionDomains: DomainResource[] = [
+export const DOMAIN_CATALOG: DomainResource[] = [
   "techfusional.com",
   "agenticfusionpro.com",
   "intentminers.com",
@@ -10,24 +14,53 @@ export const techFusionDomains: DomainResource[] = [
 ].map((hostname, index) => ({
   id: `domain-${index + 1}`,
   hostname,
-  provider: "godaddy",
+  provider: "cloudflare",
   organizationId: "tech-fusion-ai-ml",
   verified: false,
   tlsManaged: false,
   status: "pending",
 }));
 
-export const defaultPrivateCloudNode: InfrastructureNode = {
-  id: "hoare-node-001",
-  name: "HOARE-NODE-001",
-  kind: "bare-metal",
-  provider: "bare-metal",
-  region: "US",
-  capabilities: ["containers", "vm", "storage", "networking", "observability"],
-  capacity: { cpu: 0, memoryGb: 0, storageGb: 0 },
-  status: "provisioning",
-};
+export const NODE_CATALOG: InfrastructureNode[] = [
+  {
+    id: "hoare-node-001",
+    name: "HOARE-NODE-001",
+    kind: "bare-metal",
+    provider: "bare-metal",
+    region: "US",
+    capabilities: [
+      "containers",
+      "vm",
+      "storage",
+      "networking",
+      "observability",
+    ],
+    capacity: {
+      cpu: 0,
+      memoryGb: 0,
+      storageGb: 0,
+    },
+    status: "provisioning",
+  },
+];
 
-export function createTenant(input: Pick<TenantResource, "id" | "organizationId" | "name" | "region" | "dataResidency" | "isolation">): TenantResource {
-  return { ...input, status: "provisioning" };
+export const techFusionDomains = DOMAIN_CATALOG;
+
+export const defaultPrivateCloudNode = NODE_CATALOG[0];
+
+export function createTenant(
+  input: Pick<
+    TenantResource,
+    | "id"
+    | "organizationId"
+    | "name"
+    | "region"
+    | "dataResidency"
+    | "isolation"
+  >,
+): TenantResource {
+  return {
+    ...input,
+    status: "provisioning",
+  };
 }

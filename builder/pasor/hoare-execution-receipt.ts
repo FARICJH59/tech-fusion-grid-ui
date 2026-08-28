@@ -35,8 +35,22 @@ function sha256(value: unknown): string {
     .digest("hex");
 }
 
-function receiptId(plan: PasorPlan, unit: ExecutionUnit): string {
-  return `receipt-${sha256({ plan_hash: plan.plan_hash, unit_id: unit.unit_id }).slice(0, 32)}`;
+function receiptId(
+  plan: PasorPlan,
+  unit: ExecutionUnit,
+  workload_id: string,
+  agent_id: string,
+  node_id: string,
+  pack_id: string,
+): string {
+  return `receipt-${sha256({
+    plan_hash: plan.plan_hash,
+    unit_id: unit.unit_id,
+    workload_id,
+    agent_id,
+    node_id,
+    pack_id,
+  }).slice(0, 32)}`;
 }
 
 /**
@@ -77,7 +91,14 @@ export function createHoareExecutionReceipt(
 
   const receiptCore = {
     schema: "hoare.execution-receipt/v1" as const,
-    receipt_id: receiptId(plan, unit),
+    receipt_id: receiptId(
+      plan,
+      unit,
+      options.workload_id,
+      options.agent_id,
+      options.node_id,
+      options.pack_id,
+    ),
     admission_status: "ADMITTED" as const,
     tenant_id: plan.tenant_id,
     project_id: plan.project_id,

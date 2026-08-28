@@ -12,6 +12,7 @@
     "hoare:build-manifest": "node scripts/hoare-build-manifest.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-iam": "^3.1119.0",
     "@google-cloud/artifact-registry": "^4.7.1",
     "@google-cloud/logging": "^11.2.3",
     "@google-cloud/monitoring": "^5.4.0",

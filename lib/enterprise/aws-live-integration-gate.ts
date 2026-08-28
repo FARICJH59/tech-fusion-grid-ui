@@ -9,7 +9,7 @@ export interface AwsLiveIntegrationConfig {
   tenantId: string;
 }
 
-export function loadAwsLiveIntegrationConfig(env: NodeJS.ProcessEnv = process.env): AwsLiveIntegrationConfig {
+export function loadAwsLiveIntegrationConfig(env: Partial<NodeJS.ProcessEnv> = process.env): AwsLiveIntegrationConfig {
   return {
     enabled: env.HOARE_AWS_LIVE_TEST === "true",
     region: env.AWS_REGION ?? "",

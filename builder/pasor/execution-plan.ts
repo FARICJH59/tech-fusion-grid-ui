@@ -54,7 +54,7 @@ export function createPasorPlan(inventory: ProjectInventory): PasorPlan {
     add("pasor-validate", "pasor.validate", {}, ["inventory"], 3, 1);
   }
 
-  const planCore = { schema: "hoare.pasor-plan/v1", project_id: inventory.project_id, tenant_id: inventory.tenant_id, execution_units: units };
+  const planCore = { schema: "hoare.pasor-plan/v1" as const, project_id: inventory.project_id, tenant_id: inventory.tenant_id, execution_units: units };
   return {
     ...planCore,
     totals: {

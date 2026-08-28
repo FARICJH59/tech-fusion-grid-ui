@@ -12,7 +12,7 @@ export type CreateTenantRequest = {
 export type CreateApplicationRequest = {
   tenantId: string;
   name: string;
-  runtime: string;
+  runtime: "container" | "vm" | "edge";
   domain?: string;
 };
 
@@ -29,7 +29,9 @@ export function createTenant(request: CreateTenantRequest) {
     organizationId: request.organizationId,
     name: request.name,
     region: request.region,
+    dataResidency: request.region,
     isolation: request.isolation,
+    status: "provisioning",
   });
 }
 
@@ -38,8 +40,9 @@ export function createApplication(request: CreateApplicationRequest): Applicatio
     id: `app_${request.tenantId}_${request.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
     tenantId: request.tenantId,
     name: request.name,
+    vertical: "saas",
     runtime: request.runtime,
-    domain: request.domain,
-    status: 'pending',
+
+    status: "draft",
   };
 }

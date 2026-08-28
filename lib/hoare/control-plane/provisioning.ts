@@ -33,3 +33,12 @@ export function planProvisioning(
 
   return { tenant, application, node, steps };
 }
+
+export function provisionTenant(
+  tenant: TenantResource,
+): TenantResource {
+  return {
+    ...tenant,
+    status: "provisioning",
+  };
+}
