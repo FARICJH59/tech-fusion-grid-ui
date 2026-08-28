@@ -53,7 +53,7 @@ resource "aws_cloudwatch_log_group" "hoare" {
   retention_in_days = 7
 }
 
-resource "aws_iam_role" "github_actions" {
+resource "aws_iam_role" "github_actions {
   name = "hoare-staging-github-actions"
 
   assume_role_policy = jsonencode({
@@ -90,6 +90,23 @@ resource "aws_iam_role_policy" "github_actions_readonly_staging" {
         "logs:DescribeLogGroups",
         "s3:GetBucketLocation",
         "s3:ListBucket"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "github_actions_translate_staging" {
+  name = "hoare-staging-translate"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "translate:TranslateText",
+        "translate:ListLanguages"
       ]
       Resource = "*"
     }]
