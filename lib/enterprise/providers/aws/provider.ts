@@ -7,19 +7,37 @@ import type { AwsProviderConfig, AwsProviderHealth, AwsResourceReference } from 
  * configuration and identity boundary that concrete AWS SDK adapters can use.
  */
 export class AwsProvider {
-  constructor(private readonly config: AwsProviderConfig) {}
+  private readonly region: string;
+  private readonly roleArn?: string;
+
+  constructor(private readonly config: AwsProviderConfig) {
+    const region = config.region.trim();
+    const roleArn = config.roleArn?.trim();
+
+    if (!region || !/^[a-z]{2}(?:-[a-z0-9]+)+-\d+$/.test(region)) {
+      throw new Error("A valid AWS region is required");
+    }
+
+    if (roleArn && !/^arn:aws(?:-[a-z0-9-]+)?:iam::\d{12}:role\/[A-Za-z0-9+=,.@_\/-]+$/.test(roleArn)) {
+      throw new Error("A valid AWS IAM role ARN is required");
+    }
+
+    this.region = region;
+    this.roleArn = roleArn;
+  }
 
   health(): AwsProviderHealth {
-    const identitySource = this.config.roleArn
+    const ambientRoleArn = process.env.AWS_ROLE_ARN?.trim();
+    const identitySource = this.roleArn
       ? "iam-role"
-      : process.env.AWS_ROLE_ARN
+      : ambientRoleArn && /^arn:aws(?:-[a-z0-9-]+)?:iam::\d{12}:role\/[A-Za-z0-9+=,.@_\/-]+$/.test(ambientRoleArn)
         ? "oidc"
         : "unknown";
 
     return {
       provider: "aws",
-      region: this.config.region,
-      configured: Boolean(this.config.region && identitySource !== "unknown"),
+      region: this.region,
+      configured: identitySource !== "unknown",
       identitySource,
     };
   }
@@ -33,7 +51,7 @@ export class AwsProvider {
       provider: "aws",
       kind: kind.trim(),
       id: id.trim(),
-      region: this.config.region,
+      region: this.region,
     };
   }
 }
