@@ -53,7 +53,7 @@ resource "aws_cloudwatch_log_group" "hoare" {
   retention_in_days = 7
 }
 
-resource "aws_iam_role" "github_actions {
+resource "aws_iam_role" "github_actions" {
   name = "hoare-staging-github-actions"
 
   assume_role_policy = jsonencode({
