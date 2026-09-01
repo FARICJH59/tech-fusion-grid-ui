@@ -3,16 +3,7 @@ import { planBuilderIntent } from "@/lib/hoare/builder/planner";
 import { compileApplicationFactory } from "@/lib/hoare/builder/app-factory/compiler";
 import type { BuilderIntent } from "@/lib/hoare/builder/types";
 
-const resourceKinds = new Set([
-  "application",
-  "api",
-  "agent",
-  "model",
-  "workflow",
-  "tenant",
-  "infrastructure",
-  "domain",
-]);
+const resourceKinds = new Set(["application", "api", "agent", "model", "workflow", "tenant", "infrastructure", "domain"]);
 
 function parseIntent(value: unknown): BuilderIntent {
   if (!value || typeof value !== "object") throw new Error("intent is required");
@@ -33,13 +24,7 @@ export async function POST(request: Request) {
     const environment = body.environment === "production" || body.environment === "staging" ? body.environment : "development";
     const builderPlan = planBuilderIntent(intent, "hoare", environment);
     const factoryPlan = compileApplicationFactory({ plan: builderPlan, description: body.description });
-
-    return NextResponse.json({
-      ok: true,
-      builderPlan,
-      factoryPlan,
-      next: "approval",
-    }, { status: 200 });
+    return NextResponse.json({ ok: true, builderPlan, factoryPlan, next: "approval" }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Invalid builder request" }, { status: 400 });
   }
