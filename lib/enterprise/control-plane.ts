@@ -13,6 +13,7 @@ export const CONTROL_PLANE_MODULES = [
   "Observability",
   "Deployment",
   "Marketplace",
+  "DIB Supply Chain",
 ] as const;
 
 export type ControlPlaneModule = {
@@ -24,6 +25,17 @@ export type ControlPlaneModule = {
 
 function toSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "-");
+}
+
+function describeModule(name: string): string {
+  if (name === "DIB Supply Chain") {
+    return "Defense Industrial Base supply-chain graph, risk assessment, provenance gaps, resilience analysis, and governed response planning.";
+  }
+  return `${name} management for enterprise tenants and operators.`;
+}
+
+function layerForModule(name: string): DeployableService["layer"] {
+  return name === "DIB Supply Chain" ? "defense-mission-service" : "control-plane";
 }
 
 export class ControlPlaneRegistry {
@@ -56,10 +68,10 @@ export function buildDefaultControlPlane(region = "global"): ControlPlaneRegistr
     registry.register({
       name: moduleName,
       slug,
-      description: `${moduleName} management for enterprise tenants and operators.`,
+      description: describeModule(moduleName),
       service: {
         name: `control-plane-${slug}`,
-        layer: "control-plane",
+        layer: layerForModule(moduleName),
         endpoint: `/api/control-plane/${slug}`,
         version: "v1",
         region,
