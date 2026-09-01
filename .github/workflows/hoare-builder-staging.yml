@@ -1,0 +1,53 @@
+name: HOARE Builder Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan_id:
+        description: "Approved Builder plan identifier"
+        required: true
+        type: string
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+      execute:
+        description: "Allow the workflow to execute the live provider"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate staging gate
+        env:
+          PLAN_ID: ${{ inputs.plan_id }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          EXECUTE: ${{ inputs.execute }}
+        run: |
+          test -n "$PLAN_ID"
+          test "$ENVIRONMENT" = "staging"
+          echo "Validated approved plan request: $PLAN_ID"
+          echo "Live execution gate: $EXECUTE"
+
+  execute:
+    needs: validate
+    if: ${{ inputs.execute == true }}
+    runs-on: ubuntu-latest
+    environment: hoare-staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Staging execution placeholder
+        run: |
+          echo "Live execution requires the deployment composition root and WIF provider configuration."
+          echo "No infrastructure is provisioned by this workflow until those controls are configured."
