@@ -6,6 +6,14 @@ import { buildExecutionDispatchEnvelope } from "./dispatch-envelope";
 import type { ExecutionTransactionEventPayload } from "./transaction-events";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
 import { RedisExecutionTransactionRepository } from "./redis-transaction-repository";
+import {
+  buildTcxDispatchKey,
+  requireValidTcxLease,
+  RedisTcxDispatchIntentRepository,
+  RedisTcxLeaseRepository,
+  type TcxDispatchIntentRepository,
+  type TcxLeaseRepository,
+} from "./tcx-dispatch-governance";
 
 const DISPATCH_TOPIC_ENV = "HOARE_EXECUTION_DISPATCH_TOPIC";
 
@@ -15,7 +23,14 @@ type MqttDispatchClient = {
   publish(topic: unknown, message: unknown, options?: { qos?: 0 | 1 | 2 }): void;
 };
 
-/** Bridges durable HOARE transaction events to the existing MQTT transport. */
+/**
+ * Bridges durable HOARE transaction events to MQTT while enforcing TCX
+ * lease fencing and a durable, per-attempt dispatch intent.
+ *
+ * MQTT is an external transport boundary: this intentionally provides
+ * at-least-once delivery plus receiver-side idempotency, not false
+ * exactly-once semantics.
+ */
 export class ExecutionTransactionDispatcher {
   private registered = false;
 
@@ -23,6 +38,8 @@ export class ExecutionTransactionDispatcher {
     private readonly repository: ExecutionTransactionRepository = new RedisExecutionTransactionRepository(),
     private readonly client: MqttDispatchClient = mqttClient,
     private readonly topic = process.env[DISPATCH_TOPIC_ENV],
+    private readonly leases: TcxLeaseRepository = new RedisTcxLeaseRepository(),
+    private readonly dispatchIntents: TcxDispatchIntentRepository = new RedisTcxDispatchIntentRepository(),
   ) {}
 
   register(): void {
@@ -46,7 +63,7 @@ export class ExecutionTransactionDispatcher {
       }
       if (transaction.state !== "RETRY_PENDING") return;
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
-      await coordinator.transition(transaction.transactionId, "AUTHORIZED");
+      await coordinator.transition(transaction.transactionId, "AUTHORIZED", transaction.stateVersion);
     };
   }
 
@@ -60,15 +77,38 @@ export class ExecutionTransactionDispatcher {
       if (["DISPATCHED", "ADMITTED", "RUNNING", "SUCCEEDED"].includes(transaction.state)) return;
       throw new Error(`execution_transaction_not_dispatchable:${transaction.state}`);
     }
+
+    await requireValidTcxLease(transaction, this.leases);
+
+    const dispatchKey = buildTcxDispatchKey(transaction.transactionId, transaction.attemptId);
+    const intent = await this.dispatchIntents.create({
+      dispatchKey,
+      transactionId: transaction.transactionId,
+      attemptId: transaction.attemptId,
+      attemptNumber: transaction.attemptNumber,
+      stateVersion: transaction.stateVersion,
+      idempotencyKey: transaction.idempotencyKey,
+      channelId: transaction.channelId,
+      status: "PENDING",
+      createdAt: new Date().toISOString(),
+    });
+
+    if (intent.status === "PUBLISHED") {
+      const coordinator = new ExecutionTransactionCoordinator(this.repository);
+      await coordinator.transition(transaction.transactionId, "DISPATCHED", transaction.stateVersion);
+      return;
+    }
+
     if (this.client.getConnectionState() !== "connected") {
       throw new Error("execution_dispatch_transport_unavailable");
     }
 
     const envelope = buildExecutionDispatchEnvelope(transaction);
     this.client.publish(this.topic, JSON.stringify(envelope), { qos: 1 });
+    await this.dispatchIntents.markPublished(dispatchKey);
 
     const coordinator = new ExecutionTransactionCoordinator(this.repository);
-    await coordinator.transition(transaction.transactionId, "DISPATCHED");
+    await coordinator.transition(transaction.transactionId, "DISPATCHED", transaction.stateVersion);
   }
 }
 
