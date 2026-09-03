@@ -66,6 +66,8 @@ test("retry rotates attempt identity and retains prior evidence", async () => {
   await coordinator.transition("tx-2", "EXECUTION_FAILED");
   await coordinator.transition("tx-2", "REPAIRING");
 
+  const beforeRetry = await repository.get("tx-2");
+  assert.ok(beforeRetry);
   const retried = await coordinator.prepareRetry("tx-2", 3);
   assert.equal(retried.attemptNumber, 2);
   assert.notEqual(retried.attemptId, "attempt-1");
@@ -73,6 +75,7 @@ test("retry rotates attempt identity and retains prior evidence", async () => {
   assert.equal(retried.state, "RETRY_PENDING");
   assert.equal(retried.attemptHistory?.length, 1);
   assert.equal(retried.attemptHistory?.[0]?.attemptId, "attempt-1");
+  assert.equal(retried.stateVersion, beforeRetry.stateVersion + 1);
 });
 
 test("retry is bounded by max attempts", async () => {
@@ -93,6 +96,19 @@ test("retry is bounded by max attempts", async () => {
     coordinator.prepareRetry("tx-3", 3),
     /max_attempts_exceeded/,
   );
+});
+
+test("repository rejects illegal transitions even when coordinator is bypassed", async () => {
+  const repository = new InMemoryExecutionTransactionRepository();
+  await repository.create(transaction({ transactionId: "tx-direct" }));
+
+  await assert.rejects(
+    repository.transition("tx-direct", "CREATED", "SUCCEEDED", 1),
+    /invalid_execution_transaction_transition:CREATED:SUCCEEDED/,
+  );
+
+  assert.equal((await repository.get("tx-direct"))?.state, "CREATED");
+  assert.equal((await repository.get("tx-direct"))?.stateVersion, 1);
 });
 
 test("stale evidence for an old attempt is rejected before state mutation", async () => {
