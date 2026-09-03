@@ -3,19 +3,18 @@ import { autonomousEventBus, AutonomousEventBus } from "@/lib/events/event-bus";
 import type { ExecutionTransaction } from "./transaction";
 import {
   buildExecutionTransactionEvent,
-} from "./transaction-events";
-import {
   buildExecutionIdempotencyKey,
-} from "./transaction";
+} from "./transaction-events";
 import {
   canTransitionExecutionTransaction,
   type ExecutionTransactionState,
 } from "./transaction-state";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
+import { RedisExecutionTransactionRepository } from "./redis-transaction-repository";
 
 export class ExecutionTransactionCoordinator {
   constructor(
-    private readonly repository: ExecutionTransactionRepository,
+    private readonly repository: ExecutionTransactionRepository = new RedisExecutionTransactionRepository(),
     private readonly eventBus: AutonomousEventBus = autonomousEventBus,
   ) {}
 
@@ -33,9 +32,7 @@ export class ExecutionTransactionCoordinator {
     if (!current) throw new Error("execution_transaction_not_found");
 
     if (!canTransitionExecutionTransaction(current.state, to)) {
-      throw new Error(
-        `invalid_execution_transaction_transition:${current.state}:${to}`,
-      );
+      throw new Error(`invalid_execution_transaction_transition:${current.state}:${to}`);
     }
 
     const updated = await this.repository.transition(transactionId, current.state, to);
@@ -43,12 +40,7 @@ export class ExecutionTransactionCoordinator {
     return updated;
   }
 
-  /**
-   * Rotate a failed transaction onto a new execution attempt.
-   * The previous attempt is retained as immutable history. Authorization
-   * must still transition the new attempt from RETRY_PENDING to AUTHORIZED
-   * before dispatch.
-   */
+  /** Rotate a failed transaction to a new attempt while retaining immutable attempt history. */
   async prepareRetry(
     transactionId: string,
     maxAttempts: number,
@@ -69,11 +61,7 @@ export class ExecutionTransactionCoordinator {
 
     let repairState = current;
     if (current.state === "REPAIRING") {
-      repairState = await this.repository.transition(
-        transactionId,
-        "REPAIRING",
-        "RETRY_PENDING",
-      );
+      repairState = await this.repository.transition(transactionId, "REPAIRING", "RETRY_PENDING");
       await this.publish(repairState, "execution-transaction-retry-requested", "high");
     }
 
@@ -122,18 +110,11 @@ export class ExecutionTransactionCoordinator {
     type: Parameters<typeof buildExecutionTransactionEvent>[1],
     priority: Parameters<typeof buildExecutionTransactionEvent>[2],
   ): Promise<void> {
-    const accepted = await this.eventBus.publish(
-      buildExecutionTransactionEvent(transaction, type, priority),
-    );
-
-    if (!accepted) {
-      throw new Error("execution_transaction_event_duplicate");
-    }
+    const accepted = await this.eventBus.publish(buildExecutionTransactionEvent(transaction, type, priority));
+    if (!accepted) throw new Error("execution_transaction_event_duplicate");
   }
 
-  private eventTypeForState(
-    state: ExecutionTransactionState,
-  ): Parameters<typeof buildExecutionTransactionEvent>[1] {
+  private eventTypeForState(state: ExecutionTransactionState): Parameters<typeof buildExecutionTransactionEvent>[1] {
     const map: Partial<Record<ExecutionTransactionState, Parameters<typeof buildExecutionTransactionEvent>[1]>> = {
       AUTHORIZED: "execution-transaction-authorized",
       DISPATCHED: "execution-transaction-dispatched",
@@ -149,16 +130,13 @@ export class ExecutionTransactionCoordinator {
       AUTHORIZATION_FAILED: "execution-transaction-failed",
       DELIVERY_FAILED: "execution-transaction-failed",
     };
-
     const eventType = map[state];
     if (!eventType) throw new Error(`execution_transaction_event_unmapped:${state}`);
     return eventType;
   }
 
   private priorityForState(state: ExecutionTransactionState): Parameters<typeof buildExecutionTransactionEvent>[2] {
-    if (["EXECUTION_FAILED", "TIMEOUT", "AUTHORIZATION_FAILED", "DELIVERY_FAILED"].includes(state)) {
-      return "critical";
-    }
+    if (["EXECUTION_FAILED", "TIMEOUT", "AUTHORIZATION_FAILED", "DELIVERY_FAILED"].includes(state)) return "critical";
     return "high";
   }
 }
