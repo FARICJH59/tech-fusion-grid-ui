@@ -3,8 +3,8 @@ import { autonomousEventBus, AutonomousEventBus } from "@/lib/events/event-bus";
 import type { ExecutionTransaction } from "./transaction";
 import {
   buildExecutionTransactionEvent,
-  buildExecutionIdempotencyKey,
 } from "./transaction-events";
+import { buildExecutionIdempotencyKey } from "./transaction";
 import {
   canTransitionExecutionTransaction,
   type ExecutionTransactionState,
@@ -24,32 +24,22 @@ export class ExecutionTransactionCoordinator {
     return created;
   }
 
-  async transition(
-    transactionId: string,
-    to: ExecutionTransactionState,
-  ): Promise<ExecutionTransaction> {
+  async transition(transactionId: string, to: ExecutionTransactionState): Promise<ExecutionTransaction> {
     const current = await this.repository.get(transactionId);
     if (!current) throw new Error("execution_transaction_not_found");
-
     if (!canTransitionExecutionTransaction(current.state, to)) {
       throw new Error(`invalid_execution_transaction_transition:${current.state}:${to}`);
     }
-
     const updated = await this.repository.transition(transactionId, current.state, to);
     await this.publish(updated, this.eventTypeForState(to), this.priorityForState(to));
     return updated;
   }
 
   /** Rotate a failed transaction to a new attempt while retaining immutable attempt history. */
-  async prepareRetry(
-    transactionId: string,
-    maxAttempts: number,
-    now = new Date().toISOString(),
-  ): Promise<ExecutionTransaction> {
+  async prepareRetry(transactionId: string, maxAttempts: number, now = new Date().toISOString()): Promise<ExecutionTransaction> {
     if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
       throw new Error("invalid_execution_transaction_max_attempts");
     }
-
     const current = await this.repository.get(transactionId);
     if (!current) throw new Error("execution_transaction_not_found");
     if (!["REPAIRING", "RETRY_PENDING"].includes(current.state)) {
