@@ -58,6 +58,8 @@ export type ExecutionTransaction = {
   resultHash?: string;
   attestationId?: string;
   attestationHash?: string;
+  /** SHA-256 identity of the durable TCX commit record for this attempt. */
+  commitRecordHash?: string;
 
   state: ExecutionTransactionState;
   /** Monotonic optimistic-concurrency version. Incremented on every persisted mutation. */
