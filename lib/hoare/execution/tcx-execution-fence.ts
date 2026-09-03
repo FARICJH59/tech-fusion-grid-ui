@@ -8,20 +8,25 @@ export type TcxExecutionFence = {
   fencedAt?: string;
 };
 
+/**
+ * Execution fencing is an asynchronous authority contract because distributed
+ * implementations must consult durable state before granting execution.
+ * Implementations must preserve monotonic fencing: FENCED never becomes ACTIVE.
+ */
 export type TcxExecutionFenceController = {
-  get(transactionId: string, attemptId: string): TcxExecutionFence | undefined;
-  fence(transactionId: string, attemptId: string, reason: string): TcxExecutionFence;
-  assertActive(transactionId: string, attemptId: string): void;
+  get(transactionId: string, attemptId: string): Promise<TcxExecutionFence | undefined>;
+  fence(transactionId: string, attemptId: string, reason: string): Promise<TcxExecutionFence>;
+  assertActive(transactionId: string, attemptId: string): Promise<void>;
 };
 
 export class InMemoryTcxExecutionFenceController implements TcxExecutionFenceController {
   private readonly fences = new Map<string, TcxExecutionFence>();
 
-  get(transactionId: string, attemptId: string): TcxExecutionFence | undefined {
+  async get(transactionId: string, attemptId: string): Promise<TcxExecutionFence | undefined> {
     return this.fences.get(this.key(transactionId, attemptId));
   }
 
-  fence(transactionId: string, attemptId: string, reason: string): TcxExecutionFence {
+  async fence(transactionId: string, attemptId: string, reason: string): Promise<TcxExecutionFence> {
     const key = this.key(transactionId, attemptId);
     const existing = this.fences.get(key);
     if (existing?.state === "FENCED") {
@@ -39,8 +44,8 @@ export class InMemoryTcxExecutionFenceController implements TcxExecutionFenceCon
     return fenced;
   }
 
-  assertActive(transactionId: string, attemptId: string): void {
-    const fence = this.get(transactionId, attemptId);
+  async assertActive(transactionId: string, attemptId: string): Promise<void> {
+    const fence = await this.get(transactionId, attemptId);
     if (fence?.state === "FENCED") {
       throw new Error(`tcx_execution_fenced:${fence.reason ?? "execution_fenced"}`);
     }
