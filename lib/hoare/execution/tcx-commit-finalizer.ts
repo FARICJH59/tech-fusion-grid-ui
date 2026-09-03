@@ -25,9 +25,8 @@ export type TcxCommitResult = {
 
 /**
  * Finalizes a successfully executed transaction only after evidence and
- * authority are revalidated. This is deliberately separate from admission:
- * admission permits execution; finalization proves execution and commits the
- * resulting durable transaction state.
+ * authority are revalidated. Admission permits execution; finalization proves
+ * execution and commits the resulting durable transaction state.
  */
 export async function finalizeTcxCommit(
   envelope: ExecutionEvidenceEnvelope,
@@ -52,16 +51,15 @@ export async function finalizeTcxCommit(
   }
 
   verifyExecutionEvidence(envelope.receipt, envelope.result, envelope.attestation);
-
-  const lease = await requireValidTcxLease(transaction, dependencies.leases, now);
-  void lease;
+  await requireValidTcxLease(transaction, dependencies.leases, now);
 
   if (!transaction.preconditionHash) {
     throw new Error("tcx_commit_precondition_missing");
   }
-  // The precondition is captured before execution and must not be recomputed
-  // from the now-advanced RUNNING version.
-  assertTcxPrecondition(transaction, transaction.preconditionHash);
+  if (!envelope.preconditionHash) {
+    throw new Error("tcx_commit_evidence_precondition_missing");
+  }
+  assertTcxPrecondition(transaction, envelope.preconditionHash);
 
   const postconditionHash = buildTcxPostconditionHash(envelope.result);
   const commitRecord = buildTcxCommitRecord({
