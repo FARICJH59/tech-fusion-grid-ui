@@ -23,11 +23,7 @@ export type TcxCommitResult = {
   duplicate: boolean;
 };
 
-/**
- * Finalizes a successfully executed transaction only after evidence and
- * authority are revalidated. Admission permits execution; finalization proves
- * execution and commits the resulting durable transaction state.
- */
+/** Finalize successful execution only after evidence, authority and version are revalidated. */
 export async function finalizeTcxCommit(
   envelope: ExecutionEvidenceEnvelope,
   dependencies: TcxCommitFinalizerDependencies,
@@ -46,19 +42,17 @@ export async function finalizeTcxCommit(
   if (transaction.state !== "RUNNING") {
     throw new Error(`tcx_commit_state_not_finalizable:${transaction.state}`);
   }
-  if (envelope.status !== "SUCCEEDED") {
-    throw new Error("tcx_commit_success_required");
+  if (envelope.status !== "SUCCEEDED") throw new Error("tcx_commit_success_required");
+  if (envelope.stateVersion === undefined) throw new Error("tcx_commit_evidence_state_version_missing");
+  if (envelope.stateVersion !== transaction.stateVersion) {
+    throw new Error("tcx_commit_state_version_mismatch");
   }
 
   verifyExecutionEvidence(envelope.receipt, envelope.result, envelope.attestation);
   await requireValidTcxLease(transaction, dependencies.leases, now);
 
-  if (!transaction.preconditionHash) {
-    throw new Error("tcx_commit_precondition_missing");
-  }
-  if (!envelope.preconditionHash) {
-    throw new Error("tcx_commit_evidence_precondition_missing");
-  }
+  if (!transaction.preconditionHash) throw new Error("tcx_commit_precondition_missing");
+  if (!envelope.preconditionHash) throw new Error("tcx_commit_evidence_precondition_missing");
   assertTcxPrecondition(transaction, envelope.preconditionHash);
 
   const postconditionHash = buildTcxPostconditionHash(envelope.result);
