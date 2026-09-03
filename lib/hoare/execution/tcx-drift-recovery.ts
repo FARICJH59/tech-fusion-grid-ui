@@ -3,6 +3,7 @@ import type { ExecutionTransactionRepository } from "./transaction-repository";
 import { ExecutionTransactionCoordinator } from "./transaction-coordinator";
 import { evaluateTcxDrift, type TcxDriftDecision, type TcxDriftPolicy } from "./tcx-drift-protection";
 import type { TcxExecutionFenceController } from "./tcx-execution-fence";
+import type { TcxLeaseRepository } from "./tcx-dispatch-governance";
 
 export type TcxDriftRecoveryCallbacks = {
   replan: (transaction: ExecutionTransaction, decision: TcxDriftDecision) => Promise<Partial<ExecutionTransaction>>;
@@ -22,6 +23,7 @@ export async function recoverFromTcxDrift(
   policy: TcxDriftPolicy = {},
   now = new Date(),
   fenceController?: TcxExecutionFenceController,
+  leaseRepository?: TcxLeaseRepository,
 ): Promise<TcxDriftRecoveryResult> {
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error("invalid_execution_transaction_max_attempts");
   const current = await repository.get(transactionId);
@@ -35,6 +37,9 @@ export async function recoverFromTcxDrift(
   if (["DISPATCHED", "ADMITTED", "RUNNING"].includes(fenced.state)) {
     if (!fenceController) throw new Error(`tcx_drift_requires_execution_fence:${fenced.state}`);
     await fenceController.fence(fenced.transactionId, fenced.attemptId, drift.observations.map((o) => o.reason).join(","));
+    if (fenced.leaseId && leaseRepository) {
+      await leaseRepository.revoke(fenced.leaseId, now.toISOString());
+    }
     const failureState = fenced.state === "DISPATCHED" ? "DELIVERY_FAILED" : "EXECUTION_FAILED";
     fenced = await coordinator.transition(fenced.transactionId, failureState);
   }
