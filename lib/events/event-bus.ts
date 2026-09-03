@@ -31,13 +31,25 @@ export class AutonomousEventBus {
       attempts: event.attempts ?? 0,
     };
 
-    this.replayBuffer.unshift(prepared);
-    if (this.replayBuffer.length > MAX_REPLAY_BUFFER) this.replayBuffer.length = MAX_REPLAY_BUFFER;
-
     if (REDIS_ENABLED) {
-      await redis
-        .xadd(this.streamName, "*", "event", JSON.stringify(prepared))
-        .catch(() => undefined);
+      try {
+        await redis.xadd(
+          this.streamName,
+          "*",
+          "event",
+          JSON.stringify(prepared),
+        );
+      } catch (error) {
+        // Do not report successful publication when the durable stream write failed.
+        throw new Error("autonomous_event_stream_publish_failed", {
+          cause: error,
+        });
+      }
+    }
+
+    this.replayBuffer.unshift(prepared);
+    if (this.replayBuffer.length > MAX_REPLAY_BUFFER) {
+      this.replayBuffer.length = MAX_REPLAY_BUFFER;
     }
 
     await Promise.all(
@@ -70,9 +82,18 @@ export class AutonomousEventBus {
 
   async deadLetter(record: DeadLetterRecord): Promise<void> {
     if (!REDIS_ENABLED) return;
-    await redis
-      .xadd(this.deadLetterStream, "*", "event", JSON.stringify(record))
-      .catch(() => undefined);
+    try {
+      await redis.xadd(
+        this.deadLetterStream,
+        "*",
+        "event",
+        JSON.stringify(record),
+      );
+    } catch (error) {
+      throw new Error("autonomous_event_dead_letter_publish_failed", {
+        cause: error,
+      });
+    }
   }
 
   getReplayBufferSize(): number {
