@@ -14,6 +14,7 @@ export type ExecutionEvidenceEnvelope = {
   attemptId: string;
   tenantId: string;
   nodeId: string;
+  preconditionHash?: string;
   receipt: ExecutionEvidencePayload;
   result: ExecutionEvidencePayload;
   attestation: ExecutionEvidencePayload;
@@ -58,12 +59,17 @@ export function parseExecutionEvidenceEnvelope(
     throw new Error("invalid_execution_evidence:status");
   }
 
+  if (input.preconditionHash !== undefined && typeof input.preconditionHash !== "string") {
+    throw new Error("invalid_execution_evidence:preconditionHash");
+  }
+
   return {
     schema: EXECUTION_EVIDENCE_SCHEMA,
     transactionId: requiredString(input.transactionId, "transactionId"),
     attemptId: requiredString(input.attemptId, "attemptId"),
     tenantId: requiredString(input.tenantId, "tenantId"),
     nodeId: requiredString(input.nodeId, "nodeId"),
+    ...(input.preconditionHash !== undefined ? { preconditionHash: input.preconditionHash } : {}),
     receipt: requiredObject(input.receipt, "receipt"),
     result: requiredObject(input.result, "result"),
     attestation: requiredObject(input.attestation, "attestation"),
