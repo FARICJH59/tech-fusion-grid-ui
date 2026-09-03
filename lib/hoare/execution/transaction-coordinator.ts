@@ -51,8 +51,9 @@ export class ExecutionTransactionCoordinator {
 
     let repairState = current;
     if (current.state === "REPAIRING") {
+      // Persist the intermediate state without publishing a duplicate retry event.
+      // The newly-created attempt below owns the single retry-requested event.
       repairState = await this.repository.transition(transactionId, "REPAIRING", "RETRY_PENDING");
-      await this.publish(repairState, "execution-transaction-retry-requested", "high");
     }
 
     const previousAttempt = {
