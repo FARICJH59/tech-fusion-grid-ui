@@ -1,6 +1,20 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { ExecutionTransactionState } from "./transaction-state";
 
+export type ExecutionTransactionAttempt = {
+  attemptId: string;
+  attemptNumber: number;
+  idempotencyKey: string;
+  state: ExecutionTransactionState;
+  receiptId?: string;
+  receiptHash?: string;
+  resultId?: string;
+  resultHash?: string;
+  attestationId?: string;
+  attestationHash?: string;
+  completedAt?: string;
+};
+
 export type ExecutionTransaction = {
   transactionId: string;
   tenantId: string;
@@ -29,6 +43,7 @@ export type ExecutionTransaction = {
   attemptId: string;
   attemptNumber: number;
   idempotencyKey: string;
+  attemptHistory?: ExecutionTransactionAttempt[];
 
   receiptId?: string;
   receiptHash?: string;
@@ -87,6 +102,7 @@ export function createExecutionTransaction(
     attemptId,
     attemptNumber,
     idempotencyKey,
+    attemptHistory: input.attemptHistory ?? [],
     state: "CREATED",
     createdAt: now,
     updatedAt: now,
