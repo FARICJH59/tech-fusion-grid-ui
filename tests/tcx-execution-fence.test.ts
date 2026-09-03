@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryTcxExecutionFenceController } from "../lib/hoare/execution/tcx-execution-fence";
+import type { TcxExecutionFenceController } from "../lib/hoare/execution/tcx-execution-fence";
+import { RedisTcxExecutionFenceController } from "../lib/hoare/execution/redis-tcx-execution-fence";
 import { InMemoryExecutionTransactionRepository } from "../lib/hoare/execution/transaction-repository";
 import { createExecutionTransaction } from "../lib/hoare/execution/transaction";
 import { recoverFromTcxDrift } from "../lib/hoare/execution/tcx-drift-recovery";
@@ -13,13 +15,18 @@ function transaction() {
   });
 }
 
-test("execution fence is idempotent and blocks the fenced attempt", () => {
+test("execution fence is idempotent and blocks the fenced attempt", async () => {
   const fences = new InMemoryTcxExecutionFenceController();
-  fences.assertActive("tx-1", "attempt-1");
-  const first = fences.fence("tx-1", "attempt-1", "state_version_drift");
-  const second = fences.fence("tx-1", "attempt-1", "different_reason");
+  await fences.assertActive("tx-1", "attempt-1");
+  const first = await fences.fence("tx-1", "attempt-1", "state_version_drift");
+  const second = await fences.fence("tx-1", "attempt-1", "different_reason");
   assert.deepEqual(second, first);
-  assert.throws(() => fences.assertActive("tx-1", "attempt-1"), /tcx_execution_fenced:state_version_drift/);
+  await assert.rejects(() => fences.assertActive("tx-1", "attempt-1"), /tcx_execution_fenced:state_version_drift/);
+});
+
+test("Redis fence authority satisfies the asynchronous TCX fence contract", () => {
+  const fences: TcxExecutionFenceController = new RedisTcxExecutionFenceController();
+  assert.ok(fences);
 });
 
 test("active RUNNING drift is fenced before entering repair", async () => {
@@ -43,7 +50,7 @@ test("active RUNNING drift is fenced before entering repair", async () => {
 
   assert.equal(result.transaction.state, "AUTHORIZED");
   assert.equal(result.transaction.attemptNumber, 2);
-  assert.throws(() => fences.assertActive(running.transactionId, running.attemptId), /tcx_execution_fenced/);
+  await assert.rejects(() => fences.assertActive(running.transactionId, running.attemptId), /tcx_execution_fenced/);
 });
 
 test("active drift without a fence controller fails closed", async () => {
