@@ -42,13 +42,37 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
     }
   }
 
-  async update(transaction: ExecutionTransaction): Promise<ExecutionTransaction> {
+  async update(
+    transaction: ExecutionTransaction,
+    expectedStateVersion?: number,
+  ): Promise<ExecutionTransaction> {
     const transactionKey = key(transaction.transactionId);
-    const exists = await redis.exists(transactionKey);
-    if (!exists) throw new Error("execution_transaction_not_found");
+    const client = getRedis();
 
-    await redis.set(transactionKey, JSON.stringify(transaction));
-    return clone(transaction);
+    await client.watch(transactionKey);
+    try {
+      const raw = await client.get(transactionKey);
+      if (raw === null) throw new Error("execution_transaction_not_found");
+      const current = JSON.parse(raw) as ExecutionTransaction;
+      if (
+        expectedStateVersion !== undefined &&
+        current.stateVersion !== expectedStateVersion
+      ) {
+        throw new Error("execution_transaction_version_conflict");
+      }
+
+      const updated: ExecutionTransaction = {
+        ...transaction,
+        stateVersion: current.stateVersion + 1,
+        updatedAt: new Date().toISOString(),
+      };
+      const result = await client.multi().set(transactionKey, JSON.stringify(updated)).exec();
+      if (result === null) throw new Error("execution_transaction_version_conflict");
+      return clone(updated);
+    } catch (error) {
+      await client.unwatch().catch(() => undefined);
+      throw error;
+    }
   }
 
   async findByAttempt(
@@ -68,6 +92,7 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
     transactionId: string,
     from: ExecutionTransactionState,
     to: ExecutionTransactionState,
+    expectedStateVersion?: number,
   ): Promise<ExecutionTransaction> {
     const transactionKey = key(transactionId);
 
@@ -82,10 +107,17 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
         if (current.state !== from) {
           throw new Error("execution_transaction_state_conflict");
         }
+        if (
+          expectedStateVersion !== undefined &&
+          current.stateVersion !== expectedStateVersion
+        ) {
+          throw new Error("execution_transaction_version_conflict");
+        }
 
         const updated: ExecutionTransaction = {
           ...current,
           state: to,
+          stateVersion: current.stateVersion + 1,
           updatedAt: new Date().toISOString(),
         };
 
