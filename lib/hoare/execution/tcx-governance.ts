@@ -22,6 +22,19 @@ export type TcxCommitRecord = {
   committedAt: string;
 };
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`)
+      .join(",")}}`;
+  }
+  const scalar = JSON.stringify(value);
+  if (scalar === undefined) throw new Error("tcx_non_json_value");
+  return scalar;
+}
+
 export function validateTcxLease(
   transaction: Pick<ExecutionTransaction, "transactionId" | "attemptId" | "leaseId">,
   lease: TcxLease,
@@ -68,12 +81,23 @@ export function assertTcxPrecondition(
   }
 }
 
-export function buildTcxCommitRecord(input: Omit<TcxCommitRecord, "committedAt">, now = new Date().toISOString()): TcxCommitRecord {
-  if (!input.transactionId || !input.attemptId || input.stateVersion < 1) {
+export function buildTcxPostconditionHash(result: unknown): string {
+  return createHash("sha256").update(canonicalJson(result), "utf8").digest("hex");
+}
+
+export function buildTcxCommitRecord(
+  input: Omit<TcxCommitRecord, "committedAt">,
+  now = new Date().toISOString(),
+): TcxCommitRecord {
+  if (!input.transactionId || !input.attemptId || !Number.isInteger(input.stateVersion) || input.stateVersion < 1) {
     throw new Error("tcx_commit_identity_invalid");
   }
   if (!input.preconditionHash || !input.postconditionHash) {
     throw new Error("tcx_commit_evidence_incomplete");
   }
   return { ...input, committedAt: now };
+}
+
+export function hashTcxCommitRecord(record: TcxCommitRecord): string {
+  return createHash("sha256").update(canonicalJson(record), "utf8").digest("hex");
 }
