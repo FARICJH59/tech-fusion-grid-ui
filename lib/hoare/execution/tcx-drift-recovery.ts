@@ -34,7 +34,7 @@ export async function recoverFromTcxDrift(
   let fenced = current;
   if (["DISPATCHED", "ADMITTED", "RUNNING"].includes(fenced.state)) {
     if (!fenceController) throw new Error(`tcx_drift_requires_execution_fence:${fenced.state}`);
-    fenceController.fence(fenced.transactionId, fenced.attemptId, drift.observations.map((o) => o.reason).join(","));
+    await fenceController.fence(fenced.transactionId, fenced.attemptId, drift.observations.map((o) => o.reason).join(","));
     const failureState = fenced.state === "DISPATCHED" ? "DELIVERY_FAILED" : "EXECUTION_FAILED";
     fenced = await coordinator.transition(fenced.transactionId, failureState);
   }
