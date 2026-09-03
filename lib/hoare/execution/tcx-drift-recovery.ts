@@ -24,9 +24,14 @@ export async function recoverFromTcxDrift(
   baseline: ExecutionTransaction,
   repository: ExecutionTransactionRepository,
   callbacks: TcxDriftRecoveryCallbacks,
+  maxAttempts: number,
   policy: TcxDriftPolicy = {},
   now = new Date(),
 ): Promise<TcxDriftRecoveryResult> {
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new Error("invalid_execution_transaction_max_attempts");
+  }
+
   const current = await repository.get(transactionId);
   if (!current) throw new Error("tcx_drift_transaction_not_found");
 
@@ -44,7 +49,7 @@ export async function recoverFromTcxDrift(
     throw new Error(`tcx_drift_requires_failure_boundary:${fenced.state}`);
   }
   if (fenced.state !== "REPAIRING") {
-    if (!['EXECUTION_FAILED', 'TIMEOUT', 'REJECTED', 'AUTHORIZATION_FAILED', 'DELIVERY_FAILED'].includes(fenced.state)) {
+    if (!["EXECUTION_FAILED", "TIMEOUT", "REJECTED", "AUTHORIZATION_FAILED", "DELIVERY_FAILED"].includes(fenced.state)) {
       throw new Error(`tcx_drift_recovery_unsupported_state:${fenced.state}`);
     }
     fenced = await coordinator.transition(fenced.transactionId, "REPAIRING");
@@ -52,10 +57,13 @@ export async function recoverFromTcxDrift(
 
   const replanned = await callbacks.replan(fenced, drift);
   if (Object.keys(replanned).length > 0) {
-    fenced = await repository.update({ ...fenced, ...replanned, state: "REPAIRING", updatedAt: now.toISOString() }, fenced.stateVersion);
+    fenced = await repository.update(
+      { ...fenced, ...replanned, state: "REPAIRING", updatedAt: now.toISOString() },
+      fenced.stateVersion,
+    );
   }
 
-  const retry = await coordinator.prepareRetry(fenced.transactionId, Number.MAX_SAFE_INTEGER, now.toISOString());
+  const retry = await coordinator.prepareRetry(fenced.transactionId, maxAttempts, now.toISOString());
   const authorized = await callbacks.reauthorize(retry);
   if (!authorized) {
     return { drift, transaction: retry, replanned: true, reauthorized: false };
