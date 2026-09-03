@@ -3,12 +3,39 @@ import type { ExecutionTransactionRepository } from "./transaction-repository";
 import type { ExecutionEvidenceEnvelope } from "./evidence-envelope";
 import { verifyExecutionEvidence } from "./evidence-verifier";
 import { canTransitionExecutionTransaction } from "./transaction-state";
+import { finalizeTcxCommit } from "./tcx-commit-finalizer";
+import type { TcxLeaseRepository } from "./tcx-dispatch-governance";
 
+export type ExecutionEvidenceReconcilerDependencies = {
+  transactions: ExecutionTransactionRepository;
+  leases: TcxLeaseRepository;
+};
+
+/**
+ * Reconcile execution evidence without allowing a legacy evidence path to
+ * bypass TCX commit governance.
+ *
+ * Successful evidence is finalized exclusively by TCX. Non-success terminal
+ * evidence remains on the legacy repair/retry state machine, but is persisted
+ * with an optimistic state-version fence.
+ */
 export class ExecutionEvidenceReconciler {
-  constructor(private readonly repository: ExecutionTransactionRepository) {}
+  private readonly transactions: ExecutionTransactionRepository;
+  private readonly leases?: TcxLeaseRepository;
+
+  constructor(
+    repositoryOrDependencies: ExecutionTransactionRepository | ExecutionEvidenceReconcilerDependencies,
+  ) {
+    if ("transactions" in repositoryOrDependencies) {
+      this.transactions = repositoryOrDependencies.transactions;
+      this.leases = repositoryOrDependencies.leases;
+    } else {
+      this.transactions = repositoryOrDependencies;
+    }
+  }
 
   async reconcile(envelope: ExecutionEvidenceEnvelope): Promise<ExecutionTransaction> {
-    const transaction = await this.repository.get(envelope.transactionId);
+    const transaction = await this.transactions.get(envelope.transactionId);
     if (!transaction) throw new Error("execution_transaction_not_found");
     if (transaction.attemptId !== envelope.attemptId) throw new Error("execution_evidence_attempt_mismatch");
     if (transaction.tenantId !== envelope.tenantId) throw new Error("execution_evidence_tenant_mismatch");
@@ -26,17 +53,28 @@ export class ExecutionEvidenceReconciler {
       throw new Error("execution_evidence_attestation_mismatch");
     }
 
-    const target = envelope.status === "SUCCEEDED"
-      ? "SUCCEEDED"
-      : envelope.status === "TIMEOUT"
-        ? "TIMEOUT"
-        : envelope.status === "REJECTED" ? "REJECTED" : "EXECUTION_FAILED";
+    if (envelope.status === "SUCCEEDED") {
+      if (!this.leases) throw new Error("tcx_commit_lease_repository_required");
+      const finalized = await finalizeTcxCommit(envelope, {
+        transactions: this.transactions,
+        leases: this.leases,
+      });
+      return finalized.transaction;
+    }
+
+    const target = envelope.status === "TIMEOUT"
+      ? "TIMEOUT"
+      : envelope.status === "REJECTED" ? "REJECTED" : "EXECUTION_FAILED";
 
     if (!canTransitionExecutionTransaction(transaction.state, target)) {
       throw new Error(`invalid_execution_evidence_transition:${transaction.state}:${target}`);
     }
 
-    return this.repository.update({
+    if (envelope.stateVersion !== undefined && envelope.stateVersion !== transaction.stateVersion) {
+      throw new Error("execution_evidence_state_version_mismatch");
+    }
+
+    const updated: ExecutionTransaction = {
       ...transaction,
       state: target,
       receiptId: String(envelope.receipt.receipt_id),
@@ -46,6 +84,8 @@ export class ExecutionEvidenceReconciler {
       attestationId: String(envelope.attestation.attestation_id),
       attestationHash: String(envelope.attestation.attestation_hash),
       updatedAt: envelope.emittedAt,
-    });
+    };
+
+    return this.transactions.update(updated, transaction.stateVersion);
   }
 }
