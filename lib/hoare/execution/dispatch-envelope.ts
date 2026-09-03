@@ -7,6 +7,7 @@ export type ExecutionDispatchEnvelope = {
   transactionId: string;
   attemptId: string;
   attemptNumber: number;
+  stateVersion: number;
   tenantId: string;
   organizationId?: string;
   projectId: string;
@@ -23,6 +24,11 @@ export type ExecutionDispatchEnvelope = {
   artifactRef: string;
   pasorPlanHash: string;
   pasorUnitId: string;
+  channelId?: string;
+  leaseId?: string;
+  expectedStateVersion?: number;
+  preconditionHash?: string;
+  deadline?: string;
   simulationHash?: string;
   provenanceHash?: string;
   correlationId: string;
@@ -38,6 +44,7 @@ export function buildExecutionDispatchEnvelope(
     transactionId: transaction.transactionId,
     attemptId: transaction.attemptId,
     attemptNumber: transaction.attemptNumber,
+    stateVersion: transaction.stateVersion,
     tenantId: transaction.tenantId,
     ...(transaction.organizationId ? { organizationId: transaction.organizationId } : {}),
     projectId: transaction.projectId,
@@ -54,6 +61,11 @@ export function buildExecutionDispatchEnvelope(
     artifactRef: transaction.artifactRef,
     pasorPlanHash: transaction.pasorPlanHash,
     pasorUnitId: transaction.pasorUnitId,
+    ...(transaction.channelId ? { channelId: transaction.channelId } : {}),
+    ...(transaction.leaseId ? { leaseId: transaction.leaseId } : {}),
+    ...(transaction.expectedStateVersion !== undefined ? { expectedStateVersion: transaction.expectedStateVersion } : {}),
+    ...(transaction.preconditionHash ? { preconditionHash: transaction.preconditionHash } : {}),
+    ...(transaction.deadline ? { deadline: transaction.deadline } : {}),
     ...(transaction.simulationHash ? { simulationHash: transaction.simulationHash } : {}),
     ...(transaction.provenanceHash ? { provenanceHash: transaction.provenanceHash } : {}),
     correlationId: transaction.transactionId,
@@ -87,10 +99,15 @@ export function parseExecutionDispatchEnvelope(
     "emittedAt",
   ] as const;
 
-  if (envelope.schema !== EXECUTION_DISPATCH_SCHEMA ||
-      required.some((key) => typeof envelope[key] !== "string" || envelope[key]?.length === 0) ||
-      !Number.isInteger(envelope.attemptNumber) || envelope.attemptNumber! < 1 ||
-      (envelope.runtimeKind !== "python" && envelope.runtimeKind !== "native")) {
+  if (
+    envelope.schema !== EXECUTION_DISPATCH_SCHEMA ||
+    required.some((key) => typeof envelope[key] !== "string" || envelope[key]?.length === 0) ||
+    !Number.isInteger(envelope.attemptNumber) || envelope.attemptNumber! < 1 ||
+    !Number.isInteger(envelope.stateVersion) || envelope.stateVersion! < 1 ||
+    (envelope.expectedStateVersion !== undefined &&
+      (!Number.isInteger(envelope.expectedStateVersion) || envelope.expectedStateVersion < 1)) ||
+    (envelope.runtimeKind !== "python" && envelope.runtimeKind !== "native")
+  ) {
     throw new Error("invalid_execution_dispatch_envelope");
   }
 
