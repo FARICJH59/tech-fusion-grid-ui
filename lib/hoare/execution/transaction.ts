@@ -37,6 +37,13 @@ export type ExecutionTransaction = {
   packId: string;
   runtimeKind: "python" | "native";
 
+  /** TCX concurrency/fencing identity. */
+  channelId?: string;
+  leaseId?: string;
+  expectedStateVersion?: number;
+  preconditionHash?: string;
+  deadline?: string;
+
   simulationHash?: string;
   provenanceHash?: string;
 
@@ -53,6 +60,8 @@ export type ExecutionTransaction = {
   attestationHash?: string;
 
   state: ExecutionTransactionState;
+  /** Monotonic optimistic-concurrency version. Incremented on every persisted mutation. */
+  stateVersion: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -64,6 +73,7 @@ export type CreateExecutionTransactionInput = Omit<
   | "attemptNumber"
   | "idempotencyKey"
   | "state"
+  | "stateVersion"
   | "createdAt"
   | "updatedAt"
 > & {
@@ -104,6 +114,7 @@ export function createExecutionTransaction(
     idempotencyKey,
     attemptHistory: input.attemptHistory ?? [],
     state: "CREATED",
+    stateVersion: 1,
     createdAt: now,
     updatedAt: now,
   };
