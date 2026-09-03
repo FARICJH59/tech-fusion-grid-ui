@@ -7,11 +7,28 @@ function sortForCanonicalJson(value: unknown): unknown {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
+        // Python's json.dumps(sort_keys=True) uses deterministic lexical key order.
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([key, child]) => [key, sortForCanonicalJson(child)]),
     );
   }
   return value;
+}
+
+/**
+ * Match the existing Python evidence hash contract:
+ * json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=True).
+ * JSON.stringify already matches the compact separators and JSON scalar
+ * representation needed here; escaping non-ASCII UTF-16 code units makes its
+ * output compatible with Python's ensure_ascii=True behavior.
+ */
+function canonicalJson(value: unknown): string {
+  const json = JSON.stringify(sortForCanonicalJson(value));
+  if (json === undefined) throw new Error("execution_evidence_non_json_value");
+
+  return json.replace(/[\u007f-\uffff]/g, (character) =>
+    `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
 }
 
 function hashWithout(value: ExecutionEvidencePayload, excludedField: string): string {
@@ -19,7 +36,7 @@ function hashWithout(value: ExecutionEvidencePayload, excludedField: string): st
     Object.entries(value).filter(([key]) => key !== excludedField),
   );
   return createHash("sha256")
-    .update(JSON.stringify(sortForCanonicalJson(payload)), "utf8")
+    .update(canonicalJson(payload), "utf8")
     .digest("hex");
 }
 
