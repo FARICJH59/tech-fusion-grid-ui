@@ -8,7 +8,7 @@ import { InMemoryExecutionTransactionRepository } from "../lib/hoare/execution/t
 import { createExecutionTransaction } from "../lib/hoare/execution/transaction";
 import { recoverFromTcxDrift } from "../lib/hoare/execution/tcx-drift-recovery";
 
-afunction transaction() {
+function transaction() {
   return createExecutionTransaction({
     tenantId: "tenant-1", projectId: "project-1", releaseDigest: "release-1", artifactDigest: "artifact-1",
     artifactRef: "artifact://1", pasorPlanHash: "plan-1", pasorUnitId: "unit-1", workloadId: "workload-1",
