@@ -6,18 +6,17 @@ export type ExecutionEvidenceStatus =
   | "TIMEOUT"
   | "REJECTED";
 
+export type ExecutionEvidencePayload = Record<string, unknown>;
+
 export type ExecutionEvidenceEnvelope = {
   schema: typeof EXECUTION_EVIDENCE_SCHEMA;
   transactionId: string;
   attemptId: string;
   tenantId: string;
   nodeId: string;
-  receiptId: string;
-  receiptHash: string;
-  resultId: string;
-  resultHash: string;
-  attestationId: string;
-  attestationHash: string;
+  receipt: ExecutionEvidencePayload;
+  result: ExecutionEvidencePayload;
+  attestation: ExecutionEvidencePayload;
   status: ExecutionEvidenceStatus;
   correlationId: string;
   emittedAt: string;
@@ -28,6 +27,13 @@ function requiredString(value: unknown, field: string): string {
     throw new Error(`invalid_execution_evidence:${field}`);
   }
   return value;
+}
+
+function requiredObject(value: unknown, field: string): ExecutionEvidencePayload {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`invalid_execution_evidence:${field}`);
+  }
+  return value as ExecutionEvidencePayload;
 }
 
 export function parseExecutionEvidenceEnvelope(
@@ -58,12 +64,9 @@ export function parseExecutionEvidenceEnvelope(
     attemptId: requiredString(input.attemptId, "attemptId"),
     tenantId: requiredString(input.tenantId, "tenantId"),
     nodeId: requiredString(input.nodeId, "nodeId"),
-    receiptId: requiredString(input.receiptId, "receiptId"),
-    receiptHash: requiredString(input.receiptHash, "receiptHash"),
-    resultId: requiredString(input.resultId, "resultId"),
-    resultHash: requiredString(input.resultHash, "resultHash"),
-    attestationId: requiredString(input.attestationId, "attestationId"),
-    attestationHash: requiredString(input.attestationHash, "attestationHash"),
+    receipt: requiredObject(input.receipt, "receipt"),
+    result: requiredObject(input.result, "result"),
+    attestation: requiredObject(input.attestation, "attestation"),
     status: status as ExecutionEvidenceStatus,
     correlationId: requiredString(input.correlationId, "correlationId"),
     emittedAt: requiredString(input.emittedAt, "emittedAt"),
