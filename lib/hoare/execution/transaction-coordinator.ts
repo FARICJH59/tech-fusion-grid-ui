@@ -30,7 +30,12 @@ export class ExecutionTransactionCoordinator {
     if (!canTransitionExecutionTransaction(current.state, to)) {
       throw new Error(`invalid_execution_transaction_transition:${current.state}:${to}`);
     }
-    const updated = await this.repository.transition(transactionId, current.state, to);
+    const updated = await this.repository.transition(
+      transactionId,
+      current.state,
+      to,
+      current.stateVersion,
+    );
     await this.publish(updated, this.eventTypeForState(to), this.priorityForState(to));
     return updated;
   }
@@ -53,7 +58,12 @@ export class ExecutionTransactionCoordinator {
     if (current.state === "REPAIRING") {
       // Persist the intermediate state without publishing a duplicate retry event.
       // The newly-created attempt below owns the single retry-requested event.
-      repairState = await this.repository.transition(transactionId, "REPAIRING", "RETRY_PENDING");
+      repairState = await this.repository.transition(
+        transactionId,
+        "REPAIRING",
+        "RETRY_PENDING",
+        current.stateVersion,
+      );
     }
 
     const previousAttempt = {
@@ -87,7 +97,7 @@ export class ExecutionTransactionCoordinator {
       updatedAt: now,
     };
 
-    const saved = await this.repository.update(updated);
+    const saved = await this.repository.update(updated, repairState.stateVersion);
     await this.publish(saved, "execution-transaction-retry-requested", "high");
     return saved;
   }
