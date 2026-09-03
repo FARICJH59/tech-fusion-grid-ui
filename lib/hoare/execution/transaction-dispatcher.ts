@@ -63,7 +63,7 @@ export class ExecutionTransactionDispatcher {
       }
       if (transaction.state !== "RETRY_PENDING") return;
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
-      await coordinator.transition(transaction.transactionId, "AUTHORIZED", transaction.stateVersion);
+      await coordinator.transition(transaction.transactionId, "AUTHORIZED");
     };
   }
 
@@ -95,9 +95,17 @@ export class ExecutionTransactionDispatcher {
 
     if (intent.status === "PUBLISHED") {
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
-      await coordinator.transition(transaction.transactionId, "DISPATCHED", transaction.stateVersion);
+      await coordinator.transition(transaction.transactionId, "DISPATCHED");
       return;
     }
+
+    const claimed = await this.dispatchIntents.claim(dispatchKey);
+    if (claimed.status === "PUBLISHED") {
+      const coordinator = new ExecutionTransactionCoordinator(this.repository);
+      await coordinator.transition(transaction.transactionId, "DISPATCHED");
+      return;
+    }
+    if (claimed.status !== "CLAIMED") throw new Error("tcx_dispatch_intent_claim_failed");
 
     if (this.client.getConnectionState() !== "connected") {
       throw new Error("execution_dispatch_transport_unavailable");
@@ -108,7 +116,7 @@ export class ExecutionTransactionDispatcher {
     await this.dispatchIntents.markPublished(dispatchKey);
 
     const coordinator = new ExecutionTransactionCoordinator(this.repository);
-    await coordinator.transition(transaction.transactionId, "DISPATCHED", transaction.stateVersion);
+    await coordinator.transition(transaction.transactionId, "DISPATCHED");
   }
 }
 
