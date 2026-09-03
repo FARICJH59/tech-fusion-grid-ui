@@ -2,15 +2,16 @@ import { randomUUID } from "node:crypto";
 import { autonomousEventBus, AutonomousEventBus } from "@/lib/events/event-bus";
 import type { ExecutionTransaction } from "./transaction";
 import {
-  buildExecutionIdempotencyKey,
   buildExecutionTransactionEvent,
 } from "./transaction-events";
+import {
+  buildExecutionIdempotencyKey,
+} from "./transaction";
 import {
   canTransitionExecutionTransaction,
   type ExecutionTransactionState,
 } from "./transaction-state";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
-import { buildExecutionIdempotencyKey as buildAttemptIdempotencyKey } from "./transaction";
 
 export class ExecutionTransactionCoordinator {
   constructor(
@@ -95,7 +96,7 @@ export class ExecutionTransactionCoordinator {
       ...repairState,
       attemptId,
       attemptNumber: repairState.attemptNumber + 1,
-      idempotencyKey: buildAttemptIdempotencyKey(transactionId, attemptId),
+      idempotencyKey: buildExecutionIdempotencyKey(transactionId, attemptId),
       attemptHistory: [...(repairState.attemptHistory ?? []), previousAttempt],
       receiptId: undefined,
       receiptHash: undefined,
