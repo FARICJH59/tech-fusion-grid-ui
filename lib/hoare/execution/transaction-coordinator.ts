@@ -54,39 +54,27 @@ export class ExecutionTransactionCoordinator {
       throw new Error("execution_transaction_max_attempts_exceeded");
     }
 
-    let repairState = current;
-    if (current.state === "REPAIRING") {
-      // Persist the intermediate state without publishing a duplicate retry event.
-      // The newly-created attempt below owns the single retry-requested event.
-      repairState = await this.repository.transition(
-        transactionId,
-        "REPAIRING",
-        "RETRY_PENDING",
-        current.stateVersion,
-      );
-    }
-
     const previousAttempt = {
-      attemptId: repairState.attemptId,
-      attemptNumber: repairState.attemptNumber,
-      idempotencyKey: repairState.idempotencyKey,
-      state: repairState.state,
-      receiptId: repairState.receiptId,
-      receiptHash: repairState.receiptHash,
-      resultId: repairState.resultId,
-      resultHash: repairState.resultHash,
-      attestationId: repairState.attestationId,
-      attestationHash: repairState.attestationHash,
-      completedAt: repairState.updatedAt,
+      attemptId: current.attemptId,
+      attemptNumber: current.attemptNumber,
+      idempotencyKey: current.idempotencyKey,
+      state: current.state,
+      receiptId: current.receiptId,
+      receiptHash: current.receiptHash,
+      resultId: current.resultId,
+      resultHash: current.resultHash,
+      attestationId: current.attestationId,
+      attestationHash: current.attestationHash,
+      completedAt: current.updatedAt,
     };
 
     const attemptId = randomUUID();
     const updated: ExecutionTransaction = {
-      ...repairState,
+      ...current,
       attemptId,
-      attemptNumber: repairState.attemptNumber + 1,
+      attemptNumber: current.attemptNumber + 1,
       idempotencyKey: buildExecutionIdempotencyKey(transactionId, attemptId),
-      attemptHistory: [...(repairState.attemptHistory ?? []), previousAttempt],
+      attemptHistory: [...(current.attemptHistory ?? []), previousAttempt],
       receiptId: undefined,
       receiptHash: undefined,
       resultId: undefined,
@@ -97,7 +85,10 @@ export class ExecutionTransactionCoordinator {
       updatedAt: now,
     };
 
-    const saved = await this.repository.update(updated, repairState.stateVersion);
+    // Attempt rotation and lifecycle advancement are one optimistic-concurrency
+    // mutation. A failed persistence operation therefore cannot leave a stale
+    // RETRY_PENDING state without the new attempt identity.
+    const saved = await this.repository.update(updated, current.stateVersion);
     await this.publish(saved, "execution-transaction-retry-requested", "high");
     return saved;
   }
