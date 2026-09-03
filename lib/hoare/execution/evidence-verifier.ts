@@ -30,6 +30,10 @@ function requiredString(value: unknown, field: string): string {
   return value;
 }
 
+function requireEqual(field: string, left: unknown, right: unknown): void {
+  if (left !== right) throw new Error(`execution_evidence_${field}_mismatch`);
+}
+
 export function verifyExecutionEvidence(
   receipt: ExecutionEvidencePayload,
   result: ExecutionEvidencePayload,
@@ -39,25 +43,23 @@ export function verifyExecutionEvidence(
   const resultHash = requiredString(result.result_hash, "result_hash");
   const attestationHash = requiredString(attestation.attestation_hash, "attestation_hash");
 
+  // Each Python evidence object excludes only its own top-level hash field.
+  // Nested hash fields remain part of the canonical payload.
   if (hashWithout(receipt, "receipt_hash") !== receiptHash) throw new Error("receipt_hash_mismatch");
   if (hashWithout(result, "result_hash") !== resultHash) throw new Error("result_hash_mismatch");
   if (hashWithout(attestation, "attestation_hash") !== attestationHash) throw new Error("attestation_hash_mismatch");
 
-  const bindings: Array<[string, ExecutionEvidencePayload, ExecutionEvidencePayload]> = [
-    ["receipt_id", receipt, result],
-    ["receipt_hash", receipt, result],
-    ["receipt_id", receipt, attestation],
-    ["receipt_hash", receipt, attestation],
-    ["result_id", result, attestation],
-    ["result_hash", result, attestation],
-  ];
-
-  for (const [field, left, right] of bindings) {
-    if (left[field] !== right[field]) throw new Error(`execution_evidence_${field}_mismatch`);
-  }
+  requireEqual("receipt_id", receipt.receipt_id, result.receipt_id);
+  requireEqual("receipt_hash", receipt.receipt_hash, result.receipt_hash);
+  requireEqual("receipt_id", receipt.receipt_id, attestation.receipt_id);
+  requireEqual("receipt_hash", receipt.receipt_hash, attestation.receipt_hash);
+  requireEqual("result_id", result.result_id, attestation.result_id);
+  requireEqual("result_hash", result.result_hash, attestation.result_hash);
 
   for (const field of ["workload_id", "agent_id", "node_id", "pack_id", "runtime_kind"]) {
-    if (result[field] !== receipt[field]) throw new Error(`execution_evidence_${field}_mismatch`);
-    if (attestation[field] !== receipt[field]) throw new Error(`attestation_${field}_mismatch`);
+    requireEqual(field, result[field], receipt[field]);
+    if (attestation[field] !== receipt[field]) {
+      throw new Error(`attestation_${field}_mismatch`);
+    }
   }
 }
