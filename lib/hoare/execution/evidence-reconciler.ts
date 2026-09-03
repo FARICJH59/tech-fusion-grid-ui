@@ -1,6 +1,7 @@
 import type { ExecutionTransaction } from "./transaction";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
 import type { ExecutionEvidenceEnvelope } from "./evidence-envelope";
+import { verifyExecutionEvidence } from "./evidence-verifier";
 import { canTransitionExecutionTransaction } from "./transaction-state";
 
 export class ExecutionEvidenceReconciler {
@@ -12,6 +13,18 @@ export class ExecutionEvidenceReconciler {
     if (transaction.attemptId !== envelope.attemptId) throw new Error("execution_evidence_attempt_mismatch");
     if (transaction.tenantId !== envelope.tenantId) throw new Error("execution_evidence_tenant_mismatch");
     if (transaction.nodeId !== envelope.nodeId) throw new Error("execution_evidence_node_mismatch");
+
+    verifyExecutionEvidence(envelope.receipt, envelope.result, envelope.attestation);
+
+    if (envelope.receipt.receipt_id !== transaction.receiptId && transaction.receiptId) {
+      throw new Error("execution_evidence_receipt_mismatch");
+    }
+    if (envelope.result.result_id !== transaction.resultId && transaction.resultId) {
+      throw new Error("execution_evidence_result_mismatch");
+    }
+    if (envelope.attestation.attestation_id !== transaction.attestationId && transaction.attestationId) {
+      throw new Error("execution_evidence_attestation_mismatch");
+    }
 
     const target = envelope.status === "SUCCEEDED"
       ? "SUCCEEDED"
@@ -26,12 +39,12 @@ export class ExecutionEvidenceReconciler {
     return this.repository.update({
       ...transaction,
       state: target,
-      receiptId: envelope.receiptId,
-      receiptHash: envelope.receiptHash,
-      resultId: envelope.resultId,
-      resultHash: envelope.resultHash,
-      attestationId: envelope.attestationId,
-      attestationHash: envelope.attestationHash,
+      receiptId: String(envelope.receipt.receipt_id),
+      receiptHash: String(envelope.receipt.receipt_hash),
+      resultId: String(envelope.result.result_id),
+      resultHash: String(envelope.result.result_hash),
+      attestationId: String(envelope.attestation.attestation_id),
+      attestationHash: String(envelope.attestation.attestation_hash),
       updatedAt: envelope.emittedAt,
     });
   }
