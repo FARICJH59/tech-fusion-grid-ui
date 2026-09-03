@@ -7,6 +7,8 @@ export type ExecutionTransaction = {
   organizationId?: string;
   projectId: string;
   missionId?: string;
+  verticalId?: string;
+  profileId?: string;
 
   releaseDigest: string;
   artifactDigest: string;
