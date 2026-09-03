@@ -8,6 +8,8 @@ export type ExecutionTransactionEventPayload = {
   organizationId?: string;
   projectId: string;
   missionId?: string;
+  verticalId?: string;
+  profileId?: string;
   attemptId: string;
   attemptNumber: number;
   releaseDigest: string;
@@ -50,6 +52,8 @@ export function toExecutionTransactionEventPayload(
     ...(transaction.organizationId ? { organizationId: transaction.organizationId } : {}),
     projectId: transaction.projectId,
     ...(transaction.missionId ? { missionId: transaction.missionId } : {}),
+    ...(transaction.verticalId ? { verticalId: transaction.verticalId } : {}),
+    ...(transaction.profileId ? { profileId: transaction.profileId } : {}),
     attemptId: transaction.attemptId,
     attemptNumber: transaction.attemptNumber,
     releaseDigest: transaction.releaseDigest,
