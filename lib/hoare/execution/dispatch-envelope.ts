@@ -7,6 +7,7 @@ export type ExecutionDispatchEnvelope = {
   transactionId: string;
   attemptId: string;
   attemptNumber: number;
+  idempotencyKey: string;
   stateVersion: number;
   tenantId: string;
   organizationId?: string;
@@ -44,6 +45,7 @@ export function buildExecutionDispatchEnvelope(
     transactionId: transaction.transactionId,
     attemptId: transaction.attemptId,
     attemptNumber: transaction.attemptNumber,
+    idempotencyKey: transaction.idempotencyKey,
     stateVersion: transaction.stateVersion,
     tenantId: transaction.tenantId,
     ...(transaction.organizationId ? { organizationId: transaction.organizationId } : {}),
@@ -84,6 +86,7 @@ export function parseExecutionDispatchEnvelope(
   const required = [
     "transactionId",
     "attemptId",
+    "idempotencyKey",
     "tenantId",
     "projectId",
     "workloadId",
