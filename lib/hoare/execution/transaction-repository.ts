@@ -1,5 +1,6 @@
 import type { ExecutionTransaction } from "./transaction";
 import type { ExecutionTransactionState } from "./transaction-state";
+import { canTransitionExecutionTransaction } from "./transaction-state";
 
 export interface ExecutionTransactionRepository {
   create(transaction: ExecutionTransaction): Promise<ExecutionTransaction>;
@@ -73,6 +74,10 @@ export class InMemoryExecutionTransactionRepository
     to: ExecutionTransactionState,
     expectedStateVersion?: number,
   ): Promise<ExecutionTransaction> {
+    if (!canTransitionExecutionTransaction(from, to)) {
+      throw new Error(`invalid_execution_transaction_transition:${from}:${to}`);
+    }
+
     const transaction = this.transactions.get(transactionId);
     if (!transaction) throw new Error("execution_transaction_not_found");
     if (transaction.state !== from) {
