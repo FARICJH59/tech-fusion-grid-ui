@@ -4,6 +4,7 @@ import type { ExecutionTransaction } from "./transaction";
 
 export type ExecutionTransactionEventPayload = {
   transactionId: string;
+  stateVersion: number;
   tenantId: string;
   organizationId?: string;
   projectId: string;
@@ -22,6 +23,11 @@ export type ExecutionTransactionEventPayload = {
   nodeId: string;
   packId: string;
   runtimeKind: ExecutionTransaction["runtimeKind"];
+  channelId?: string;
+  leaseId?: string;
+  expectedStateVersion?: number;
+  preconditionHash?: string;
+  deadline?: string;
   simulationHash?: string;
   provenanceHash?: string;
   receiptId?: string;
@@ -48,6 +54,7 @@ export function toExecutionTransactionEventPayload(
 ): ExecutionTransactionEventPayload {
   return {
     transactionId: transaction.transactionId,
+    stateVersion: transaction.stateVersion,
     tenantId: transaction.tenantId,
     ...(transaction.organizationId ? { organizationId: transaction.organizationId } : {}),
     projectId: transaction.projectId,
@@ -66,6 +73,11 @@ export function toExecutionTransactionEventPayload(
     nodeId: transaction.nodeId,
     packId: transaction.packId,
     runtimeKind: transaction.runtimeKind,
+    ...(transaction.channelId ? { channelId: transaction.channelId } : {}),
+    ...(transaction.leaseId ? { leaseId: transaction.leaseId } : {}),
+    ...(transaction.expectedStateVersion !== undefined ? { expectedStateVersion: transaction.expectedStateVersion } : {}),
+    ...(transaction.preconditionHash ? { preconditionHash: transaction.preconditionHash } : {}),
+    ...(transaction.deadline ? { deadline: transaction.deadline } : {}),
     ...(transaction.simulationHash ? { simulationHash: transaction.simulationHash } : {}),
     ...(transaction.provenanceHash ? { provenanceHash: transaction.provenanceHash } : {}),
     ...(transaction.receiptId ? { receiptId: transaction.receiptId } : {}),
