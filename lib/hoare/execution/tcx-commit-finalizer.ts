@@ -7,10 +7,9 @@ import {
   buildTcxCommitRecord,
   buildTcxPostconditionHash,
   hashTcxCommitRecord,
-  requireValidTcxLease,
   type TcxCommitRecord,
-  type TcxLeaseRepository,
-} from "./tcx-dispatch-governance";
+} from "./tcx-governance";
+import { requireValidTcxLease, type TcxLeaseRepository } from "./tcx-dispatch-governance";
 
 export type TcxCommitFinalizerDependencies = {
   transactions: ExecutionTransactionRepository;
