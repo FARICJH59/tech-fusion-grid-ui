@@ -7,7 +7,6 @@ function sortForCanonicalJson(value: unknown): unknown {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => key !== "receipt_hash" && key !== "result_hash" && key !== "attestation_hash")
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([key, child]) => [key, sortForCanonicalJson(child)]),
     );
@@ -15,9 +14,12 @@ function sortForCanonicalJson(value: unknown): unknown {
   return value;
 }
 
-function sha256(value: unknown): string {
+function hashWithout(value: ExecutionEvidencePayload, excludedField: string): string {
+  const payload = Object.fromEntries(
+    Object.entries(value).filter(([key]) => key !== excludedField),
+  );
   return createHash("sha256")
-    .update(JSON.stringify(sortForCanonicalJson(value)), "utf8")
+    .update(JSON.stringify(sortForCanonicalJson(payload)), "utf8")
     .digest("hex");
 }
 
@@ -37,9 +39,9 @@ export function verifyExecutionEvidence(
   const resultHash = requiredString(result.result_hash, "result_hash");
   const attestationHash = requiredString(attestation.attestation_hash, "attestation_hash");
 
-  if (sha256(receipt) !== receiptHash) throw new Error("receipt_hash_mismatch");
-  if (sha256(result) !== resultHash) throw new Error("result_hash_mismatch");
-  if (sha256(attestation) !== attestationHash) throw new Error("attestation_hash_mismatch");
+  if (hashWithout(receipt, "receipt_hash") !== receiptHash) throw new Error("receipt_hash_mismatch");
+  if (hashWithout(result, "result_hash") !== resultHash) throw new Error("result_hash_mismatch");
+  if (hashWithout(attestation, "attestation_hash") !== attestationHash) throw new Error("attestation_hash_mismatch");
 
   const bindings: Array<[string, ExecutionEvidencePayload, ExecutionEvidencePayload]> = [
     ["receipt_id", receipt, result],
