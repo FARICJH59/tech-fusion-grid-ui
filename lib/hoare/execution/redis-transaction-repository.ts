@@ -2,6 +2,7 @@ import { redis, getRedis } from "@/lib/redis";
 import type { ExecutionTransaction } from "./transaction";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
 import type { ExecutionTransactionState } from "./transaction-state";
+import { canTransitionExecutionTransaction } from "./transaction-state";
 
 const KEY_PREFIX = "phase85:execution:transaction";
 const TRANSITION_RETRIES = 3;
@@ -94,6 +95,10 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
     to: ExecutionTransactionState,
     expectedStateVersion?: number,
   ): Promise<ExecutionTransaction> {
+    if (!canTransitionExecutionTransaction(from, to)) {
+      throw new Error(`invalid_execution_transaction_transition:${from}:${to}`);
+    }
+
     const transactionKey = key(transactionId);
 
     for (let attempt = 0; attempt < TRANSITION_RETRIES; attempt += 1) {
