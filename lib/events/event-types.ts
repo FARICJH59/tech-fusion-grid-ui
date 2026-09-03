@@ -17,6 +17,17 @@ export const AUTONOMOUS_EVENT_TYPES = [
   "agent-execution-failed",
   "agent-approval-required",
   "agent-disabled",
+  "execution-transaction-created",
+  "execution-transaction-authorized",
+  "execution-transaction-dispatched",
+  "execution-transaction-admitted",
+  "execution-transaction-started",
+  "execution-transaction-completed",
+  "execution-transaction-failed",
+  "execution-transaction-timeout",
+  "execution-transaction-repair-requested",
+  "execution-transaction-retry-requested",
+  "execution-transaction-cancelled",
 ] as const;
 
 export type AutonomousEventType = (typeof AUTONOMOUS_EVENT_TYPES)[number];
