@@ -62,43 +62,43 @@ export class AgentExecutor {
   }
   listTraces(agentId?: string): AgentExecutionTrace[] { const traces = [...this.traces.values()]; return agentId ? traces.filter((item) => item.agentId === agentId) : traces; }
 
-  private assertExecutionActive(request: AgentExecutionRequest): void {
+  private async assertExecutionActive(request: AgentExecutionRequest): Promise<void> {
     const tcx = request.tcxExecution; if (!tcx) return;
-    tcx.fenceController.assertActive(tcx.transactionId, tcx.attemptId);
+    await tcx.fenceController.assertActive(tcx.transactionId, tcx.attemptId);
   }
 
   private async executeAttempt(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
     const startedAt = Date.now(); const toolResults: ToolExecutionRecord<unknown>[] = [];
     await this.events.emit(AGENT_RUNTIME_EVENT_NAMES.AgentExecutionStarted, { agentId: request.agent.identity.id, tenantId: request.tenantId, correlationId: request.context.correlationId, payload: { workflowId: request.workflowId, toolCalls: request.toolCalls?.map((call) => call.toolId) ?? [] } });
     try {
-      this.assertExecutionActive(request);
+      await this.assertExecutionActive(request);
       for (const toolCall of request.toolCalls ?? []) {
-        this.assertExecutionActive(request); const tool = this.tools.get(toolCall.toolId);
+        await this.assertExecutionActive(request); const tool = this.tools.get(toolCall.toolId);
         if (!tool) throw new AgentExecutionError(`Tool '${toolCall.toolId}' is not registered.`);
         for (const permission of tool.permissions) {
-          this.assertExecutionActive(request);
+          await this.assertExecutionActive(request);
           const authorization = await this.security.authorize({ agentId: request.agent.identity.id, tenantId: request.tenantId, action: permission.action, resource: permission.resource, context: request.context, requiredRole: permission.requiredRole, attributes: permission.attributes, riskLevel: permission.riskLevel, approvalRequired: permission.approvalRequired, budgetLimitUsd: request.context.budget?.maxCostUsd });
-          this.assertExecutionActive(request); if (!authorization.allowed) throw new AgentExecutionError(authorization.reason);
+          await this.assertExecutionActive(request); if (!authorization.allowed) throw new AgentExecutionError(authorization.reason);
         }
-        this.assertExecutionActive(request); toolResults.push(await this.tools.execute(toolCall.toolId, toolCall.input, request.context)); this.assertExecutionActive(request);
+        await this.assertExecutionActive(request); toolResults.push(await this.tools.execute(toolCall.toolId, toolCall.input, request.context)); await this.assertExecutionActive(request);
       }
       const workflow = request.workflowId ? request.agent.workflows.find((candidate) => candidate.id === request.workflowId) : undefined;
       const workflowResult = workflow ? await this.workflows.execute({
         workflow, agentId: request.agent.identity.id, tenantId: request.tenantId, input: { payload: request.payload },
         executeStep: async (step) => {
-          this.assertExecutionActive(request);
-          if (step.type === "tool" && step.toolId) { const result = await this.tools.execute(step.toolId, request.payload, request.context); this.assertExecutionActive(request); toolResults.push(result as ToolExecutionRecord<unknown>); return result.output; }
+          await this.assertExecutionActive(request);
+          if (step.type === "tool" && step.toolId) { const result = await this.tools.execute(step.toolId, request.payload, request.context); await this.assertExecutionActive(request); toolResults.push(result as ToolExecutionRecord<unknown>); return result.output; }
           return { step: step.id, payload: request.payload };
         },
         approvalGate: async (step) => {
-          this.assertExecutionActive(request);
+          await this.assertExecutionActive(request);
           const auth = await this.security.authorize({ agentId: request.agent.identity.id, tenantId: request.tenantId, action: `workflow:${step.id}`, resource: workflow.id, context: request.context, requiredRole: "operator", approvalRequired: true });
-          this.assertExecutionActive(request); return auth.allowed;
+          await this.assertExecutionActive(request); return auth.allowed;
         },
       }) : undefined;
-      this.assertExecutionActive(request);
+      await this.assertExecutionActive(request);
       const output = request.handler ? await request.handler({ agent: request.agent, context: request.context, payload: request.payload }) : workflowResult ?? { ok: true };
-      this.assertExecutionActive(request);
+      await this.assertExecutionActive(request);
       if (request.resultValidator && !request.resultValidator(output)) throw new AgentExecutionError("Agent result validation failed.");
       const result: AgentExecutionResult = { agentId: request.agent.identity.id, status: workflowResult?.status === "failed" ? "failed" : "completed", output, workflowResult, toolResults, durationMs: Date.now() - startedAt };
       if (result.status === "failed") throw new AgentExecutionError("Workflow execution failed.", { workflowId: workflowResult?.workflowId });
