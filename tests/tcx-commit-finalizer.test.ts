@@ -11,9 +11,17 @@ import { createHash } from "node:crypto";
 
 const NOW = new Date("2026-09-03T17:00:00.000Z");
 
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function hashPayload(payload: Record<string, unknown>, field: string): string {
   const copy = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== field));
-  return createHash("sha256").update(JSON.stringify(copy)).digest("hex");
+  return createHash("sha256").update(canonical(copy)).digest("hex");
 }
 
 function makeEvidence(transaction: ExecutionTransaction, preconditionHash: string): ExecutionEvidenceEnvelope {
@@ -52,6 +60,7 @@ function makeEvidence(transaction: ExecutionTransaction, preconditionHash: strin
     attemptId: transaction.attemptId,
     tenantId: transaction.tenantId,
     nodeId: transaction.nodeId,
+    stateVersion: transaction.stateVersion,
     preconditionHash,
     receipt,
     result,
@@ -66,20 +75,10 @@ async function setup() {
   const transactions = new InMemoryExecutionTransactionRepository();
   const leases = new InMemoryTcxLeaseRepository();
   const base = createExecutionTransaction({
-    transactionId: "tx-commit-1",
-    tenantId: "tenant-1",
-    projectId: "project-1",
-    releaseDigest: "sha256:release",
-    artifactDigest: "sha256:artifact",
-    artifactRef: "artifact://one",
-    pasorPlanHash: "sha256:plan",
-    pasorUnitId: "unit-1",
-    workloadId: "workload-1",
-    agentId: "agent-1",
-    nodeId: "node-1",
-    packId: "pack-1",
-    runtimeKind: "python",
-    leaseId: "lease-1",
+    transactionId: "tx-commit-1", tenantId: "tenant-1", projectId: "project-1",
+    releaseDigest: "sha256:release", artifactDigest: "sha256:artifact", artifactRef: "artifact://one",
+    pasorPlanHash: "sha256:plan", pasorUnitId: "unit-1", workloadId: "workload-1", agentId: "agent-1",
+    nodeId: "node-1", packId: "pack-1", runtimeKind: "python", leaseId: "lease-1",
   });
   await transactions.create(base);
   const authorized = await transactions.transition(base.transactionId, "CREATED", "AUTHORIZED", 1);
@@ -88,14 +87,7 @@ async function setup() {
   const running = await transactions.transition(base.transactionId, "ADMITTED", "RUNNING", admitted.stateVersion);
   const preconditionHash = buildTcxPreconditionHash({ ...running, stateVersion: authorized.stateVersion });
   const withPrecondition = await transactions.update({ ...running, preconditionHash }, running.stateVersion);
-  await leases.put({
-    leaseId: "lease-1",
-    transactionId: base.transactionId,
-    attemptId: base.attemptId,
-    holderId: "edge-1",
-    issuedAt: "2026-09-03T16:59:00.000Z",
-    expiresAt: "2026-09-03T17:05:00.000Z",
-  });
+  await leases.put({ leaseId: "lease-1", transactionId: base.transactionId, attemptId: base.attemptId, holderId: "edge-1", issuedAt: "2026-09-03T16:59:00.000Z", expiresAt: "2026-09-03T17:05:00.000Z" });
   return { transactions, leases, transaction: withPrecondition, preconditionHash };
 }
 
@@ -111,44 +103,31 @@ test("TCX commit finalizer verifies evidence, lease, precondition, and commits s
 });
 
 test("TCX commit rejects missing evidence precondition", async () => {
-  const ctx = await setup();
-  const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash);
-  delete evidence.preconditionHash;
-  await assert.rejects(
-    finalizeTcxCommit(evidence, ctx, NOW),
-    /tcx_commit_evidence_precondition_missing/,
-  );
+  const ctx = await setup(); const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash); delete evidence.preconditionHash;
+  await assert.rejects(finalizeTcxCommit(evidence, ctx, NOW), /tcx_commit_evidence_precondition_missing/);
 });
 
 test("TCX commit rejects cross-attempt evidence", async () => {
-  const ctx = await setup();
-  const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash);
-  evidence.attemptId = "other-attempt";
+  const ctx = await setup(); const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash); evidence.attemptId = "other-attempt";
   await assert.rejects(finalizeTcxCommit(evidence, ctx, NOW), /tcx_commit_attempt_mismatch/);
 });
 
 test("TCX commit rejects a revoked lease without mutating the transaction", async () => {
-  const ctx = await setup();
-  await ctx.leases.revoke("lease-1", NOW.toISOString());
-  const before = await ctx.transactions.get(ctx.transaction.transactionId);
-  const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash);
+  const ctx = await setup(); await ctx.leases.revoke("lease-1", NOW.toISOString());
+  const before = await ctx.transactions.get(ctx.transaction.transactionId); const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash);
   await assert.rejects(finalizeTcxCommit(evidence, ctx, NOW), /tcx_lease_revoked/);
   const after = await ctx.transactions.get(ctx.transaction.transactionId);
-  assert.equal(after?.state, before?.state);
-  assert.equal(after?.stateVersion, before?.stateVersion);
+  assert.equal(after?.state, before?.state); assert.equal(after?.stateVersion, before?.stateVersion);
 });
 
 test("TCX commit rejects a mismatched precondition", async () => {
-  const ctx = await setup();
-  const evidence = makeEvidence(ctx.transaction, "wrong-precondition");
+  const ctx = await setup(); const evidence = makeEvidence(ctx.transaction, "wrong-precondition");
   await assert.rejects(finalizeTcxCommit(evidence, ctx, NOW), /tcx_precondition_mismatch/);
 });
 
-test("TCX commit fences a concurrent transaction mutation", async () => {
-  const ctx = await setup();
-  const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash);
-  const current = await ctx.transactions.get(ctx.transaction.transactionId);
-  assert.ok(current);
+test("TCX commit fences an intervening transaction mutation by evidence state version", async () => {
+  const ctx = await setup(); const evidence = makeEvidence(ctx.transaction, ctx.preconditionHash);
+  const current = await ctx.transactions.get(ctx.transaction.transactionId); assert.ok(current);
   await ctx.transactions.update({ ...current, provenanceHash: "changed" }, current.stateVersion);
-  await assert.rejects(finalizeTcxCommit(evidence, ctx, NOW), /tcx_commit_state_not_finalizable/);
+  await assert.rejects(finalizeTcxCommit(evidence, ctx, NOW), /tcx_commit_state_version_mismatch/);
 });
