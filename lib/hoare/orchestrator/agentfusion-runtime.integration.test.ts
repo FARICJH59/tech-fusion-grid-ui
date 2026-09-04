@@ -4,12 +4,14 @@ import { AgentFusionHoareRuntime, type HoareAdmissionGate } from "./agentfusion-
 import { TcxHoareAdmissionGate } from "../admission/tcx-hoare-admission-gate";
 import { InMemoryTcxLeaseRepository } from "../execution/tcx-dispatch-governance";
 import { InMemoryTcxExecutionFenceController, type TcxExecutionFenceController } from "../execution/tcx-execution-fence";
+import type { AgentExecutionContext } from "@/packages/agent-sdk/src/context";
 import type { AuthorizationDecision, TCXTransaction, VerificationResult } from "@/packages/hoare-contracts/src";
 import type { TcxLease } from "../execution/tcx-governance";
 
 function agent() { return { identity: { id: "agent-1" } } as never; }
 function context() { return { phase: "act", observations: [{ id: "o1", tenantId: "tenant-1", source: "test", type: "test", data: {}, observedAt: new Date(0).toISOString() }], decisions: [], cycle: 1 } as never; }
-function executionContext() { return { requestId: "request-1", tenant: { tenantId: "tenant-1" }, actor: { id: "agent-1", role: "service", type: "agent" }, correlationId: "corr-1" }; }
+function agentExecutionContext(): AgentExecutionContext { return { requestId: "request-1", tenant: { tenantId: "tenant-1" }, actor: { id: "agent-1", role: "service", type: "agent" }, correlationId: "corr-1" }; }
+function contextFactory() { return { create: (): AgentExecutionContext => agentExecutionContext() }; }
 function fence(): TcxExecutionFenceController {
   return {
     get: async () => ({ transactionId: "tx-1", attemptId: "attempt-1", state: "ACTIVE" }),
@@ -30,13 +32,16 @@ function realAdmissionFixture() {
   return { leases, fences, transaction, authorization, verification, lease };
 }
 
+function runtime(executeAgentGoverned: (...args: never[]) => Promise<unknown>, gate: HoareAdmissionGate, fences: TcxExecutionFenceController) {
+  return new AgentFusionHoareRuntime({ executeAgentGoverned, executeAgent: async () => ({}) } as never, { resolve: async () => agent() }, contextFactory(), "agent-1", gate, fences);
+}
+
 test("AgentFusionHoareRuntime executes only after TCX admission and passes the immutable fence context", async () => {
   let admissionCalls = 0; let executionCalls = 0; let receivedTcx: unknown;
   const executeAgentGoverned = async (_request: unknown, tcx: unknown) => { executionCalls += 1; receivedTcx = tcx; return { status: "completed", output: {} }; };
   const gate: HoareAdmissionGate = { admit: async () => { admissionCalls += 1; return admission(true); } };
   const fences = fence();
-  const runtime = new AgentFusionHoareRuntime({ executeAgentGoverned, executeAgent: async () => ({}) } as never, { resolve: async () => agent() }, { create: () => ({}) }, "agent-1", gate, fences);
-  const result = await runtime.execute({ decision: { action: "build", reason: "test", confidence: 1 }, context: context(), executionContext: executionContext() });
+  const result = await runtime(executeAgentGoverned as never, gate, fences).execute({ decision: { action: "build", reason: "test", confidence: 1 }, context: context() });
   assert.equal(result.success, true);
   assert.equal(admissionCalls, 1);
   assert.equal(executionCalls, 1);
@@ -47,8 +52,7 @@ test("AgentFusionHoareRuntime fails closed and never executes when TCX admission
   let executionCalls = 0;
   const executeAgentGoverned = async () => { executionCalls += 1; return { status: "completed" }; };
   const gate: HoareAdmissionGate = { admit: async () => admission(false) };
-  const runtime = new AgentFusionHoareRuntime({ executeAgentGoverned, executeAgent: async () => ({}) } as never, { resolve: async () => agent() }, { create: () => ({}) }, "agent-1", gate, fence());
-  const result = await runtime.execute({ decision: { action: "build", reason: "test", confidence: 1 }, context: context(), executionContext: executionContext() });
+  const result = await runtime(executeAgentGoverned as never, gate, fence()).execute({ decision: { action: "build", reason: "test", confidence: 1 }, context: context() });
   assert.equal(result.success, false);
   assert.match(result.detail ?? "", /TCX admission denied/);
   assert.equal(executionCalls, 0);
