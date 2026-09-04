@@ -32,9 +32,9 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
     channelId: "channel-1", leaseId: "lease-1",
   });
   await repository.create(tx);
-  let current = await repository.transition(tx.transactionId, "CREATED", "AUTHORIZED", tx.stateVersion);
+  const current = await repository.transition(tx.transactionId, "CREATED", "AUTHORIZED", tx.stateVersion);
   const envelope = buildExecutionDispatchEnvelope(current);
-  current = await repository.transition(tx.transactionId, "AUTHORIZED", "DISPATCHED", current.stateVersion);
+  await repository.transition(tx.transactionId, "AUTHORIZED", "DISPATCHED", current.stateVersion);
   await leases.put({
     leaseId: "lease-1", transactionId: tx.transactionId, attemptId: tx.attemptId, holderId: tx.nodeId,
     issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -49,7 +49,7 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   const receiver = new TcxMqttExecutionReceiver({
     repository, leases, dispatchIntents, fenceController: fences, client,
     topic: "hoare/execution/dispatch",
-    execute: async (running, admittedEnvelope, tcxExecution) => {
+    executeGoverned: async (running, admittedEnvelope, tcxExecution) => {
       assert.equal(running.state, "RUNNING");
       assert.equal(admittedEnvelope.transactionId, tx.transactionId);
       received = tcxExecution;
