@@ -21,7 +21,7 @@ const DISPATCH_TOPIC_ENV = "HOARE_EXECUTION_DISPATCH_TOPIC";
 
 type MqttReceiverClient = {
   subscribe(topic: string, options?: { qos?: 0 | 1 | 2 }): () => void;
-  on(handler: (topic: string, message: string) => void): () => void;
+  on(handler: (topic: string, message: string) => void | Promise<void>): () => void;
 };
 
 export type TcxExecutionContext = Readonly<{
@@ -89,9 +89,7 @@ export class TcxMqttExecutionReceiver {
     if (!this.topic) throw new Error("missing_execution_dispatch_topic");
 
     const unsubscribe = this.client.subscribe(this.topic, { qos: 1 });
-    const off = this.client.on((topic, message) => {
-      void this.handleMessage(topic, message);
-    });
+    const off = this.client.on((topic, message) => this.handleMessage(topic, message));
     this.registered = true;
 
     return () => {
