@@ -11,10 +11,9 @@ const application = { id: "app-1", tenantId: "tenant-1", name: "demo-app", provi
 const node = { id: "node-1", name: "gcp-node", provider: "gcp", region: "us-central1", status: "online" } as any;
 const plan = {
   id: "plan-1",
-  intent: { tenantId: "tenant-1", name: "demo", description: "deploy demo-app", resources: ["infrastructure", "application"] },
+  intent: { tenantId: "tenant-1", name: "demo", description: "deploy demo-app", resources: ["application"] },
   resources: [
-    { kind: "infrastructure", name: "gcp-node", dependsOn: [] },
-    { kind: "application", name: "demo-app", dependsOn: ["gcp-node"] },
+    { kind: "application", name: "demo-app", dependsOn: [] },
   ],
   deployment: { provider: "gcp", environment: "development" },
   status: "building",
