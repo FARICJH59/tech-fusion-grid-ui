@@ -33,21 +33,21 @@ export class AgentFusionHoareRuntime implements HoareAgentRuntime {
     return this.readDecision(result);
   }
 
-  async execute(input: { decision: OrchestratorDecision; context: AgentLoopState }): Promise<{ success: boolean; detail: string }> {
-    const tenantId = input.context.observations[0]?.tenantId ?? "system";
+  async execute(decision: OrchestratorDecision, contextState: AgentLoopState): Promise<{ success: boolean; detail: string }> {
+    const tenantId = contextState.observations[0]?.tenantId ?? "system";
     const agent = await this.requireAgent(tenantId, this.decisionAgentId);
-    const context = this.contextFactory.create(agent, { tenantId, observations: input.context.observations, cycle: input.context.cycle });
+    const context = this.contextFactory.create(agent, { tenantId, observations: contextState.observations, cycle: contextState.cycle });
     const result = await this.runtime.executeAgent({
       agentId: agent.identity.id,
       tenantId,
       context,
-      payload: { decision: input.decision, state: input.context },
+      payload: { decision, state: contextState },
     });
     return { success: result.status === "completed", detail: result.error ?? "AgentFusion execution completed" };
   }
 
-  async verify(input: { context: AgentLoopState }): Promise<{ healthy: boolean; detail: string }> {
-    const remediation = input.context.decisions.filter((decision) => decision.action === "remediate");
+  async verify(contextState: AgentLoopState): Promise<{ healthy: boolean; detail: string }> {
+    const remediation = contextState.decisions.filter((decision) => decision.action === "remediate");
     return {
       healthy: remediation.length === 0,
       detail: remediation.length === 0 ? "No remediation decisions pending" : `${remediation.length} remediation decision(s) remain`,
