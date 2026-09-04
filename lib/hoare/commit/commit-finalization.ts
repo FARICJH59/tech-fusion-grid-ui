@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import type { CommitFinalization, ReconciliationResult } from "@/packages/hoare-contracts/src";
+import { sha256Canonical } from "@/packages/hoare-contracts/src";
 import { hashReconciliationResult } from "../reconciliation/reconcile";
 
 export interface CommitInput {
@@ -37,7 +37,7 @@ export function finalizeCommit(
     finalizedAt: now,
     finalizationAuthority: input.finalizationAuthority,
   };
-  const commitRecordHash = createHash("sha256").update(JSON.stringify(material)).digest("hex");
+  const commitRecordHash = sha256Canonical(material);
 
   return {
     commitId: `commit_${commitRecordHash.slice(0, 24)}`,
