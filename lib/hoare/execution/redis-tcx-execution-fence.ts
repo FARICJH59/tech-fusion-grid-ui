@@ -45,18 +45,44 @@ export class RedisTcxExecutionFenceController implements TcxExecutionAuthorityCo
       local existingFence = redis.call("GET", KEYS[1])
       local lease = redis.call("GET", KEYS[2])
       if not lease then return "ERR:tcx_lease_not_found" end
+
       local leaseObj = cjson.decode(lease)
+      if leaseObj.leaseId ~= ARGV[2] then return "ERR:tcx_lease_identity_mismatch" end
+      if leaseObj.transactionId ~= ARGV[3] then return "ERR:tcx_lease_transaction_mismatch" end
+      if leaseObj.attemptId ~= ARGV[4] then return "ERR:tcx_lease_attempt_mismatch" end
+
       if not existingFence then
         redis.call("SET", KEYS[1], ARGV[1])
+        existingFence = ARGV[1]
       end
-      leaseObj.revokedAt = ARGV[2]
-      redis.call("SET", KEYS[2], cjson.encode(leaseObj))
-      local finalFence = redis.call("GET", KEYS[1])
-      return cjson.encode({ fence = cjson.decode(finalFence), leaseId = leaseObj.leaseId, leaseRevokedAt = leaseObj.revokedAt })
+
+      if not leaseObj.revokedAt then
+        leaseObj.revokedAt = ARGV[5]
+        redis.call("SET", KEYS[2], cjson.encode(leaseObj))
+      end
+
+      local finalFence = cjson.decode(existingFence)
+      return cjson.encode({ fence = finalFence, leaseId = leaseObj.leaseId, leaseRevokedAt = leaseObj.revokedAt })
     `;
-    const raw = await client.eval(script, 2, fk, lk, JSON.stringify(fence), revokedAt);
+    const raw = await client.eval(
+      script,
+      2,
+      fk,
+      lk,
+      JSON.stringify(fence),
+      leaseId,
+      transactionId,
+      attemptId,
+      revokedAt,
+    );
     const text = String(raw);
-    if (text === "ERR:tcx_lease_not_found") throw new Error("tcx_lease_not_found");
+    const errors: Record<string, string> = {
+      "ERR:tcx_lease_not_found": "tcx_lease_not_found",
+      "ERR:tcx_lease_identity_mismatch": "tcx_lease_identity_mismatch",
+      "ERR:tcx_lease_transaction_mismatch": "tcx_lease_transaction_mismatch",
+      "ERR:tcx_lease_attempt_mismatch": "tcx_lease_attempt_mismatch",
+    };
+    if (errors[text]) throw new Error(errors[text]);
     try { return JSON.parse(text) as TcxExecutionAuthorityResult; }
     catch (error) { throw new Error("tcx_execution_authority_corrupt", { cause: error }); }
   }
