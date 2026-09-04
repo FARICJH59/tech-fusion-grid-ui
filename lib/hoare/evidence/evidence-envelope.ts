@@ -1,25 +1,28 @@
 import { createHash } from "node:crypto";
+import type { EvidenceEnvelope, ExecutionAttestation, ExecutionReceipt, ExecutionResult } from "@/packages/hoare-contracts/src";
 
 export interface EvidenceEnvelopeInput {
+  tenantId: string;
+  organizationId?: string;
+  projectId?: string;
+  missionId?: string;
   transactionId: string;
   attemptId: string;
-  receipt: unknown;
-  result: unknown;
-  attestation: unknown;
-  intendedStateDigest: string;
-  observedStateDigest: string;
-}
-
-export interface EvidenceEnvelope {
-  evidenceId: string;
-  transactionId: string;
-  attemptId: string;
-  receipt: unknown;
-  result: unknown;
-  attestation: unknown;
-  intendedStateDigest: string;
-  observedStateDigest: string;
-  evidenceDigest: string;
+  executionId: string;
+  artifactDigest?: string;
+  releaseDigest?: string;
+  pasorPlanHash?: string;
+  pasorUnitId?: string;
+  receipt: ExecutionReceipt;
+  result: ExecutionResult;
+  attestation: ExecutionAttestation;
+  intendedStateDigest?: string;
+  observedStateDigest?: string;
+  producerIdentity: string;
+  runtimeIdentity: string;
+  nodeIdentity?: string;
+  startedAt: string;
+  completedAt?: string;
 }
 
 function canonicalize(value: unknown): string {
@@ -29,16 +32,13 @@ function canonicalize(value: unknown): string {
 }
 
 export function createEvidenceEnvelope(input: EvidenceEnvelopeInput): EvidenceEnvelope {
-  const material = canonicalize({
-    transactionId: input.transactionId,
-    attemptId: input.attemptId,
-    receipt: input.receipt,
-    result: input.result,
-    attestation: input.attestation,
-    intendedStateDigest: input.intendedStateDigest,
-    observedStateDigest: input.observedStateDigest,
-  });
-  const evidenceDigest = createHash("sha256").update(material).digest("hex");
+  const material = canonicalize(input);
+  const evidenceDigest = createHash("sha256").update(material, "utf8").digest("hex");
   const evidenceId = `evidence_${evidenceDigest.slice(0, 24)}`;
-  return { ...input, evidenceId, evidenceDigest };
+  return {
+    ...input,
+    evidenceId,
+    evidenceDigest,
+    integrity: "VALID",
+  };
 }
