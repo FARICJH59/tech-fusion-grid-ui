@@ -1,3 +1,5 @@
+import type { AuthorizationDecision, TCXTransaction, VerificationResult } from "@/packages/hoare-contracts/src";
+
 export type OrchestratorPhase = "observe" | "plan" | "govern" | "act" | "verify" | "remediate" | "complete" | "blocked";
 
 export type OrchestratorObservation = {
@@ -15,11 +17,18 @@ export type OrchestratorDecision = {
   confidence: number;
 };
 
+export type AgentLoopGovernanceContext = Readonly<{
+  transaction: TCXTransaction;
+  authorization: AuthorizationDecision;
+  verification: VerificationResult;
+}>;
+
 export type AgentLoopState = {
   phase: OrchestratorPhase;
   observations: OrchestratorObservation[];
   decisions: OrchestratorDecision[];
   cycle: number;
+  governance?: AgentLoopGovernanceContext;
 };
 
 export interface AgenticDecisionEngine {
