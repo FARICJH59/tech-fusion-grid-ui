@@ -45,22 +45,22 @@ export type TcxMqttReceiverOptions = {
   fenceController?: TcxExecutionFenceController;
   client?: MqttReceiverClient;
   topic?: string;
-  execute: TcxExecutionHandler;
+  executeGoverned: TcxExecutionHandler;
   onRejected?: (error: unknown, topic: string, rawMessage: string) => void;
 };
 
 /**
  * Production receiver boundary for TCX execution dispatches.
  *
- * MQTT delivery is untrusted input. Nothing reaches the execution handler
- * until envelope parsing, transaction identity, dispatch-intent state,
+ * MQTT delivery is untrusted input. Nothing reaches the governed execution
+ * handler until envelope parsing, transaction identity, dispatch-intent state,
  * lease fencing, and state-version admission have all succeeded.
  *
  * The receiver advances DISPATCHED -> ADMITTED -> RUNNING before invoking the
- * executor and supplies a mandatory TCX execution context. Governed executors
- * must use that context for entry and in-flight fence checks. Successful
- * execution is deliberately not finalized here; evidence must cross
- * tcx-commit-finalizer instead.
+ * governed handler and supplies an immutable TCX execution context. A caller
+ * integrating AgentExecutor must pass this context to executeGoverned().
+ * Successful execution is deliberately not finalized here; evidence must
+ * cross tcx-commit-finalizer instead.
  */
 export class TcxMqttExecutionReceiver {
   private registered = false;
@@ -70,7 +70,7 @@ export class TcxMqttExecutionReceiver {
   private readonly fenceController: TcxExecutionFenceController;
   private readonly client: MqttReceiverClient;
   private readonly topic?: string;
-  private readonly execute: TcxExecutionHandler;
+  private readonly executeGoverned: TcxExecutionHandler;
   private readonly onRejected?: TcxMqttReceiverOptions["onRejected"];
 
   constructor(options: TcxMqttReceiverOptions) {
@@ -80,7 +80,7 @@ export class TcxMqttExecutionReceiver {
     this.fenceController = options.fenceController ?? new RedisTcxExecutionFenceController();
     this.client = options.client ?? mqttClient;
     this.topic = options.topic ?? process.env[DISPATCH_TOPIC_ENV];
-    this.execute = options.execute;
+    this.executeGoverned = options.executeGoverned;
     this.onRejected = options.onRejected;
   }
 
@@ -123,18 +123,13 @@ export class TcxMqttExecutionReceiver {
         fenceController: this.fenceController,
       });
 
-      // Re-check immediately before handing authority to the executor. A
-      // concurrent drift repair can fence an attempt after admission.
       await tcxExecution.fenceController.assertActive(
         tcxExecution.transactionId,
         tcxExecution.attemptId,
       );
 
-      // The transaction is RUNNING before any executor call, and the executor
-      // receives the mandatory TCX context for continued in-flight fencing.
-      await this.execute(running, envelope, tcxExecution);
+      await this.executeGoverned(running, envelope, tcxExecution);
 
-      // A fenced execution must not be reported as a clean handoff.
       await tcxExecution.fenceController.assertActive(
         tcxExecution.transactionId,
         tcxExecution.attemptId,
