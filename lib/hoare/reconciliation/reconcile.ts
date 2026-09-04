@@ -1,9 +1,5 @@
-import { createHash } from "node:crypto";
+import { sha256Canonical } from "@/packages/hoare-contracts/src";
 import type { EvidenceEnvelope, ReconciliationResult, Severity } from "@/packages/hoare-contracts/src";
-
-function digest(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(value, Object.keys(value as object).sort())).digest("hex");
-}
 
 export function reconcileEvidence(evidence: EvidenceEnvelope): ReconciliationResult {
   const discrepancies: ReconciliationResult["discrepancies"] = [];
@@ -28,7 +24,7 @@ export function reconcileEvidence(evidence: EvidenceEnvelope): ReconciliationRes
     discrepancies,
   };
   return {
-    reconciliationId: `reconciliation_${digest(reconciliationMaterial).slice(0, 24)}`,
+    reconciliationId: `reconciliation_${sha256Canonical(reconciliationMaterial).slice(0, 24)}`,
     transactionId: evidence.transactionId,
     attemptId: evidence.attemptId,
     matched,
@@ -45,5 +41,5 @@ export function reconcileEvidence(evidence: EvidenceEnvelope): ReconciliationRes
 
 export function hashReconciliationResult(reconciliation: ReconciliationResult): string {
   const { reconciledAt: _timestamp, ...stable } = reconciliation;
-  return digest(stable);
+  return sha256Canonical(stable);
 }
