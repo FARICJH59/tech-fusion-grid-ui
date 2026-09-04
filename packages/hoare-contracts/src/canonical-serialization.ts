@@ -2,11 +2,8 @@ import { createHash } from "node:crypto";
 
 /**
  * Deterministic serialization for integrity-critical HOARE records.
- *
  * Object keys are sorted recursively; arrays preserve order. Undefined
- * object properties are omitted, matching JSON's object semantics, while
- * undefined top-level values are rejected so an integrity record can never
- * hash an ambiguous value.
+ * object properties are omitted, matching JSON object semantics.
  */
 export function canonicalSerialize(value: unknown): string {
   if (value === undefined) throw new TypeError("canonical_serialize_undefined");
@@ -33,7 +30,7 @@ export function canonicalSerialize(value: unknown): string {
           .filter((key) => record[key] !== undefined)
           .sort()
           .map((key) => `${JSON.stringify(key)}:${canonicalSerialize(record[key])}`)
-          .join(",`)}}`;
+          .join(",")}}`;
       }
     default:
       throw new TypeError(`canonical_serialize_unsupported_type:${typeof value}`);
