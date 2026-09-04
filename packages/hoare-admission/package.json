@@ -1,0 +1,6 @@
+{
+  "name": "@hoare/admission",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pure AEGIS-to-TCX governed execution admission gate"
+}
