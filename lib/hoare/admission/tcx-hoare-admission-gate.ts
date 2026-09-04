@@ -1,11 +1,11 @@
-import type { AuthorizationDecision, ProofVerificationResult, TCXAdmission, TCXTransaction } from "@/packages/hoare-contracts/src";
+import type { AuthorizationDecision, TCXAdmission, TCXTransaction, VerificationResult } from "@/packages/hoare-contracts/src";
 import type { TcxExecutionFenceController } from "../execution/tcx-execution-fence";
 import { requireValidTcxLease, type TcxLeaseRepository } from "../execution/tcx-dispatch-governance";
 
 export type HoareAdmissionInput = Readonly<{
   transaction: TCXTransaction;
   authorization: AuthorizationDecision;
-  verification: ProofVerificationResult;
+  verification: VerificationResult;
   now?: Date;
 }>;
 
@@ -29,26 +29,26 @@ export class TcxHoareAdmissionGate {
     const now = input.now ?? new Date();
 
     if (!transaction.transactionId || !transaction.attemptId) {
-      return this.denied(transaction, "tcx_transaction_identity_invalid");
+      return this.denied(transaction, "tcx_transaction_identity_invalid", now);
     }
     if (!transaction.leaseId) {
-      return this.denied(transaction, "tcx_lease_required");
+      return this.denied(transaction, "tcx_lease_required", now);
     }
-    if (authorization.requestId !== transaction.transactionId || !authorization.allowed) {
-      return this.denied(transaction, "aegis_authorization_denied");
+    if (!authorization.requestId || !authorization.allowed) {
+      return this.denied(transaction, "aegis_authorization_denied", now);
     }
-    if (!verification.verified || verification.proofId.length === 0) {
-      return this.denied(transaction, "aegis_proof_verification_failed");
+    if (!verification.verified || !verification.proofId) {
+      return this.denied(transaction, "aegis_proof_verification_failed", now);
     }
     if (!Number.isInteger(transaction.stateVersion) || transaction.stateVersion < 1 ||
         transaction.expectedStateVersion !== transaction.stateVersion) {
-      return this.denied(transaction, "tcx_state_version_invalid");
+      return this.denied(transaction, "tcx_state_version_invalid", now);
     }
 
     try {
       const lease = await requireValidTcxLease(transaction as never, this.dependencies.leases, now);
       const fence = await this.dependencies.fences.get(transaction.transactionId, transaction.attemptId);
-      if (fence?.state === "FENCED") return this.denied(transaction, "tcx_execution_fenced");
+      if (fence?.state === "FENCED") return this.denied(transaction, "tcx_execution_fenced", now);
 
       return {
         transactionId: transaction.transactionId,
@@ -63,11 +63,11 @@ export class TcxHoareAdmissionGate {
         reason: "TCX admission granted",
       };
     } catch (error) {
-      return this.denied(transaction, error instanceof Error ? error.message : String(error));
+      return this.denied(transaction, error instanceof Error ? error.message : String(error), now);
     }
   }
 
-  private denied(transaction: TCXTransaction, reason: string): TCXAdmission {
+  private denied(transaction: TCXTransaction, reason: string, now: Date): TCXAdmission {
     return {
       transactionId: transaction.transactionId,
       attemptId: transaction.attemptId,
@@ -77,7 +77,7 @@ export class TcxHoareAdmissionGate {
       fenceValid: false,
       authorizationDecisionId: "",
       verificationProofId: "",
-      admittedAt: new Date().toISOString(),
+      admittedAt: now.toISOString(),
       reason,
     };
   }
