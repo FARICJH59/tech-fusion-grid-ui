@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import { TcxHoareAdmissionGate } from "./tcx-hoare-admission-gate";
 import { InMemoryTcxExecutionFenceController } from "../execution/tcx-execution-fence";
 import { InMemoryTcxLeaseRepository } from "../execution/tcx-dispatch-governance";
@@ -24,41 +25,39 @@ async function gateFor(lease = true) {
   return new TcxHoareAdmissionGate({ leases, fences: new InMemoryTcxExecutionFenceController() });
 }
 
-describe("TcxHoareAdmissionGate", () => {
-  it("admits only when authorization, proof, lease, state version and fence are valid", async () => {
-    const result = await (await gateFor()).admit({ transaction, authorization, verification, now });
-    expect(result.admitted).toBe(true);
-    expect(result.fenceValid).toBe(true);
-    expect(result.transactionId).toBe("tx-1");
-    expect(result.attemptId).toBe("attempt-1");
-  });
+test("TcxHoareAdmissionGate admits only when authorization, proof, lease, state version and fence are valid", async () => {
+  const result = await (await gateFor()).admit({ transaction, authorization, verification, now });
+  assert.equal(result.admitted, true);
+  assert.equal(result.fenceValid, true);
+  assert.equal(result.transactionId, "tx-1");
+  assert.equal(result.attemptId, "attempt-1");
+});
 
-  it("fails closed when authorization is denied", async () => {
-    const result = await (await gateFor()).admit({ transaction, authorization: { ...authorization, allowed: false, decision: "DENY" }, verification, now });
-    expect(result.admitted).toBe(false);
-    expect(result.fenceValid).toBe(false);
-    expect(result.reason).toBe("aegis_authorization_denied");
-  });
+test("TcxHoareAdmissionGate fails closed when authorization is denied", async () => {
+  const result = await (await gateFor()).admit({ transaction, authorization: { ...authorization, allowed: false, decision: "DENY" }, verification, now });
+  assert.equal(result.admitted, false);
+  assert.equal(result.fenceValid, false);
+  assert.equal(result.reason, "aegis_authorization_denied");
+});
 
-  it("fails closed when proof verification fails", async () => {
-    const result = await (await gateFor()).admit({ transaction, authorization, verification: { ...verification, verified: false }, now });
-    expect(result.admitted).toBe(false);
-    expect(result.reason).toBe("aegis_proof_verification_failed");
-  });
+test("TcxHoareAdmissionGate fails closed when proof verification fails", async () => {
+  const result = await (await gateFor()).admit({ transaction, authorization, verification: { ...verification, verified: false }, now });
+  assert.equal(result.admitted, false);
+  assert.equal(result.reason, "aegis_proof_verification_failed");
+});
 
-  it("fails closed when the lease is absent or invalid", async () => {
-    const result = await (await gateFor(false)).admit({ transaction, authorization, verification, now });
-    expect(result.admitted).toBe(false);
-    expect(result.reason).toBe("tcx_lease_not_found");
-  });
+test("TcxHoareAdmissionGate fails closed when the lease is absent or invalid", async () => {
+  const result = await (await gateFor(false)).admit({ transaction, authorization, verification, now });
+  assert.equal(result.admitted, false);
+  assert.equal(result.reason, "tcx_lease_not_found");
+});
 
-  it("fails closed when the execution fence is already fenced", async () => {
-    const leases = new InMemoryTcxLeaseRepository();
-    await leases.put({ leaseId: "lease-1", transactionId: "tx-1", attemptId: "attempt-1", holderId: "agent-1", issuedAt: "2026-09-04T17:59:00.000Z", expiresAt: "2026-09-04T19:00:00.000Z" });
-    const fences = new InMemoryTcxExecutionFenceController();
-    await fences.fence("tx-1", "attempt-1", "test-fence");
-    const result = await new TcxHoareAdmissionGate({ leases, fences }).admit({ transaction, authorization, verification, now });
-    expect(result.admitted).toBe(false);
-    expect(result.reason).toBe("tcx_execution_fenced");
-  });
+test("TcxHoareAdmissionGate fails closed when the execution fence is already fenced", async () => {
+  const leases = new InMemoryTcxLeaseRepository();
+  await leases.put({ leaseId: "lease-1", transactionId: "tx-1", attemptId: "attempt-1", holderId: "agent-1", issuedAt: "2026-09-04T17:59:00.000Z", expiresAt: "2026-09-04T19:00:00.000Z" });
+  const fences = new InMemoryTcxExecutionFenceController();
+  await fences.fence("tx-1", "attempt-1", "test-fence");
+  const result = await new TcxHoareAdmissionGate({ leases, fences }).admit({ transaction, authorization, verification, now });
+  assert.equal(result.admitted, false);
+  assert.equal(result.reason, "tcx_execution_fenced");
 });
