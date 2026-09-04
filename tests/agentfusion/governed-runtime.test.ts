@@ -13,7 +13,7 @@ function buildAgent(): Agent {
     tools: [],
     memory: { requiredMemoryType: "hybrid", storageAdapter: "agentfusion", retentionPolicy: { strategy: "session" }, namespaces: ["ctx"] },
     permissions: [{ id: "execute", resource: "agent", action: "execute", description: "", requiredRole: "viewer", tenantScope: "current-tenant", securityPolicies: ["rbac"], auditRequired: true }],
-    workflows: [],
+    workflows: [{ id: "execute-flow", name: "Execute Flow", version: "1.0.0", description: "", collaborationMode: "single-agent", approvalMode: "none", eventStrategy: "summary-only", steps: [{ id: "step-1", name: "Execute", type: "task" }] }],
     evaluation: { tests: [{ id: "t", name: "t", type: "capability" }], metrics: ["successRate"], qualityScoring: "weighted-balanced" },
   };
 }
