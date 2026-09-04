@@ -61,6 +61,6 @@ test("active drift without a fence controller fails closed", async () => {
 
   await assert.rejects(
     recoverFromTcxDrift(mutated.transactionId, original, repository, { replan: async () => ({}), reauthorize: async () => true }, 3),
-    /tcx_drift_requires_execution_fence:RUNNING/,
+    /tcx_drift_requires_atomic_authority:RUNNING/,
   );
 });
