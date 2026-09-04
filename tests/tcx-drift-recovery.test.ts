@@ -75,8 +75,8 @@ test("drift recovery stops when AEGIS reauthorization denies the new attempt", a
 test("drift recovery respects max attempts", async () => {
   const repository = new InMemoryExecutionTransactionRepository();
   const original = transaction();
-  const retryable = { ...original, state: "EXECUTION_FAILED" as const, attemptNumber: 2 };
-  await repository.create(retryable);
+  await repository.create(original);
+  const retryable = await repository.update({ ...original, state: "EXECUTION_FAILED", attemptNumber: 2 }, original.stateVersion);
   await assert.rejects(recoverFromTcxDrift(retryable.transactionId, original, repository, { replan: async () => ({}), reauthorize: async () => true }, 2), /execution_transaction_max_attempts_exceeded/);
 });
 
