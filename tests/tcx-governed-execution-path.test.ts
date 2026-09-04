@@ -34,10 +34,11 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   });
   await repository.create(tx);
   const current = await repository.transition(tx.transactionId, "CREATED", "AUTHORIZED", tx.stateVersion);
+  const envelope = buildExecutionDispatchEnvelope(current);
   await repository.transition(tx.transactionId, "AUTHORIZED", "DISPATCHED", current.stateVersion);
   const dispatched = await repository.get(tx.transactionId);
   assert.ok(dispatched);
-  const envelope = buildExecutionDispatchEnvelope(dispatched);
+  assert.equal(dispatched.stateVersion, envelope.stateVersion + 1);
   await leases.put({ leaseId, transactionId: tx.transactionId, attemptId: tx.attemptId, holderId: tx.nodeId, issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() });
   await dispatchIntents.create({ dispatchKey: buildTcxDispatchKey(tx.transactionId, tx.attemptId), transactionId: tx.transactionId, attemptId: tx.attemptId, attemptNumber: tx.attemptNumber, stateVersion: envelope.stateVersion, idempotencyKey: envelope.idempotencyKey, channelId: tx.channelId, status: "CLAIMED", createdAt: new Date().toISOString() });
 
