@@ -8,7 +8,10 @@ export function registerRuntimeProvider(
   provider: RuntimeProvider,
   resolver: BuilderRuntimeResolver,
 ): BuildProviderAdapter {
-  const adapter = new RuntimeProviderAdapter(provider, provider, resolver);
+  if (provider.kind !== "gcp" && provider.kind !== "edge") {
+    throw new Error(`Runtime provider ${provider.kind} cannot be registered as a builder provider`);
+  }
+  const adapter = new RuntimeProviderAdapter(provider.kind, provider, resolver);
   executor.register(adapter);
   return adapter;
 }

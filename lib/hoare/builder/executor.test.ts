@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import { buildDefaultExecutor } from "./executor";
 import type { BuilderPlan } from "./types";
 
@@ -20,23 +21,23 @@ const plan: BuilderPlan = {
   status: "building",
 };
 
-describe("BuilderExecutor", () => {
-  it("executes a validated plan through a provider adapter", async () => {
-    const result = await buildDefaultExecutor().execute(plan);
-    expect(result.accepted).toBe(true);
-    expect(result.operations).toHaveLength(4);
-    expect(result.provider).toBe("hoare");
-  });
+test("BuilderExecutor executes a validated plan through a provider adapter", async () => {
+  const result = await buildDefaultExecutor().execute(plan);
+  assert.equal(result.accepted, true);
+  assert.equal(result.operations.length, 4);
+  assert.equal(result.provider, "hoare");
+});
 
-  it("rejects plans that are not in building state", async () => {
-    await expect(buildDefaultExecutor().execute({ ...plan, status: "approved" })).rejects.toThrow(
-      "requires building status",
-    );
-  });
+test("BuilderExecutor rejects plans that are not in building state", async () => {
+  await assert.rejects(
+    buildDefaultExecutor().execute({ ...plan, status: "approved" }),
+    /requires building status/,
+  );
+});
 
-  it("rejects unsupported providers", async () => {
-    await expect(
-      buildDefaultExecutor().execute({ ...plan, deployment: { ...plan.deployment, provider: "unknown" } }),
-    ).rejects.toThrow("No build provider adapter registered");
-  });
+test("BuilderExecutor rejects unsupported providers", async () => {
+  await assert.rejects(
+    buildDefaultExecutor().execute({ ...plan, deployment: { ...plan.deployment, provider: "unknown" } }),
+    /No build provider adapter registered/,
+  );
 });

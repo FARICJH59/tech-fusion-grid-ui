@@ -3,8 +3,13 @@ import { loadRuntime } from "@/lib/hoare/deployment/runtime-store";
 
 export const dynamic = "force-dynamic";
 
-export default async function OwnedRuntimePage({ params }: { params: { deploymentId: string } }) {
-  const runtime = await loadRuntime(params.deploymentId);
+export default async function OwnedRuntimePage({
+  params,
+}: {
+  params: Promise<{ deploymentId: string }>;
+}) {
+  const { deploymentId } = await params;
+  const runtime = await loadRuntime(deploymentId);
   if (!runtime) notFound();
 
   const page = runtime.workspace.files.find((file) => file.path === "frontend/app/page.tsx");

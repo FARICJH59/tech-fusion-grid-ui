@@ -7,10 +7,9 @@ import {
   buildTcxCommitRecord,
   buildTcxPostconditionHash,
   hashTcxCommitRecord,
-  requireValidTcxLease,
   type TcxCommitRecord,
-  type TcxLeaseRepository,
-} from "./tcx-dispatch-governance";
+} from "./tcx-governance";
+import { requireValidTcxLease, type TcxLeaseRepository } from "./tcx-dispatch-governance";
 
 export type TcxCommitFinalizerDependencies = {
   transactions: ExecutionTransactionRepository;
@@ -23,7 +22,7 @@ export type TcxCommitResult = {
   duplicate: boolean;
 };
 
-/** Finalize successful execution only after evidence, authority and version are revalidated. */
+/** Finalize successful execution only after authority, precondition, evidence and version are revalidated. */
 export async function finalizeTcxCommit(
   envelope: ExecutionEvidenceEnvelope,
   dependencies: TcxCommitFinalizerDependencies,
@@ -48,12 +47,14 @@ export async function finalizeTcxCommit(
     throw new Error("tcx_commit_state_version_mismatch");
   }
 
-  verifyExecutionEvidence(envelope.receipt, envelope.result, envelope.attestation);
+  // Revalidate authority and preconditions before parsing/accepting evidence so a
+  // revoked lease or missing TCX precondition cannot be masked by stale evidence.
   await requireValidTcxLease(transaction, dependencies.leases, now);
-
   if (!transaction.preconditionHash) throw new Error("tcx_commit_precondition_missing");
   if (!envelope.preconditionHash) throw new Error("tcx_commit_evidence_precondition_missing");
   assertTcxPrecondition(transaction, envelope.preconditionHash);
+
+  verifyExecutionEvidence(envelope.receipt, envelope.result, envelope.attestation);
 
   const postconditionHash = buildTcxPostconditionHash(envelope.result);
   const commitRecord = buildTcxCommitRecord({

@@ -8,10 +8,16 @@ export class GcpRuntimeProvider implements RuntimeProvider {
   constructor(private readonly client: GcpCloudClient) {}
 
   async deploy(request: RuntimeDeploymentRequest): Promise<RuntimeDeploymentResult> {
+    const image = (request.application as typeof request.application & { image?: unknown }).image;
+    if (typeof image !== "string" || image.trim().length === 0) {
+      throw new Error("application_image_required_for_gcp");
+    }
+
     const spec: CloudRunServiceSpec = {
       service: request.application.id,
       region: this.client.region,
-      image: request.application.image,
+      projectId: this.client.projectId,
+      image,
       revisionSuffix: Date.now().toString(36),
     };
 

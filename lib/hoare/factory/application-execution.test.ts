@@ -1,29 +1,17 @@
-import { describe, expect, it } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import { createApplicationBuildPlan } from "./application-contract";
 import { executeNativeApplication } from "./application-execution";
 
-describe("HOARE native application execution", () => {
-  it("runs the generated application through the governed builder lifecycle", async () => {
-    const plan = createApplicationBuildPlan({
-      tenantId: "tenant-1",
-      projectId: "project-1",
-      name: "inventory",
-      description: "Inventory application",
-    });
-
-    const result = await executeNativeApplication(plan);
-
-    expect(result.lifecycle).toBe("ready");
-    expect(result.builderPlan.status).toBe("ready");
-    expect(result.records.map((record) => record.action)).toEqual([
-      "approve",
-      "start",
-      "complete",
-    ]);
-    expect(result.build.accepted).toBe(true);
-    expect(result.build.provider).toBe("hoare");
-    expect(result.workspace.files.map((file) => file.path)).toContain("frontend/app/page.tsx");
-    expect(result.workspace.files.map((file) => file.path)).toContain("backend/src/server.ts");
-    expect(result.workspace.digest).toMatch(/^[a-f0-9]{64}$/);
-  });
+test("HOARE native application execution runs the generated application through the governed builder lifecycle", async () => {
+  const plan = createApplicationBuildPlan({ tenantId: "tenant-1", projectId: "project-1", name: "inventory", description: "Inventory application" });
+  const result = await executeNativeApplication(plan);
+  assert.equal(result.lifecycle, "ready");
+  assert.equal(result.builderPlan.status, "ready");
+  assert.deepEqual(result.records.map((record) => record.action), ["approve", "start", "complete"]);
+  assert.equal(result.build.accepted, true);
+  assert.equal(result.build.provider, "hoare");
+  assert.ok(result.workspace.files.map((file) => file.path).includes("frontend/app/page.tsx"));
+  assert.ok(result.workspace.files.map((file) => file.path).includes("backend/src/server.ts"));
+  assert.match(result.workspace.digest, /^[a-f0-9]{64}$/);
 });

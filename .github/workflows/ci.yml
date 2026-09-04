@@ -1,10 +1,11 @@
+# Dependency lockfile was refreshed on the verified TCX recovery branch; CI must revalidate it before merge.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, hoare/execution-transaction-phase-d]
 
 concurrency:
   group: ci-${{ github.ref }}

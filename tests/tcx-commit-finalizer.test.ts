@@ -25,48 +25,28 @@ function hashPayload(payload: Record<string, unknown>, field: string): string {
 }
 
 function makeEvidence(transaction: ExecutionTransaction, preconditionHash: string): ExecutionEvidenceEnvelope {
-  const receipt = { receipt_id: "receipt-1", receipt_hash: "" };
+  const receipt: Record<string, unknown> = {
+    receipt_id: "receipt-1", workload_id: transaction.workloadId, agent_id: transaction.agentId,
+    node_id: transaction.nodeId, pack_id: transaction.packId, runtime_kind: transaction.runtimeKind, receipt_hash: "",
+  };
   receipt.receipt_hash = hashPayload(receipt, "receipt_hash");
   const result = {
-    result_id: "result-1",
-    receipt_id: receipt.receipt_id,
-    receipt_hash: receipt.receipt_hash,
-    workload_id: transaction.workloadId,
-    agent_id: transaction.agentId,
-    node_id: transaction.nodeId,
-    pack_id: transaction.packId,
-    runtime_kind: transaction.runtimeKind,
-    output: { ok: true },
-    result_hash: "",
+    result_id: "result-1", receipt_id: receipt.receipt_id, receipt_hash: receipt.receipt_hash,
+    workload_id: transaction.workloadId, agent_id: transaction.agentId, node_id: transaction.nodeId,
+    pack_id: transaction.packId, runtime_kind: transaction.runtimeKind, output: { ok: true }, result_hash: "",
   };
   result.result_hash = hashPayload(result, "result_hash");
   const attestation = {
-    attestation_id: "attestation-1",
-    receipt_id: receipt.receipt_id,
-    receipt_hash: receipt.receipt_hash,
-    result_id: result.result_id,
-    result_hash: result.result_hash,
-    workload_id: transaction.workloadId,
-    agent_id: transaction.agentId,
-    node_id: transaction.nodeId,
-    pack_id: transaction.packId,
-    runtime_kind: transaction.runtimeKind,
-    attestation_hash: "",
+    attestation_id: "attestation-1", receipt_id: receipt.receipt_id, receipt_hash: receipt.receipt_hash,
+    result_id: result.result_id, result_hash: result.result_hash, workload_id: transaction.workloadId,
+    agent_id: transaction.agentId, node_id: transaction.nodeId, pack_id: transaction.packId,
+    runtime_kind: transaction.runtimeKind, attestation_hash: "",
   };
   attestation.attestation_hash = hashPayload(attestation, "attestation_hash");
   return {
-    schema: "hoare.execution-evidence/v1",
-    transactionId: transaction.transactionId,
-    attemptId: transaction.attemptId,
-    tenantId: transaction.tenantId,
-    nodeId: transaction.nodeId,
-    stateVersion: transaction.stateVersion,
-    preconditionHash,
-    receipt,
-    result,
-    attestation,
-    status: "SUCCEEDED",
-    correlationId: transaction.transactionId,
+    schema: "hoare.execution-evidence/v1", transactionId: transaction.transactionId, attemptId: transaction.attemptId,
+    tenantId: transaction.tenantId, nodeId: transaction.nodeId, stateVersion: transaction.stateVersion,
+    preconditionHash, receipt, result, attestation, status: "SUCCEEDED", correlationId: transaction.transactionId,
     emittedAt: NOW.toISOString(),
   };
 }
@@ -85,7 +65,7 @@ async function setup() {
   const dispatched = await transactions.transition(base.transactionId, "AUTHORIZED", "DISPATCHED", authorized.stateVersion);
   const admitted = await transactions.transition(base.transactionId, "DISPATCHED", "ADMITTED", dispatched.stateVersion);
   const running = await transactions.transition(base.transactionId, "ADMITTED", "RUNNING", admitted.stateVersion);
-  const preconditionHash = buildTcxPreconditionHash({ ...running, stateVersion: authorized.stateVersion });
+  const preconditionHash = buildTcxPreconditionHash(running);
   const withPrecondition = await transactions.update({ ...running, preconditionHash }, running.stateVersion);
   await leases.put({ leaseId: "lease-1", transactionId: base.transactionId, attemptId: base.attemptId, holderId: "edge-1", issuedAt: "2026-09-03T16:59:00.000Z", expiresAt: "2026-09-03T17:05:00.000Z" });
   return { transactions, leases, transaction: withPrecondition, preconditionHash };
