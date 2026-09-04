@@ -1,7 +1,7 @@
-import type { EvidenceEnvelope, EvidenceVerificationResult, ExecutionAttestation, ExecutionReceipt, ExecutionResult } from "@/packages/hoare-contracts/src";
+import type { EvidenceEnvelope, EvidenceVerificationResult, ExecutionAttestation, ExecutionReceipt, ExecutionResult, ReconciliationResult } from "@/packages/hoare-contracts/src";
 import { createEvidenceEnvelope } from "./evidence-envelope";
 import { verifyExecutionEvidence } from "../execution/evidence-verifier";
-import { reconcileEvidence, type ReconciliationResult } from "../reconciliation/reconcile";
+import { reconcileEvidence } from "../reconciliation/reconcile";
 
 export interface ProductionEvidenceInput {
   tenantId: string;
