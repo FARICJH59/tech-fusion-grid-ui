@@ -165,3 +165,57 @@ test("drift recovery respects max attempts", async () => {
     /execution_transaction_max_attempts_exceeded/,
   );
 });
+
+test("in-memory TCX authority rejects a lease bound to another transaction", async () => {
+  const authority = new InMemoryTcxExecutionFenceController();
+  const leases = new InMemoryTcxLeaseRepository();
+  await leases.put({
+    leaseId: "lease-mismatch-1",
+    transactionId: "transaction-a",
+    attemptId: "attempt-a",
+    holderId: "node-1",
+    issuedAt: "2026-09-03T15:00:00.000Z",
+    expiresAt: "2026-09-03T17:00:00.000Z",
+  });
+
+  await assert.rejects(
+    authority.fenceAndRevokeLease(
+      "transaction-b",
+      "attempt-a",
+      "lease-mismatch-1",
+      "drift",
+      "2026-09-03T16:00:00.000Z",
+      leases,
+    ),
+    /tcx_lease_transaction_mismatch/,
+  );
+  assert.equal(await authority.get("transaction-b", "attempt-a"), undefined);
+  assert.equal((await leases.get("lease-mismatch-1"))?.revokedAt, undefined);
+});
+
+test("in-memory TCX authority rejects a lease bound to another attempt", async () => {
+  const authority = new InMemoryTcxExecutionFenceController();
+  const leases = new InMemoryTcxLeaseRepository();
+  await leases.put({
+    leaseId: "lease-mismatch-2",
+    transactionId: "transaction-a",
+    attemptId: "attempt-a",
+    holderId: "node-1",
+    issuedAt: "2026-09-03T15:00:00.000Z",
+    expiresAt: "2026-09-03T17:00:00.000Z",
+  });
+
+  await assert.rejects(
+    authority.fenceAndRevokeLease(
+      "transaction-a",
+      "attempt-b",
+      "lease-mismatch-2",
+      "drift",
+      "2026-09-03T16:00:00.000Z",
+      leases,
+    ),
+    /tcx_lease_attempt_mismatch/,
+  );
+  assert.equal(await authority.get("transaction-a", "attempt-b"), undefined);
+  assert.equal((await leases.get("lease-mismatch-2"))?.revokedAt, undefined);
+});
