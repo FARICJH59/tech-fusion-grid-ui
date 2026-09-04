@@ -16,21 +16,13 @@ import {
 } from "./tcx-dispatch-governance";
 
 const DISPATCH_TOPIC_ENV = "HOARE_EXECUTION_DISPATCH_TOPIC";
-
 type ExecutionTransactionEvent = AutonomousEvent<ExecutionTransactionEventPayload>;
 type MqttDispatchClient = {
   getConnectionState(): "disconnected" | "connecting" | "connected" | "reconnecting";
-  publish(topic: unknown, message: unknown, options?: { qos?: 0 | 1 | 2 }): void;
+  publish(topic: string, message: string, options?: { qos?: 0 | 1 | 2 }): void;
 };
 
-/**
- * Bridges durable HOARE transaction events to MQTT while enforcing TCX
- * lease fencing and a durable, per-attempt dispatch intent.
- *
- * MQTT is an external transport boundary: this intentionally provides
- * at-least-once delivery plus receiver-side idempotency, not false
- * exactly-once semantics.
- */
+/** Bridges durable transaction events to MQTT with lease fencing and per-attempt idempotency. */
 export class ExecutionTransactionDispatcher {
   private registered = false;
 
@@ -79,7 +71,6 @@ export class ExecutionTransactionDispatcher {
     }
 
     await requireValidTcxLease(transaction, this.leases);
-
     const dispatchKey = buildTcxDispatchKey(transaction.transactionId, transaction.attemptId);
     const intent = await this.dispatchIntents.create({
       dispatchKey,
@@ -93,29 +84,25 @@ export class ExecutionTransactionDispatcher {
       createdAt: new Date().toISOString(),
     });
 
+    const coordinator = new ExecutionTransactionCoordinator(this.repository);
     if (intent.status === "PUBLISHED") {
-      const coordinator = new ExecutionTransactionCoordinator(this.repository);
       await coordinator.transition(transaction.transactionId, "DISPATCHED");
       return;
     }
 
     const claimed = await this.dispatchIntents.claim(dispatchKey);
     if (claimed.status === "PUBLISHED") {
-      const coordinator = new ExecutionTransactionCoordinator(this.repository);
       await coordinator.transition(transaction.transactionId, "DISPATCHED");
       return;
     }
     if (claimed.status !== "CLAIMED") throw new Error("tcx_dispatch_intent_claim_failed");
+    if (this.client.getConnectionState() !== "connected") throw new Error("execution_dispatch_transport_unavailable");
 
-    if (this.client.getConnectionState() !== "connected") {
-      throw new Error("execution_dispatch_transport_unavailable");
-    }
-
+    const topic = this.topic;
+    if (!topic) throw new Error("missing_execution_dispatch_topic");
     const envelope = buildExecutionDispatchEnvelope(transaction);
-    this.client.publish(this.topic, JSON.stringify(envelope), { qos: 1 });
+    this.client.publish(topic, JSON.stringify(envelope), { qos: 1 });
     await this.dispatchIntents.markPublished(dispatchKey);
-
-    const coordinator = new ExecutionTransactionCoordinator(this.repository);
     await coordinator.transition(transaction.transactionId, "DISPATCHED");
   }
 }
