@@ -12,7 +12,8 @@ import {
   type TcxLease,
 } from "../lib/hoare/execution/tcx-dispatch-governance";
 import { buildExecutionDispatchEnvelope } from "../lib/hoare/execution/dispatch-envelope";
-import { TcxMqttExecutionReceiver } from "../lib/hoare/execution/tcx-mqtt-receiver";
+import { InMemoryTcxExecutionFenceController } from "../lib/hoare/execution/tcx-execution-fence";
+import { TcxMqttExecutionReceiver, type TcxExecutionContext } from "../lib/hoare/execution/tcx-mqtt-receiver";
 
 class FakeMqtt {
   handler?: (topic: string, message: string) => void;
@@ -69,50 +70,63 @@ async function authorizeAndDispatch(
   return { envelope, dispatched: current };
 }
 
+async function prepareDispatch(
+  repository: InMemoryExecutionTransactionRepository,
+  leases: InMemoryTcxLeaseRepository,
+  dispatchIntents: InMemoryTcxDispatchIntentRepository,
+  transaction: ExecutionTransaction,
+) {
+  await repository.create(transaction);
+  const lease: TcxLease = {
+    leaseId: "lease-1",
+    transactionId: transaction.transactionId,
+    attemptId: transaction.attemptId,
+    holderId: transaction.nodeId,
+    issuedAt: new Date(Date.now() - 1_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  await leases.put(lease);
+  const { envelope } = await authorizeAndDispatch(repository, transaction);
+  const intentKey = buildTcxDispatchKey(transaction.transactionId, transaction.attemptId);
+  await dispatchIntents.create({
+    dispatchKey: intentKey,
+    transactionId: transaction.transactionId,
+    attemptId: transaction.attemptId,
+    attemptNumber: transaction.attemptNumber,
+    stateVersion: envelope.stateVersion,
+    idempotencyKey: envelope.idempotencyKey,
+    channelId: envelope.channelId,
+    status: "CLAIMED",
+    createdAt: new Date().toISOString(),
+  });
+  return envelope;
+}
+
 describe("TCX MQTT execution receiver", () => {
-  it("admits before execution and prevents replay from invoking the executor twice", async () => {
+  it("admits before governed execution and prevents replay from invoking it twice", async () => {
     const repository = new InMemoryExecutionTransactionRepository();
     const leases = new InMemoryTcxLeaseRepository();
     const dispatchIntents = new InMemoryTcxDispatchIntentRepository();
+    const fenceController = new InMemoryTcxExecutionFenceController();
     const client = new FakeMqtt();
     const transaction = makeTransaction();
-    await repository.create(transaction);
-
-    const lease: TcxLease = {
-      leaseId: "lease-1",
-      transactionId: transaction.transactionId,
-      attemptId: transaction.attemptId,
-      holderId: transaction.nodeId,
-      issuedAt: new Date(Date.now() - 1_000).toISOString(),
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    };
-    await leases.put(lease);
-
-    const { envelope } = await authorizeAndDispatch(repository, transaction);
-    const intentKey = buildTcxDispatchKey(transaction.transactionId, transaction.attemptId);
-    await dispatchIntents.create({
-      dispatchKey: intentKey,
-      transactionId: transaction.transactionId,
-      attemptId: transaction.attemptId,
-      attemptNumber: transaction.attemptNumber,
-      stateVersion: envelope.stateVersion,
-      idempotencyKey: envelope.idempotencyKey,
-      channelId: envelope.channelId,
-      status: "CLAIMED",
-      createdAt: new Date().toISOString(),
-      claimedAt: new Date().toISOString(),
-      claimExpiresAt: new Date(Date.now() + 30_000).toISOString(),
-    });
+    const envelope = await prepareDispatch(repository, leases, dispatchIntents, transaction);
 
     let executions = 0;
+    let receivedContext: TcxExecutionContext | undefined;
     const receiver = new TcxMqttExecutionReceiver({
       repository,
       leases,
       dispatchIntents,
+      fenceController,
       client,
       topic: "hoare/execution/dispatch",
-      execute: async () => {
+      executeGoverned: async (running, admittedEnvelope, tcxExecution) => {
         executions += 1;
+        receivedContext = tcxExecution;
+        assert.equal(running.state, "RUNNING");
+        assert.equal(admittedEnvelope.transactionId, running.transactionId);
+        await tcxExecution.fenceController.assertActive(tcxExecution.transactionId, tcxExecution.attemptId);
       },
     });
     receiver.register();
@@ -124,39 +138,19 @@ describe("TCX MQTT execution receiver", () => {
     assert.equal(executions, 1);
     assert.equal(final?.state, "RUNNING");
     assert.equal(final?.attemptId, transaction.attemptId);
+    assert.equal(receivedContext?.transactionId, transaction.transactionId);
+    assert.equal(receivedContext?.attemptId, transaction.attemptId);
   });
 
-  it("rejects a stale or revoked dispatch before execution", async () => {
+  it("rejects a revoked dispatch before governed execution", async () => {
     const repository = new InMemoryExecutionTransactionRepository();
     const leases = new InMemoryTcxLeaseRepository();
     const dispatchIntents = new InMemoryTcxDispatchIntentRepository();
+    const fenceController = new InMemoryTcxExecutionFenceController();
     const client = new FakeMqtt();
     const transaction = makeTransaction();
-    await repository.create(transaction);
-
-    const lease: TcxLease = {
-      leaseId: "lease-1",
-      transactionId: transaction.transactionId,
-      attemptId: transaction.attemptId,
-      holderId: transaction.nodeId,
-      issuedAt: new Date(Date.now() - 1_000).toISOString(),
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    };
-    await leases.put(lease);
-
-    const { envelope } = await authorizeAndDispatch(repository, transaction);
-    const intentKey = buildTcxDispatchKey(transaction.transactionId, transaction.attemptId);
-    await dispatchIntents.create({
-      dispatchKey: intentKey,
-      transactionId: transaction.transactionId,
-      attemptId: transaction.attemptId,
-      attemptNumber: transaction.attemptNumber,
-      stateVersion: envelope.stateVersion,
-      idempotencyKey: envelope.idempotencyKey,
-      status: "CLAIMED",
-      createdAt: new Date().toISOString(),
-    });
-    await leases.revoke(lease.leaseId);
+    const envelope = await prepareDispatch(repository, leases, dispatchIntents, transaction);
+    await leases.revoke(transaction.leaseId!);
 
     let executions = 0;
     const rejected: unknown[] = [];
@@ -164,9 +158,10 @@ describe("TCX MQTT execution receiver", () => {
       repository,
       leases,
       dispatchIntents,
+      fenceController,
       client,
       topic: "hoare/execution/dispatch",
-      execute: async () => {
+      executeGoverned: async () => {
         executions += 1;
       },
       onRejected: (error) => rejected.push(error),
