@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { TcxHoareAdmissionGate } from "./tcx-hoare-admission-gate";
 import { InMemoryTcxExecutionFenceController } from "../execution/tcx-execution-fence";
 import { InMemoryTcxLeaseRepository } from "../execution/tcx-dispatch-governance";
