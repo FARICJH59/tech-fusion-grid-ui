@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import { finalizeProductionExecution } from "./production-governed-execution";
 import { InMemoryExecutionTransactionRepository } from "../execution/transaction-repository";
 
@@ -33,10 +34,7 @@ function input(repository: InMemoryExecutionTransactionRepository, observedState
   return { transaction, authorization, verification, outcome: { receipt, result, attestation }, intendedStateDigest: "state-1", producerIdentity: "hoare-test", runtimeIdentity: "agentfusion-test", finalizationAuthority: "hoare-commit-authority", repository };
 }
 
-function repository(): InMemoryExecutionTransactionRepository {
-  const repo = new InMemoryExecutionTransactionRepository();
-  return repo;
-}
+function repository(): InMemoryExecutionTransactionRepository { return new InMemoryExecutionTransactionRepository(); }
 
 const storedTransaction = {
   transactionId: "tx-1", attemptId: "attempt-1", attemptNumber: 1, idempotencyKey: "idem-1", tenantId: "tenant-1", projectId: "project-1",
@@ -44,24 +42,22 @@ const storedTransaction = {
   state: "RUNNING" as const, stateVersion: 1, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(),
 };
 
-describe("production governed execution finalization", () => {
-  it("finalizes only after verified evidence and matching reconciliation", async () => {
-    const repo = repository(); await repo.create(storedTransaction);
-    const result = await finalizeProductionExecution(input(repo));
-    expect(result.evidenceVerification.verified).toBe(true);
-    expect(result.reconciliation.matched).toBe(true);
-    expect(result.commit?.transactionId).toBe("tx-1");
-    expect(result.transaction?.state).toBe("SUCCEEDED");
-    expect(result.transaction?.commitRecordHash).toBe(result.commit?.commitRecordHash);
-  });
+test("production governed execution finalizes only after verified evidence and matching reconciliation", async () => {
+  const repo = repository(); await repo.create(storedTransaction);
+  const result = await finalizeProductionExecution(input(repo), repo);
+  assert.equal(result.evidenceVerification.verified, true);
+  assert.equal(result.reconciliation.matched, true);
+  assert.equal(result.commit?.transactionId, "tx-1");
+  assert.equal(result.transaction?.state, "SUCCEEDED");
+  assert.equal(result.transaction?.commitRecordHash, result.commit?.commitRecordHash);
+});
 
-  it("returns no commit when observed state drifts", async () => {
-    const repo = repository(); await repo.create(storedTransaction);
-    const result = await finalizeProductionExecution(input(repo, "state-drift"));
-    expect(result.evidenceVerification.verified).toBe(true);
-    expect(result.reconciliation.matched).toBe(false);
-    expect(result.commit).toBeUndefined();
-    expect(result.reconciliation.recommendedAction).toBe("REPAIR");
-    expect((await repo.get("tx-1"))?.state).toBe("RUNNING");
-  });
+test("production governed execution returns no commit when observed state drifts", async () => {
+  const repo = repository(); await repo.create(storedTransaction);
+  const result = await finalizeProductionExecution(input(repo, "state-drift"), repo);
+  assert.equal(result.evidenceVerification.verified, true);
+  assert.equal(result.reconciliation.matched, false);
+  assert.equal(result.commit, undefined);
+  assert.equal(result.reconciliation.recommendedAction, "REPAIR");
+  assert.equal((await repo.get("tx-1"))?.state, "RUNNING");
 });
