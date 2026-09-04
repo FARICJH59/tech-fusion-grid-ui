@@ -35,17 +35,11 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   const current = await repository.transition(tx.transactionId, "CREATED", "AUTHORIZED", tx.stateVersion);
   const envelope = buildExecutionDispatchEnvelope(current);
   await repository.transition(tx.transactionId, "AUTHORIZED", "DISPATCHED", current.stateVersion);
-  await leases.put({
-    leaseId: "lease-1", transactionId: tx.transactionId, attemptId: tx.attemptId, holderId: tx.nodeId,
-    issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  });
-  await dispatchIntents.create({
-    dispatchKey: buildTcxDispatchKey(tx.transactionId, tx.attemptId), transactionId: tx.transactionId,
-    attemptId: tx.attemptId, attemptNumber: tx.attemptNumber, stateVersion: envelope.stateVersion,
-    idempotencyKey: envelope.idempotencyKey, status: "CLAIMED", createdAt: new Date().toISOString(),
-  });
+  await leases.put({ leaseId: "lease-1", transactionId: tx.transactionId, attemptId: tx.attemptId, holderId: tx.nodeId, issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() });
+  await dispatchIntents.create({ dispatchKey: buildTcxDispatchKey(tx.transactionId, tx.attemptId), transactionId: tx.transactionId, attemptId: tx.attemptId, attemptNumber: tx.attemptNumber, stateVersion: envelope.stateVersion, idempotencyKey: envelope.idempotencyKey, status: "CLAIMED", createdAt: new Date().toISOString() });
 
   let received: TcxExecutionContext | undefined;
+  let execution: Promise<void> | undefined;
   const receiver = new TcxMqttExecutionReceiver({
     repository, leases, dispatchIntents, fenceController: fences, client,
     topic: "hoare/execution/dispatch",
@@ -58,6 +52,7 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   });
   receiver.register();
   await client.deliver("hoare/execution/dispatch", envelope);
+  if (execution) await execution;
 
   assert.equal(received?.transactionId, tx.transactionId);
   assert.equal(received?.attemptId, tx.attemptId);
