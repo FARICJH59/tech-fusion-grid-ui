@@ -54,8 +54,16 @@ export class InMemoryTcxExecutionFenceController implements TcxExecutionAuthorit
   }
 
   async fenceAndRevokeLease(transactionId: string, attemptId: string, leaseId: string, reason: string, revokedAt: string, leases: TcxLeaseRepository): Promise<TcxExecutionAuthorityResult> {
+    if (!leaseId || !revokedAt) throw new Error("tcx_execution_authority_invalid_request");
     const lease = await leases.get(leaseId);
     if (!lease) throw new Error("tcx_lease_not_found");
+    if (lease.leaseId !== leaseId) throw new Error("tcx_lease_identity_mismatch");
+    if (lease.transactionId !== transactionId) throw new Error("tcx_lease_transaction_mismatch");
+    if (lease.attemptId !== attemptId) throw new Error("tcx_lease_attempt_mismatch");
+
+    // The in-memory implementation has no external concurrency domain. The
+    // lease identity is validated before either authority mutation so tests
+    // cannot fence an unrelated execution or revoke an unrelated lease.
     const fence = await this.fence(transactionId, attemptId, reason);
     const revoked = await leases.revoke(leaseId, revokedAt);
     return { fence, leaseId: revoked.leaseId, leaseRevokedAt: revoked.revokedAt ?? revokedAt };
