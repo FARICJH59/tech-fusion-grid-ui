@@ -23,8 +23,9 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   const dispatchIntents = new InMemoryTcxDispatchIntentRepository();
   const fences = new InMemoryTcxExecutionFenceController();
   const client = new FakeMqtt();
+  const transactionId = `tx-governed-${Date.now()}`;
   const tx = createExecutionTransaction({
-    transactionId: "tx-governed-1", tenantId: "tenant-1", projectId: "project-1",
+    transactionId, tenantId: "tenant-1", projectId: "project-1",
     releaseDigest: "release-1", artifactDigest: "artifact-1", artifactRef: "artifact://1",
     pasorPlanHash: "plan-1", pasorUnitId: "unit-1", workloadId: "workload-1",
     agentId: "agent-1", nodeId: "node-1", packId: "pack-1", runtimeKind: "python",
