@@ -1,4 +1,6 @@
-import { createEvidenceEnvelope, type EvidenceEnvelope, type EvidenceEnvelopeInput } from "./evidence-envelope";
+import { createEvidenceEnvelope } from "./evidence-envelope";
+import type { EvidenceEnvelope, EvidenceEnvelopeInput } from "./evidence-envelope";
+import type { EvidenceEnvelope as CanonicalEvidenceEnvelope } from "@/packages/hoare-contracts/src";
 
 export interface EvidenceVerificationResult {
   verified: boolean;
@@ -6,7 +8,7 @@ export interface EvidenceVerificationResult {
   reasons: string[];
 }
 
-export function verifyEvidence(input: EvidenceEnvelopeInput, envelope: EvidenceEnvelope): EvidenceVerificationResult {
+export function verifyEvidence(input: EvidenceEnvelopeInput, envelope: EvidenceEnvelope | CanonicalEvidenceEnvelope): EvidenceVerificationResult {
   const reasons: string[] = [];
   const recomputed = createEvidenceEnvelope(input);
   if (recomputed.evidenceDigest !== envelope.evidenceDigest) reasons.push("evidence_digest_mismatch");
