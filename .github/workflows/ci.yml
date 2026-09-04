@@ -1,3 +1,4 @@
+# Dependency lockfile was refreshed on the verified TCX recovery branch; CI must revalidate it before merge.
 name: CI
 
 on:
