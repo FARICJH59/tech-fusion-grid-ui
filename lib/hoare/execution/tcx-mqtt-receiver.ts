@@ -14,6 +14,10 @@ import {
   admitTcxDispatch,
   type TcxDispatchAdmissionDependencies,
 } from "./tcx-dispatch-admission";
+import {
+  RedisTcxExecutionFenceController,
+  type TcxExecutionFenceController,
+} from "./tcx-execution-fence";
 
 const DISPATCH_TOPIC_ENV = "HOARE_EXECUTION_DISPATCH_TOPIC";
 
@@ -22,17 +26,25 @@ type MqttReceiverClient = {
   on(handler: (topic: string, message: string) => void): () => void;
 };
 
+export type TcxExecutionContext = Readonly<{
+  transactionId: string;
+  attemptId: string;
+  fenceController: TcxExecutionFenceController;
+}>;
+
 export type TcxExecutionHandler = (
   transaction: Awaited<ReturnType<ExecutionTransactionRepository["get"]>> extends infer T
     ? Exclude<T, null | undefined>
     : never,
   envelope: ExecutionDispatchEnvelope,
+  tcxExecution: TcxExecutionContext,
 ) => Promise<void>;
 
 export type TcxMqttReceiverOptions = {
   repository?: ExecutionTransactionRepository;
   leases?: TcxLeaseRepository;
   dispatchIntents?: TcxDispatchIntentRepository;
+  fenceController?: TcxExecutionFenceController;
   client?: MqttReceiverClient;
   topic?: string;
   execute: TcxExecutionHandler;
@@ -47,15 +59,17 @@ export type TcxMqttReceiverOptions = {
  * lease fencing, and state-version admission have all succeeded.
  *
  * The receiver advances DISPATCHED -> ADMITTED -> RUNNING before invoking the
- * executor. Therefore a replayed MQTT message cannot invoke the executor a
- * second time after admission. Successful execution is deliberately not
- * finalized here; evidence must cross tcx-commit-finalizer instead.
+ * executor and supplies a mandatory TCX execution context. Governed executors
+ * must use that context for entry and in-flight fence checks. Successful
+ * execution is deliberately not finalized here; evidence must cross
+ * tcx-commit-finalizer instead.
  */
 export class TcxMqttExecutionReceiver {
   private registered = false;
   private readonly repository: ExecutionTransactionRepository;
   private readonly leases: TcxLeaseRepository;
   private readonly dispatchIntents: TcxDispatchIntentRepository;
+  private readonly fenceController: TcxExecutionFenceController;
   private readonly client: MqttReceiverClient;
   private readonly topic?: string;
   private readonly execute: TcxExecutionHandler;
@@ -65,6 +79,7 @@ export class TcxMqttExecutionReceiver {
     this.repository = options.repository ?? new RedisExecutionTransactionRepository();
     this.leases = options.leases ?? new RedisTcxLeaseRepository();
     this.dispatchIntents = options.dispatchIntents ?? new RedisTcxDispatchIntentRepository();
+    this.fenceController = options.fenceController ?? new RedisTcxExecutionFenceController();
     this.client = options.client ?? mqttClient;
     this.topic = options.topic ?? process.env[DISPATCH_TOPIC_ENV];
     this.execute = options.execute;
@@ -104,10 +119,28 @@ export class TcxMqttExecutionReceiver {
 
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
       const running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
+      const tcxExecution: TcxExecutionContext = Object.freeze({
+        transactionId: running.transactionId,
+        attemptId: running.attemptId,
+        fenceController: this.fenceController,
+      });
 
-      // The transaction is RUNNING before any executor call. This is the
-      // durable execution fence that makes MQTT replay non-reentrant.
-      await this.execute(running, envelope);
+      // Re-check immediately before handing authority to the executor. A
+      // concurrent drift repair can fence an attempt after admission.
+      await tcxExecution.fenceController.assertActive(
+        tcxExecution.transactionId,
+        tcxExecution.attemptId,
+      );
+
+      // The transaction is RUNNING before any executor call, and the executor
+      // receives the mandatory TCX context for continued in-flight fencing.
+      await this.execute(running, envelope, tcxExecution);
+
+      // A fenced execution must not be reported as a clean handoff.
+      await tcxExecution.fenceController.assertActive(
+        tcxExecution.transactionId,
+        tcxExecution.attemptId,
+      );
     } catch (error) {
       this.onRejected?.(error, topic, rawMessage);
     }
