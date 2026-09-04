@@ -2,7 +2,7 @@ import type { ExecutionTransaction } from "./transaction";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
 import { ExecutionTransactionCoordinator } from "./transaction-coordinator";
 import { evaluateTcxDrift, type TcxDriftDecision, type TcxDriftPolicy } from "./tcx-drift-protection";
-import type { TcxExecutionFenceController } from "./tcx-execution-fence";
+import type { TcxExecutionAuthorityController } from "./tcx-execution-fence";
 import type { TcxLeaseRepository } from "./tcx-dispatch-governance";
 
 export type TcxDriftRecoveryCallbacks = {
@@ -22,7 +22,7 @@ export async function recoverFromTcxDrift(
   maxAttempts: number,
   policy: TcxDriftPolicy = {},
   now = new Date(),
-  fenceController?: TcxExecutionFenceController,
+  authorityController?: TcxExecutionAuthorityController,
   leaseRepository?: TcxLeaseRepository,
 ): Promise<TcxDriftRecoveryResult> {
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error("invalid_execution_transaction_max_attempts");
@@ -35,10 +35,20 @@ export async function recoverFromTcxDrift(
   const coordinator = new ExecutionTransactionCoordinator(repository);
   let fenced = current;
   if (["DISPATCHED", "ADMITTED", "RUNNING"].includes(fenced.state)) {
-    if (!fenceController) throw new Error(`tcx_drift_requires_execution_fence:${fenced.state}`);
-    await fenceController.fence(fenced.transactionId, fenced.attemptId, drift.observations.map((o) => o.reason).join(","));
-    if (fenced.leaseId && leaseRepository) {
-      await leaseRepository.revoke(fenced.leaseId, now.toISOString());
+    if (!authorityController) throw new Error(`tcx_drift_requires_atomic_authority:${fenced.state}`);
+    const reason = drift.observations.map((o) => o.reason).join(",");
+    if (fenced.leaseId) {
+      if (!leaseRepository) throw new Error("tcx_drift_requires_lease_repository");
+      await authorityController.fenceAndRevokeLease(
+        fenced.transactionId,
+        fenced.attemptId,
+        fenced.leaseId,
+        reason,
+        now.toISOString(),
+        leaseRepository,
+      );
+    } else {
+      await authorityController.fence(fenced.transactionId, fenced.attemptId, reason);
     }
     const failureState = fenced.state === "DISPATCHED" ? "DELIVERY_FAILED" : "EXECUTION_FAILED";
     fenced = await coordinator.transition(fenced.transactionId, failureState);
