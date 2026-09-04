@@ -1,0 +1,54 @@
+name: Dependency Lock Refresh
+
+on:
+  push:
+    paths:
+      - package.json
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    if: github.ref_name == 'hoare/drift-recovery-impl2'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verified branch
+        uses: actions/checkout@v4
+        with:
+          ref: hoare/drift-recovery-impl2
+          fetch-depth: 0
+
+      - name: Verify repository identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git config --get remote.origin.url)" = "https://github.com/FARICJH59/tech-fusion-grid-ui"
+          test "$(git rev-parse --abbrev-ref HEAD)" = "hoare/drift-recovery-impl2"
+          test -f package.json
+          test -f package-lock.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Refresh lockfile only
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+
+      - name: Commit lockfile and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json .github/workflows/dependency-lock-refresh.yml
+          if git diff --cached --quiet; then
+            echo "No lockfile change required."
+            exit 0
+          fi
+          git rm .github/workflows/dependency-lock-refresh.yml
+          git commit -m "chore(deps): refresh npm lockfile"
+          test "$(git config --get remote.origin.url)" = "https://github.com/FARICJH59/tech-fusion-grid-ui"
+          git push origin HEAD:hoare/drift-recovery-impl2
