@@ -6,7 +6,7 @@ import { AgentMemoryRuntime } from "../memory/memory-runtime";
 import { AgentFusionRegistry } from "../registry/agent-registry";
 import { AgentSecurityRuntime } from "../security/security-runtime";
 import { createAgentExecutionContext, type AgentContextInput } from "./agent-context";
-import { AgentExecutor, type AgentExecutionHandler, type AgentExecutionRequest } from "./agent-executor";
+import { AgentExecutor, type AgentExecutionHandler, type AgentExecutionRequest, type TcxAgentExecutionContext } from "./agent-executor";
 import { AgentValidationError } from "./agent-errors";
 import { AgentRuntimeEventBus } from "./agent-events";
 
@@ -80,6 +80,54 @@ export class AgentRuntime {
       agent,
       handler,
     });
+
+    const tokenUsage = Number(request.context.metadata?.tokenUsage ?? 0);
+    this.executions.unshift({
+      agentId: request.agentId,
+      tenantId: request.tenantId,
+      success: result.status === "completed",
+      durationMs: result.durationMs,
+      tokenUsage,
+    });
+
+    this.evaluation.recordExecution({
+      agentId: request.agentId,
+      success: result.status === "completed",
+      latencyMs: result.durationMs,
+      toolCalls: result.toolResults.length,
+      toolFailures: result.status === "completed" ? 0 : 1,
+      tokenUsage,
+      costUsd: Number(request.context.metadata?.costUsd ?? 0),
+    });
+
+    await this.memory.writeAgentHistory({
+      key: `${request.agentId}:${request.context.requestId}`,
+      value: result,
+      tenantId: request.tenantId,
+      agentId: request.agentId,
+      sessionId: request.context.sessionId,
+      tags: [result.status],
+      updatedAt: new Date().toISOString(),
+    });
+
+    return result;
+  }
+
+  /**
+   * Explicit application-level entry point for HOARE/TCX execution.
+   * The caller must supply the immutable TCX transaction/attempt context
+   * produced by the admission layer; AgentExecutor enforces the fence during
+   * execution.
+   */
+  async executeAgentGoverned(
+    request: Omit<AgentExecutionRequest, "agent" | "handler" | "tcxExecution"> & { agentId: string; version?: string },
+    tcxExecution: TcxAgentExecutionContext,
+  ) {
+    const { agent, handler } = this.resolveExecution(request.tenantId, request.agentId, request.version);
+    const result = await this.executor.executeGoverned(
+      { ...request, agent, handler },
+      tcxExecution,
+    );
 
     const tokenUsage = Number(request.context.metadata?.tokenUsage ?? 0);
     this.executions.unshift({
