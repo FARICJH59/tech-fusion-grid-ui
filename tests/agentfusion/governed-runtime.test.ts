@@ -23,6 +23,14 @@ function buildAgent(): Agent {
   };
 }
 
+function context(requestId: string) {
+  return {
+    requestId,
+    tenant: { tenantId: "tenant-1" },
+    actor: { id: "viewer-1", role: "viewer", type: "user" },
+  };
+}
+
 test("AgentRuntime governed execution delegates through executeGoverned with TCX context", async () => {
   const runtime = new AgentRuntime();
   const agent = buildAgent();
@@ -30,28 +38,20 @@ test("AgentRuntime governed execution delegates through executeGoverned with TCX
 
   const fenceController = new InMemoryTcxExecutionFenceController();
   let handlerCalled = false;
+  runtime.registerExecutionHandler(agent.identity.id, async () => {
+    handlerCalled = true;
+    await fenceController.assertActive("tx-1", "attempt-1");
+    return { ok: true };
+  });
 
   const result = await runtime.executeAgentGoverned(
     {
       agentId: agent.identity.id,
       tenantId: "tenant-1",
-      context: {
-        requestId: "req-governed-runtime",
-        tenant: { tenantId: "tenant-1" },
-        actor: { id: "viewer-1", role: "viewer", type: "user" },
-      },
+      context: context("req-governed-runtime"),
       payload: { source: "tcx" },
-      handler: async () => {
-        handlerCalled = true;
-        await fenceController.assertActive("tx-1", "attempt-1");
-        return { ok: true };
-      },
     },
-    {
-      transactionId: "tx-1",
-      attemptId: "attempt-1",
-      fenceController,
-    },
+    { transactionId: "tx-1", attemptId: "attempt-1", fenceController },
   );
 
   assert.equal(handlerCalled, true);
@@ -68,25 +68,18 @@ test("AgentRuntime governed execution fails closed when the TCX attempt is fence
   await fenceController.fence("tx-2", "attempt-2", "test-revocation");
 
   let handlerCalled = false;
+  runtime.registerExecutionHandler(agent.identity.id, async () => {
+    handlerCalled = true;
+    return { ok: true };
+  });
+
   const result = await runtime.executeAgentGoverned(
     {
       agentId: agent.identity.id,
       tenantId: "tenant-1",
-      context: {
-        requestId: "req-governed-fenced",
-        tenant: { tenantId: "tenant-1" },
-        actor: { id: "viewer-1", role: "viewer", type: "user" },
-      },
-      handler: async () => {
-        handlerCalled = true;
-        return { ok: true };
-      },
+      context: context("req-governed-fenced"),
     },
-    {
-      transactionId: "tx-2",
-      attemptId: "attempt-2",
-      fenceController,
-    },
+    { transactionId: "tx-2", attemptId: "attempt-2", fenceController },
   );
 
   assert.equal(handlerCalled, false);
