@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const runtime = provisionOwnedRuntime(deployment);
     await persistRuntime({
       manifest: deployment,
-      runtime: { ...runtime, lifecycle: "stopped", generation: 0, supervisorHeartbeat: new Date().toISOString() },
+      runtime,
       workspace: execution.workspace,
       createdAt: new Date().toISOString(),
     });
