@@ -3,8 +3,13 @@ import { loadRuntime } from "@/lib/hoare/deployment/runtime-store";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, { params }: { params: { deploymentId: string } }) {
-  const runtime = await loadRuntime(params.deploymentId);
+type RouteContext = {
+  params: Promise<{ deploymentId: string }>;
+};
+
+export async function GET(_request: Request, { params }: RouteContext) {
+  const { deploymentId } = await params;
+  const runtime = await loadRuntime(deploymentId);
   if (!runtime) {
     return NextResponse.json({ ok: false, error: "Deployment not found" }, { status: 404 });
   }
