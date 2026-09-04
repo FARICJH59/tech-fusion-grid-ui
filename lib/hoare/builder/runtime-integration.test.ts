@@ -35,7 +35,10 @@ test("HOARE live runtime Builder integration resolves authoritative resources an
   };
   const adapter = new RuntimeProviderAdapter("gcp", runtime, {
     resolveApplication: (operation) => resolver.resolveApplication(operation, plan),
-    resolveNode: (operation) => resolver.resolveInfrastructure(operation, plan),
+    // The Builder operation identifies the application being provisioned;
+    // the deployment target is an explicit infrastructure resource in the
+    // authoritative inventory and must not be inferred from the application name.
+    resolveNode: (operation) => resolver.resolveInfrastructure({ ...operation, resource: "gcp-node" }, plan),
   });
   const executor = new BuilderExecutor();
   executor.register(adapter);
