@@ -9,11 +9,16 @@ import type { TcxExecutionFenceController } from "../../lib/hoare/execution/tcx-
 
 export type AgentToolCall = { toolId: string; input: unknown };
 export type AgentExecutionHandler = (input: { agent: Agent; context: AgentExecutionContext; payload?: unknown }) => Promise<unknown>;
+export type TcxAgentExecutionContext = Readonly<{
+  transactionId: string;
+  attemptId: string;
+  fenceController: TcxExecutionFenceController;
+}>;
 export type AgentExecutionRequest = {
   agent: Agent; tenantId: string; context: AgentExecutionContext; payload?: unknown; workflowId?: string;
   toolCalls?: AgentToolCall[]; handler?: AgentExecutionHandler; resultValidator?: (result: unknown) => boolean;
   retryPolicy?: { maxRetries?: number; backoffMs?: number };
-  tcxExecution?: { transactionId: string; attemptId: string; fenceController: TcxExecutionFenceController };
+  tcxExecution?: TcxAgentExecutionContext;
 };
 export type AgentExecutionResult = {
   agentId: string; status: "completed" | "failed"; output?: unknown;
@@ -49,6 +54,21 @@ export class AgentExecutor {
     }
     trace.status = "failed"; trace.completedAt = new Date().toISOString(); trace.error = lastResult?.error;
     return lastResult ?? { agentId: request.agent.identity.id, status: "failed", toolResults: [], durationMs: 0, error: "Unknown execution failure." };
+  }
+
+  /**
+   * Mandatory entry point for HOARE-governed execution. Unlike generic
+   * AgentFusion execution, this API cannot be called without an explicit
+   * TCX transaction/attempt fence context.
+   */
+  async executeGoverned(
+    request: Omit<AgentExecutionRequest, "tcxExecution">,
+    tcxExecution: TcxAgentExecutionContext,
+  ): Promise<AgentExecutionResult> {
+    if (!tcxExecution.transactionId || !tcxExecution.attemptId || !tcxExecution.fenceController) {
+      throw new AgentExecutionError("tcx_execution_context_required");
+    }
+    return this.execute({ ...request, tcxExecution });
   }
 
   executeAsync(request: AgentExecutionRequest): { executionId: string } {
