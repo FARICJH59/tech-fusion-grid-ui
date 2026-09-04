@@ -6,6 +6,8 @@
  * Implementations remain free to evolve behind these boundaries.
  */
 
+export * from "./canonical-serialization";
+
 export type Decision = "ALLOW" | "DENY" | "BLOCK";
 export type Severity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
