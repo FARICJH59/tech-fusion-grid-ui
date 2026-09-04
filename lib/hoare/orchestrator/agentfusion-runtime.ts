@@ -3,12 +3,16 @@ import type { Agent } from "@/packages/agent-sdk/src/agent";
 import type { AgentExecutionContext } from "@/packages/agent-sdk/src/context";
 import type { AgenticDecisionEngine, AgenticExecutor, AgenticVerifier, AgentLoopState, OrchestratorDecision, OrchestratorObservation } from "./agent-loop";
 import type { HoareAgentRuntime } from "./runtime-bridge";
+import type { AuthorizationDecision, ProofVerificationResult, TCXAdmission } from "@/packages/hoare-contracts/src";
 
+export interface HoareAdmissionGate {
+  admit(input: { tenantId: string; agentId: string; decision: OrchestratorDecision; context: AgentLoopState }): Promise<TCXAdmission>;
+}
 export interface HoareAgentResolver { resolve(tenantId: string, agentId: string, version?: string): Promise<Agent | null>; }
 export interface AgentContextFactory { create(agent: Agent, input: { tenantId: string; observations: OrchestratorObservation[]; cycle: number }): AgentExecutionContext; }
 
 export class AgentFusionHoareRuntime implements HoareAgentRuntime {
-  constructor(private readonly runtime: AgentRuntime, private readonly resolver: HoareAgentResolver, private readonly contextFactory: AgentContextFactory, private readonly decisionAgentId: string) {}
+  constructor(private readonly runtime: AgentRuntime, private readonly resolver: HoareAgentResolver, private readonly contextFactory: AgentContextFactory, private readonly decisionAgentId: string, private readonly admissionGate: HoareAdmissionGate) {}
   async decide(input: { observations: OrchestratorObservation[]; cycle: number }): Promise<OrchestratorDecision> {
     const tenantId = input.observations[0]?.tenantId ?? "system";
     const agent = await this.requireAgent(tenantId, this.decisionAgentId);
@@ -18,8 +22,10 @@ export class AgentFusionHoareRuntime implements HoareAgentRuntime {
   async execute(input: { decision: OrchestratorDecision; context: AgentLoopState }): Promise<{ success: boolean; detail: string }> {
     const tenantId = input.context.observations[0]?.tenantId ?? "system";
     const agent = await this.requireAgent(tenantId, this.decisionAgentId);
+    const admission = await this.admissionGate.admit({ tenantId, agentId: agent.identity.id, decision: input.decision, context: input.context });
+    if (!admission.admitted) return { success: false, detail: `TCX admission denied: ${admission.reason}` };
     const context = this.contextFactory.create(agent, { tenantId, observations: input.context.observations, cycle: input.context.cycle });
-    const result = await this.runtime.executeAgent({ agentId: agent.identity.id, tenantId, context, payload: { decision: input.decision, state: input.context } });
+    const result = await this.runtime.executeAgent({ agentId: agent.identity.id, tenantId, context, payload: { decision: input.decision, state: input.context, tcxAdmission: admission } });
     return { success: result.status === "completed", detail: result.error ?? "AgentFusion execution completed" };
   }
   async verify(input: { context: AgentLoopState }): Promise<{ healthy: boolean; detail: string }> {
@@ -40,9 +46,5 @@ export class AgentFusionHoareRuntime implements HoareAgentRuntime {
 }
 
 export function createAgentFusionLoopDependencies(runtime: HoareAgentRuntime): { decisionEngine: AgenticDecisionEngine; executor: AgenticExecutor; verifier: AgenticVerifier } {
-  return {
-    decisionEngine: { decide: runtime.decide.bind(runtime) },
-    executor: { execute: (decision, context) => runtime.execute({ decision, context }) },
-    verifier: { verify: (context) => runtime.verify({ context }) },
-  };
+  return { decisionEngine: { decide: runtime.decide.bind(runtime) }, executor: { execute: (decision, context) => runtime.execute({ decision, context }) }, verifier: { verify: (context) => runtime.verify({ context }) } };
 }
