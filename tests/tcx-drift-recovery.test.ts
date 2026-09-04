@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryExecutionTransactionRepository } from "../lib/hoare/execution/transaction-repository";
 import { createExecutionTransaction } from "../lib/hoare/execution/transaction";
+import { ExecutionTransactionCoordinator } from "../lib/hoare/execution/transaction-coordinator";
+import { InMemoryTcxExecutionFenceController } from "../lib/hoare/execution/tcx-execution-fence";
+import { InMemoryTcxLeaseRepository } from "../lib/hoare/execution/tcx-dispatch-governance";
 import { recoverFromTcxDrift } from "../lib/hoare/execution/tcx-drift-recovery";
 
 function transaction() {
@@ -48,6 +51,80 @@ test("drift recovery fences, replans, rotates attempt, and requires reauthorizat
   assert.notEqual(result.transaction.attemptId, original.attemptId);
   assert.equal(result.transaction.artifactDigest, "artifact-3");
   assert.equal(result.transaction.pasorPlanHash, "plan-2");
+});
+
+test("drift recovery atomically fences the active attempt and revokes its lease", async () => {
+  const repository = new InMemoryExecutionTransactionRepository();
+  const leases = new InMemoryTcxLeaseRepository();
+  const authority = new InMemoryTcxExecutionFenceController();
+  const original = transaction();
+  await repository.create(original);
+  const coordinator = new ExecutionTransactionCoordinator(repository);
+  const authorized = await coordinator.transition(original.transactionId, "AUTHORIZED");
+  const leaseId = "lease-atomic-1";
+  const leased = await repository.update({ ...authorized, state: "AUTHORIZED", leaseId }, authorized.stateVersion);
+  await leases.put({
+    leaseId,
+    transactionId: leased.transactionId,
+    attemptId: leased.attemptId,
+    holderId: "node-1",
+    issuedAt: "2026-09-03T15:00:00.000Z",
+    expiresAt: "2026-09-03T17:00:00.000Z",
+  });
+  const dispatched = await coordinator.transition(leased.transactionId, "DISPATCHED");
+
+  const result = await recoverFromTcxDrift(
+    dispatched.transactionId,
+    { ...dispatched, artifactDigest: "artifact-before" },
+    repository,
+    { replan: async () => ({}), reauthorize: async () => false },
+    3,
+    {},
+    new Date("2026-09-03T16:00:00.000Z"),
+    authority,
+    leases,
+  );
+
+  const fence = await authority.get(dispatched.transactionId, dispatched.attemptId);
+  const revokedLease = await leases.get(leaseId);
+  assert.equal(fence?.state, "FENCED");
+  assert.equal(revokedLease?.revokedAt, "2026-09-03T16:00:00.000Z");
+  assert.equal(result.transaction.state, "RETRY_PENDING");
+});
+
+test("drift recovery refuses active leased recovery without atomic authority", async () => {
+  const repository = new InMemoryExecutionTransactionRepository();
+  const leases = new InMemoryTcxLeaseRepository();
+  const original = transaction();
+  await repository.create(original);
+  const coordinator = new ExecutionTransactionCoordinator(repository);
+  const authorized = await coordinator.transition(original.transactionId, "AUTHORIZED");
+  const leaseId = "lease-required-1";
+  const leased = await repository.update({ ...authorized, leaseId }, authorized.stateVersion);
+  await leases.put({
+    leaseId,
+    transactionId: leased.transactionId,
+    attemptId: leased.attemptId,
+    holderId: "node-1",
+    issuedAt: "2026-09-03T15:00:00.000Z",
+    expiresAt: "2026-09-03T17:00:00.000Z",
+  });
+  const dispatched = await coordinator.transition(leased.transactionId, "DISPATCHED");
+
+  await assert.rejects(
+    recoverFromTcxDrift(
+      dispatched.transactionId,
+      { ...dispatched, artifactDigest: "artifact-before" },
+      repository,
+      { replan: async () => ({}), reauthorize: async () => true },
+      3,
+      {},
+      new Date("2026-09-03T16:00:00.000Z"),
+      undefined,
+      leases,
+    ),
+    /tcx_drift_requires_atomic_authority/,
+  );
 });
 
 test("drift recovery stops when AEGIS reauthorization denies the new attempt", async () => {
