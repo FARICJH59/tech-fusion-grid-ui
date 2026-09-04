@@ -8,13 +8,12 @@ import { InMemoryTcxExecutionFenceController } from "../lib/hoare/execution/tcx-
 import { TcxMqttExecutionReceiver, type TcxExecutionContext } from "../lib/hoare/execution/tcx-mqtt-receiver";
 
 class FakeMqtt {
-  handler?: (topic: string, message: string) => void;
+  handler?: (topic: string, message: string) => void | Promise<void>;
   subscribe(): () => void { return () => undefined; }
-  on(handler: (topic: string, message: string) => void): () => void { this.handler = handler; return () => undefined; }
+  on(handler: (topic: string, message: string) => void | Promise<void>): () => void { this.handler = handler; return () => undefined; }
   async deliver(topic: string, envelope: unknown): Promise<void> {
     assert.ok(this.handler);
-    this.handler(topic, JSON.stringify(envelope));
-    await new Promise((resolve) => setImmediate(resolve));
+    await this.handler(topic, JSON.stringify(envelope));
   }
 }
 
@@ -36,10 +35,9 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   const envelope = buildExecutionDispatchEnvelope(current);
   await repository.transition(tx.transactionId, "AUTHORIZED", "DISPATCHED", current.stateVersion);
   await leases.put({ leaseId: "lease-1", transactionId: tx.transactionId, attemptId: tx.attemptId, holderId: tx.nodeId, issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() });
-  await dispatchIntents.create({ dispatchKey: buildTcxDispatchKey(tx.transactionId, tx.attemptId), transactionId: tx.transactionId, attemptId: tx.attemptId, attemptNumber: tx.attemptNumber, stateVersion: envelope.stateVersion, idempotencyKey: envelope.idempotencyKey, status: "CLAIMED", createdAt: new Date().toISOString() });
+  await dispatchIntents.create({ dispatchKey: buildTcxDispatchKey(tx.transactionId, tx.attemptId), transactionId: tx.transactionId, attemptId: tx.attemptId, attemptNumber: tx.attemptNumber, stateVersion: envelope.stateVersion, idempotencyKey: envelope.idempotencyKey, channelId: tx.channelId, status: "CLAIMED", createdAt: new Date().toISOString() });
 
   let received: TcxExecutionContext | undefined;
-  let execution: Promise<void> | undefined;
   const receiver = new TcxMqttExecutionReceiver({
     repository, leases, dispatchIntents, fenceController: fences, client,
     topic: "hoare/execution/dispatch",
@@ -52,7 +50,6 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   });
   receiver.register();
   await client.deliver("hoare/execution/dispatch", envelope);
-  if (execution) await execution;
 
   assert.equal(received?.transactionId, tx.transactionId);
   assert.equal(received?.attemptId, tx.attemptId);
