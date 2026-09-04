@@ -14,10 +14,8 @@ import {
   admitTcxDispatch,
   type TcxDispatchAdmissionDependencies,
 } from "./tcx-dispatch-admission";
-import {
-  RedisTcxExecutionFenceController,
-  type TcxExecutionFenceController,
-} from "./tcx-execution-fence";
+import { RedisTcxExecutionFenceController } from "./redis-tcx-execution-fence";
+import type { TcxExecutionFenceController } from "./tcx-execution-fence";
 
 const DISPATCH_TOPIC_ENV = "HOARE_EXECUTION_DISPATCH_TOPIC";
 
