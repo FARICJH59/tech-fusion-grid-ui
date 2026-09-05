@@ -1,21 +1,13 @@
-import { createHash } from "node:crypto";
+import { sha256Canonical } from "@/packages/hoare-contracts/src";
 import type { EvidenceEnvelope, EvidenceVerificationResult, ExecutionAttestation, ExecutionReceipt, ExecutionResult } from "@/packages/hoare-contracts/src";
 import type { ExecutionEvidencePayload } from "./evidence-envelope";
 
 type LegacyPayload = Record<string, unknown>;
 type EvidenceInput = ExecutionReceipt | ExecutionResult | ExecutionAttestation | ExecutionEvidencePayload;
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
 function hashWithout(value: LegacyPayload, excludedField: string): string {
   const payload = Object.fromEntries(Object.entries(value).filter(([key]) => key !== excludedField));
-  return createHash("sha256").update(canonicalJson(payload), "utf8").digest("hex");
+  return sha256Canonical(payload);
 }
 
 function pick(payload: LegacyPayload, camel: string, snake: string): unknown {
