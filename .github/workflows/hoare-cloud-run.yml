@@ -36,6 +36,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: HOARE Action Authorization Gate
+        env:
+          HOARE_ENVIRONMENT: ${{ inputs.environment }}
+          HOARE_ACTION: ${{ inputs.environment == 'production' && 'deploy.production' || 'deploy.staging' }}
+          HOARE_TENANT_ID: platform
+          HOARE_ACTOR_ROLE: operator
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: npx tsx scripts/hoare-action-gate.ts
+
       - name: Authenticate to Google Cloud with WIF
         uses: google-github-actions/auth@v2
         with:
