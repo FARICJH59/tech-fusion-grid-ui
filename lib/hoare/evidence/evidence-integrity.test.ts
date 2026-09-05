@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  createEvidenceEnvelope,
-  type EvidenceEnvelopeInput,
-  type ExecutionAttestation,
-  type ExecutionReceipt,
-  type ExecutionResult,
-  sha256Canonical,
+import { sha256Canonical } from "@/packages/hoare-contracts/src";
+import type {
+  ExecutionAttestation,
+  ExecutionReceipt,
+  ExecutionResult,
 } from "@/packages/hoare-contracts/src";
+import { createEvidenceEnvelope, type EvidenceEnvelopeInput } from "./evidence-envelope";
 import { verifyEvidence } from "./evidence-verifier";
 import { verifyExecutionEvidence } from "../execution/evidence-verifier";
 
