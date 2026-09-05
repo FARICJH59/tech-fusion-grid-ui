@@ -1,0 +1,8 @@
+{
+  "name": "@hoare/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Canonical HOARE cross-subsystem governance contracts",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}
