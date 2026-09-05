@@ -1,17 +1,12 @@
-import { createHash } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { finalizeProductionExecution } from "./production-governed-execution";
 import { InMemoryExecutionTransactionRepository } from "../execution/transaction-repository";
+import { sha256Canonical } from "@/packages/hoare-contracts/src";
 
 type Obj = Record<string, unknown>;
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") return `{${Object.entries(value as Obj).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
-  return JSON.stringify(value) as string;
-}
 function hashWithout(value: Obj, excluded: string): string {
-  return createHash("sha256").update(canonicalJson(Object.fromEntries(Object.entries(value).filter(([k]) => k !== excluded)))).digest("hex");
+  return sha256Canonical(Object.fromEntries(Object.entries(value).filter(([k]) => k !== excluded)));
 }
 
 const transaction = {
