@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256Canonical } from "@/packages/hoare-contracts/src";
 import type { EvidenceEnvelope, ExecutionAttestation, ExecutionReceipt, ExecutionResult } from "@/packages/hoare-contracts/src";
 
 export interface EvidenceEnvelopeInput {
@@ -25,15 +25,8 @@ export interface EvidenceEnvelopeInput {
   completedAt?: string;
 }
 
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
-  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${canonicalize((value as Record<string, unknown>)[key])}`).join(",")}}`;
-}
-
 export function createEvidenceEnvelope(input: EvidenceEnvelopeInput): EvidenceEnvelope {
-  const material = canonicalize(input);
-  const evidenceDigest = createHash("sha256").update(material, "utf8").digest("hex");
+  const evidenceDigest = sha256Canonical(input);
   const evidenceId = `evidence_${evidenceDigest.slice(0, 24)}`;
   return {
     ...input,
