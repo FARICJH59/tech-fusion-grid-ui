@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TranslateTextOnly",
+      "Effect": "Allow",
+      "Action": [
+        "translate:TranslateText"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "TranslateReadMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "translate:ListLanguages"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
