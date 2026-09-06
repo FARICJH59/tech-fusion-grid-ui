@@ -84,24 +84,15 @@ export class TcxMqttExecutionReceiver {
 
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
       const running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
-
-      if (!running.authorizationDecisionId || !running.verificationProofId) {
-        throw new Error("tcx_authority_proof_binding_required");
-      }
-
+      if (!running.authorizationDecisionId || !running.verificationProofId) throw new Error("tcx_authority_proof_binding_required");
       await this.fenceController.assertActive(running.transactionId, running.attemptId);
+
       const authority = await issueTcxExecutionAuthority(running.transactionId, {
         transactions: this.repository,
         leases: this.leases,
         fence: this.fenceController,
       });
-
-      const tcxExecution: TcxExecutionContext = Object.freeze({
-        transactionId: running.transactionId,
-        attemptId: running.attemptId,
-        fenceController: this.fenceController,
-        authority,
-      });
+      const tcxExecution: TcxExecutionContext = Object.freeze({ transactionId: running.transactionId, attemptId: running.attemptId, fenceController: this.fenceController, authority });
 
       await authority.assertValid();
       await this.executeGoverned(running, envelope, tcxExecution);
