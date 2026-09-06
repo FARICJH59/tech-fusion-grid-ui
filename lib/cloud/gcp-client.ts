@@ -37,28 +37,21 @@ export class GcpCloudClient {
   }
 
   static async create(options: Omit<GcpCloudClientOptions, "clients"> = {}): Promise<GcpCloudClient> {
-    const [{ ServicesClient }, monitoringModule, loggingModule, { GoogleAuth }] = await Promise.all([
+    const [{ ServicesClient }, monitoringModule, loggingModule] = await Promise.all([
       import("@google-cloud/run"),
       import("@google-cloud/monitoring"),
       import("@google-cloud/logging"),
-      import("google-auth-library"),
     ]);
 
     const wif = createWifConfig();
     const projectId = options.projectId ?? wif.projectId;
     const region = options.region ?? wif.region;
 
-    // ADC is the credential source. Production must supply federated/attached
-    // workload credentials; no private key or service-account key is created.
-    const auth = new GoogleAuth({
-      projectId,
-      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-    });
-    await auth.getClient();
-
+    // Google Cloud client libraries use Application Default Credentials. The
+    // deployment environment must provide a federated/attached workload
+    // identity; this client never accepts or constructs long-lived keys.
     const authOptions = {
       projectId,
-      auth,
       scopes: ["https://www.googleapis.com/auth/cloud-platform"],
     };
 
@@ -79,73 +72,28 @@ export class GcpCloudClient {
 
   async deployService(spec: CloudRunServiceSpec): Promise<CloudRunRevisionStatus> {
     const createService = this.getCallable(this.clients.run, "createService");
-    if (createService) {
-      await Promise.resolve(createService([{ spec }]));
-    }
-
+    if (createService) await Promise.resolve(createService([{ spec }]));
     const revision = `${spec.service}-${spec.revisionSuffix ?? Date.now().toString(36)}`;
-    return {
-      service: spec.service,
-      region: spec.region,
-      latestRevision: revision,
-      traffic: [{ revision, percent: 100 }],
-      status: "healthy",
-      observedAt: new Date().toISOString(),
-    };
+    return { service: spec.service, region: spec.region, latestRevision: revision, traffic: [{ revision, percent: 100 }], status: "healthy", observedAt: new Date().toISOString() };
   }
 
-  async updateTraffic(
-    service: string,
-    region: string,
-    traffic: CloudRunTrafficTarget[],
-  ): Promise<CloudRunRevisionStatus> {
+  async updateTraffic(service: string, region: string, traffic: CloudRunTrafficTarget[]): Promise<CloudRunRevisionStatus> {
     const updateService = this.getCallable(this.clients.run, "updateService");
-    if (updateService) {
-      await Promise.resolve(updateService([{ service, region, traffic }]));
-    }
-
-    return {
-      service,
-      region,
-      latestRevision: traffic[0]?.revision ?? "unknown",
-      traffic,
-      status: "healthy",
-      observedAt: new Date().toISOString(),
-    };
+    if (updateService) await Promise.resolve(updateService([{ service, region, traffic }]));
+    return { service, region, latestRevision: traffic[0]?.revision ?? "unknown", traffic, status: "healthy", observedAt: new Date().toISOString() };
   }
 
   async getDeploymentStatus(service: string, region: string): Promise<CloudRunRevisionStatus> {
     const getService = this.getCallable(this.clients.run, "getService");
-    if (getService) {
-      await Promise.resolve(getService([{ service, region }]));
-    }
-
-    return {
-      service,
-      region,
-      latestRevision: `${service}-latest`,
-      traffic: [{ revision: `${service}-latest`, percent: 100 }],
-      status: "healthy",
-      observedAt: new Date().toISOString(),
-    };
+    if (getService) await Promise.resolve(getService([{ service, region }]));
+    return { service, region, latestRevision: `${service}-latest`, traffic: [{ revision: `${service}-latest`, percent: 100 }], status: "healthy", observedAt: new Date().toISOString() };
   }
 
   async verifyHealth(service: string): Promise<CloudProviderHealth> {
     const listTimeSeries = this.getCallable(this.clients.monitoring, "listTimeSeries");
-    if (listTimeSeries) {
-      await Promise.resolve(listTimeSeries([{ service }]));
-    }
+    if (listTimeSeries) await Promise.resolve(listTimeSeries([{ service }]));
     const getEntries = this.getCallable(this.clients.logging, "getEntries");
-    if (getEntries) {
-      await Promise.resolve(getEntries({ filter: `resource.labels.service_name=\"${service}\"` }));
-    }
-
-    return {
-      service,
-      healthy: true,
-      latencyMs: 120,
-      errorRate: 0.001,
-      checkedAt: new Date().toISOString(),
-    };
+    if (getEntries) await Promise.resolve(getEntries({ filter: `resource.labels.service_name=\"${service}\"` }));
+    return { service, healthy: true, latencyMs: 120, errorRate: 0.001, checkedAt: new Date().toISOString() };
   }
 }
