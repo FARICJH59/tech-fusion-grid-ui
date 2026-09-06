@@ -1,4 +1,5 @@
 import type { ApplicationResource, InfrastructureNode } from "@/lib/hoare/control-plane/types";
+import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import type { RuntimeProvider, RuntimeProviderKind } from "@/lib/hoare/runtime/provider";
 import type { BuildOperation, BuildProvider, BuildProviderAdapter } from "./executor";
 
@@ -20,6 +21,7 @@ export class RuntimeProviderAdapter implements BuildProviderAdapter {
     public readonly provider: BuildProvider,
     private readonly runtime: RuntimeProvider,
     private readonly resolver: BuilderRuntimeResolver,
+    private readonly authority?: GovernedExecutionAuthority,
   ) {
     if (!runtimeKinds.includes(provider)) {
       throw new Error(`Provider ${provider} cannot be backed by the HOARE runtime contract`);
@@ -36,7 +38,12 @@ export class RuntimeProviderAdapter implements BuildProviderAdapter {
   async provision(operation: BuildOperation): Promise<void> {
     const application = await this.resolver.resolveApplication(operation);
     const node = await this.resolver.resolveNode(operation);
-    const result = await this.runtime.deploy({ application, node });
+
+    const result = await this.runtime.deploy({ application, node, authority: this.authority });
+
+    if (result.mode === "live" && !this.authority) {
+      throw new Error("tcx_authority_required_for_live_runtime_adapter");
+    }
 
     if (!result.accepted) {
       throw new Error(`Runtime provider rejected ${operation.resource}: ${result.message}`);
