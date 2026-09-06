@@ -83,20 +83,15 @@ export class TcxMqttExecutionReceiver {
       if (admission.duplicate) return;
 
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
-      let running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
+      const running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
 
-      if (!admission.authorizationDecisionId || !admission.verificationProofId) {
+      // AEGIS decision/proof bindings must already be durable on the transaction.
+      // This receiver never accepts them from MQTT and never manufactures them.
+      if (!running.authorizationDecisionId || !running.verificationProofId) {
         throw new Error("tcx_authority_proof_binding_required");
       }
 
-      running = await this.repository.update({
-        ...running,
-        authorizationDecisionId: admission.authorizationDecisionId,
-        verificationProofId: admission.verificationProofId,
-      }, running.stateVersion);
-
       await this.fenceController.assertActive(running.transactionId, running.attemptId);
-
       const authority = await issueTcxExecutionAuthority(running.transactionId, {
         transactions: this.repository,
         leases: this.leases,
