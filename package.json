@@ -27,7 +27,6 @@
     "@opentelemetry/winston-transport": "^0.32.0",
     "@supabase/supabase-js": "^2.108.1",
     "@types/jsonwebtoken": "^9.0.10",
-    "google-auth-library": "^10.5.0",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
     "mqtt": "^5.15.1",
