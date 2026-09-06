@@ -37,17 +37,28 @@ export class GcpCloudClient {
   }
 
   static async create(options: Omit<GcpCloudClientOptions, "clients"> = {}): Promise<GcpCloudClient> {
-    const [{ ServicesClient }, monitoringModule, loggingModule] = await Promise.all([
+    const [{ ServicesClient }, monitoringModule, loggingModule, { GoogleAuth }] = await Promise.all([
       import("@google-cloud/run"),
       import("@google-cloud/monitoring"),
       import("@google-cloud/logging"),
+      import("google-auth-library"),
     ]);
 
     const wif = createWifConfig();
     const projectId = options.projectId ?? wif.projectId;
     const region = options.region ?? wif.region;
+
+    // ADC is the credential source. Production must supply federated/attached
+    // workload credentials; no private key or service-account key is created.
+    const auth = new GoogleAuth({
+      projectId,
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    });
+    await auth.getClient();
+
     const authOptions = {
       projectId,
+      auth,
       scopes: ["https://www.googleapis.com/auth/cloud-platform"],
     };
 
