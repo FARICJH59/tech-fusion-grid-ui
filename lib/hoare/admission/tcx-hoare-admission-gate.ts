@@ -1,6 +1,7 @@
 import type { AuthorizationDecision, TCXAdmission, TCXTransaction, VerificationResult } from "@/packages/hoare-contracts/src";
 import type { TcxExecutionFenceController } from "../execution/tcx-execution-fence";
 import { requireValidTcxLease, type TcxLeaseRepository } from "../execution/tcx-dispatch-governance";
+import type { ExecutionTransactionRepository } from "../execution/transaction-repository";
 
 export type HoareAdmissionInput = Readonly<{
   transaction: TCXTransaction;
@@ -12,14 +13,15 @@ export type HoareAdmissionInput = Readonly<{
 export type HoareAdmissionDependencies = Readonly<{
   leases: TcxLeaseRepository;
   fences: TcxExecutionFenceController;
+  transactions: ExecutionTransactionRepository;
 }>;
 
 /**
  * Concrete fail-closed admission boundary between AEGIS and AgentFusion.
  *
- * This gate does not manufacture authority, proof, leases, or transactions.
- * Those artifacts must already exist and be supplied by their authoritative
- * subsystems. The gate only composes and validates them into TCX admission.
+ * Successful admission durably binds the AEGIS decision and verified proof to
+ * the current execution attempt using an attempt/state-version CAS. The MQTT
+ * transport is not involved and cannot supply or manufacture these bindings.
  */
 export class TcxHoareAdmissionGate {
   constructor(private readonly dependencies: HoareAdmissionDependencies) {}
@@ -34,11 +36,14 @@ export class TcxHoareAdmissionGate {
     if (!transaction.leaseId) {
       return this.denied(transaction, "tcx_lease_required", now);
     }
-    if (!authorization.requestId || !authorization.allowed) {
+    if (!authorization.requestId || !authorization.allowed || authorization.decision !== "ALLOW") {
       return this.denied(transaction, "aegis_authorization_denied", now);
     }
     if (!verification.verified || !verification.proofId) {
       return this.denied(transaction, "aegis_proof_verification_failed", now);
+    }
+    if (!authorization.decisionId) {
+      return this.denied(transaction, "aegis_decision_identity_invalid", now);
     }
     if (!Number.isInteger(transaction.stateVersion) || transaction.stateVersion < 1 ||
         transaction.expectedStateVersion !== transaction.stateVersion) {
@@ -50,17 +55,25 @@ export class TcxHoareAdmissionGate {
       const fence = await this.dependencies.fences.get(transaction.transactionId, transaction.attemptId);
       if (fence?.state === "FENCED") return this.denied(transaction, "tcx_execution_fenced", now);
 
+      const bound = await this.dependencies.transactions.bindAuthority(
+        transaction.transactionId,
+        transaction.attemptId,
+        authorization.decisionId,
+        verification.proofId,
+        transaction.stateVersion,
+      );
+
       return {
-        transactionId: transaction.transactionId,
-        attemptId: transaction.attemptId,
+        transactionId: bound.transactionId,
+        attemptId: bound.attemptId,
         admitted: true,
-        stateVersion: transaction.stateVersion,
+        stateVersion: bound.stateVersion,
         leaseId: lease.leaseId,
         fenceValid: true,
         authorizationDecisionId: authorization.decisionId,
         verificationProofId: verification.proofId,
         admittedAt: now.toISOString(),
-        reason: "TCX admission granted",
+        reason: "TCX admission granted and AEGIS authority durably bound",
       };
     } catch (error) {
       return this.denied(transaction, error instanceof Error ? error.message : String(error), now);
