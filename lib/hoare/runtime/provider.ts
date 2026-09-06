@@ -1,10 +1,13 @@
 import type { ApplicationResource, InfrastructureNode } from "@/lib/hoare/control-plane/types";
+import type { GovernedExecutionAuthority } from "./governed-execution-authority";
 
 export type RuntimeProviderKind = "gcp" | "bare-metal" | "edge";
 
 export interface RuntimeDeploymentRequest {
   application: ApplicationResource;
   node: InfrastructureNode;
+  /** Required by any provider that can perform a live side effect. */
+  authority?: GovernedExecutionAuthority;
 }
 
 export interface RuntimeDeploymentResult {
