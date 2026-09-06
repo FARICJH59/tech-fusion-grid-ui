@@ -85,8 +85,6 @@ export class TcxMqttExecutionReceiver {
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
       const running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
 
-      // AEGIS decision/proof bindings must already be durable on the transaction.
-      // This receiver never accepts them from MQTT and never manufactures them.
       if (!running.authorizationDecisionId || !running.verificationProofId) {
         throw new Error("tcx_authority_proof_binding_required");
       }
