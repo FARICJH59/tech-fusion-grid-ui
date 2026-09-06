@@ -22,7 +22,6 @@ export type TcxExecutionContext = Readonly<{
   transactionId: string;
   attemptId: string;
   fenceController: TcxExecutionFenceController;
-  /** TCX-issued authority; callers must propagate this object to live-capable runtimes. */
   authority: GovernedExecutionAuthority;
 }>;
 
@@ -86,9 +85,6 @@ export class TcxMqttExecutionReceiver {
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
       let running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
 
-      // The dispatch admission result is the trusted bridge from AEGIS/TCX
-      // admission to the transaction. MQTT remains transport-only and cannot
-      // supply or override either authority binding.
       if (!admission.authorizationDecisionId || !admission.verificationProofId) {
         throw new Error("tcx_authority_proof_binding_required");
       }
