@@ -84,11 +84,23 @@ export class TcxMqttExecutionReceiver {
       if (admission.duplicate) return;
 
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
-      const running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
+      let running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
+
+      // Bind AEGIS authority/proof to the authoritative attempt before issuing
+      // the live execution capability. These values come from the admission
+      // result, never from the untrusted MQTT envelope.
+      if (!admission.transaction.authorizationDecisionId || !admission.transaction.verificationProofId) {
+        throw new Error("tcx_authority_proof_binding_required");
+      }
+
+      running = await this.repository.update({
+        ...running,
+        authorizationDecisionId: admission.transaction.authorizationDecisionId,
+        verificationProofId: admission.transaction.verificationProofId,
+      }, running.stateVersion);
+
       await this.fenceController.assertActive(running.transactionId, running.attemptId);
 
-      // Authority is issued from authoritative TCX state after RUNNING transition.
-      // The MQTT envelope is deliberately not a source of authorization or proof IDs.
       const authority = await issueTcxExecutionAuthority(running.transactionId, {
         transactions: this.repository,
         leases: this.leases,
@@ -111,4 +123,4 @@ export class TcxMqttExecutionReceiver {
   }
 }
 
-export const createTcxMqttExecutionReceiver = (options: TcxMqttReceiverOptions): TcxMqttExecutionReceiver => new TcxMqttExecutionReceiver(options);
+export const createTcxMqttExecutionReceiver = (options: TcxMqttReceiverOptions): TcxMqttExecutionReceiver => new TcxMqttMqttExecutionReceiver(options);
