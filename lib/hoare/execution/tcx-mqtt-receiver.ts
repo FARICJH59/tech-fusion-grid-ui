@@ -86,17 +86,17 @@ export class TcxMqttExecutionReceiver {
       const coordinator = new ExecutionTransactionCoordinator(this.repository);
       let running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
 
-      // Bind AEGIS authority/proof to the authoritative attempt before issuing
-      // the live execution capability. These values come from the admission
-      // result, never from the untrusted MQTT envelope.
-      if (!admission.transaction.authorizationDecisionId || !admission.transaction.verificationProofId) {
+      // The dispatch admission result is the trusted bridge from AEGIS/TCX
+      // admission to the transaction. MQTT remains transport-only and cannot
+      // supply or override either authority binding.
+      if (!admission.authorizationDecisionId || !admission.verificationProofId) {
         throw new Error("tcx_authority_proof_binding_required");
       }
 
       running = await this.repository.update({
         ...running,
-        authorizationDecisionId: admission.transaction.authorizationDecisionId,
-        verificationProofId: admission.transaction.verificationProofId,
+        authorizationDecisionId: admission.authorizationDecisionId,
+        verificationProofId: admission.verificationProofId,
       }, running.stateVersion);
 
       await this.fenceController.assertActive(running.transactionId, running.attemptId);
@@ -123,4 +123,4 @@ export class TcxMqttExecutionReceiver {
   }
 }
 
-export const createTcxMqttExecutionReceiver = (options: TcxMqttReceiverOptions): TcxMqttExecutionReceiver => new TcxMqttMqttExecutionReceiver(options);
+export const createTcxMqttExecutionReceiver = (options: TcxMqttReceiverOptions): TcxMqttExecutionReceiver => new TcxMqttExecutionReceiver(options);
