@@ -32,17 +32,18 @@ function assertNoLongLivedKeys() {
   }
 }
 
+function required(name: string, value: string | undefined): string {
+  if (!value) throw new Error(`missing_gcp_wif_configuration:${name}`);
+  return value;
+}
+
 export function createWifConfig(): WorkloadIdentityFederationConfig {
   assertNoLongLivedKeys();
   return {
-    projectId: env.GOOGLE_CLOUD_PROJECT_ID ?? "caramel-limiter-495010-b9",
-    region: process.env.GOOGLE_CLOUD_REGION ?? "us-central1",
-    poolProvider:
-      process.env.GOOGLE_CLOUD_WIF_PROVIDER ??
-      "projects/000000000/locations/global/workloadIdentityPools/default/providers/default",
-    serviceAccount:
-      process.env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT ??
-      "hoare-runtime@caramel-limiter-495010-b9.iam.gserviceaccount.com",
+    projectId: required("GOOGLE_CLOUD_PROJECT_ID", env.GOOGLE_CLOUD_PROJECT_ID),
+    region: required("GOOGLE_CLOUD_REGION", env.GOOGLE_CLOUD_REGION),
+    poolProvider: required("GOOGLE_CLOUD_WIF_PROVIDER", env.GOOGLE_CLOUD_WIF_PROVIDER),
+    serviceAccount: required("GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT", env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT),
     mode: "workload-identity-federation",
   };
 }
@@ -55,8 +56,20 @@ export async function createGoogleCloudRuntime(): Promise<{
   clients: CloudSdkClients;
 }> {
   const config = createWifConfig();
+
+  // GoogleAuth uses Application Default Credentials. In production this must
+  // resolve to the workload's federated/attached identity; no service-account
+  // key material is accepted or constructed here.
+  const { GoogleAuth } = await import("google-auth-library");
+  const auth = new GoogleAuth({
+    projectId: config.projectId,
+    scopes: CLOUD_PLATFORM_SCOPE,
+  });
+  await auth.getClient();
+
   const options = {
     projectId: config.projectId,
+    auth,
     scopes: CLOUD_PLATFORM_SCOPE,
   };
 
