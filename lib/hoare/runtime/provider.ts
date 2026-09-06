@@ -10,16 +10,18 @@ export interface RuntimeDeploymentRequest {
   authority?: GovernedExecutionAuthority;
 }
 
-export interface RuntimeDeploymentResult {
+export type RuntimeDeploymentResult = {
   provider: RuntimeProviderKind;
   accepted: boolean;
   mode: "dry-run" | "live";
   deploymentId: string;
   message: string;
-}
+};
 
 export interface RuntimeProvider {
   readonly kind: RuntimeProviderKind;
+  /** Secure default: providers are assumed live-capable unless explicitly dry-run-only. */
+  readonly liveCapable?: boolean;
   deploy(request: RuntimeDeploymentRequest): Promise<RuntimeDeploymentResult>;
 }
 
@@ -36,6 +38,7 @@ export class ProviderRegistry {
 }
 
 export class DryRunRuntimeProvider implements RuntimeProvider {
+  readonly liveCapable = false;
   constructor(public readonly kind: RuntimeProviderKind) {}
 
   async deploy(request: RuntimeDeploymentRequest): Promise<RuntimeDeploymentResult> {
