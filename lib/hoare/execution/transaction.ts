@@ -6,6 +6,8 @@ export type ExecutionTransactionAttempt = {
   attemptNumber: number;
   idempotencyKey: string;
   state: ExecutionTransactionState;
+  authorizationDecisionId?: string;
+  verificationProofId?: string;
   receiptId?: string;
   receiptHash?: string;
   resultId?: string;
@@ -23,91 +25,60 @@ export type ExecutionTransaction = {
   missionId?: string;
   verticalId?: string;
   profileId?: string;
-
   releaseDigest: string;
   artifactDigest: string;
   artifactRef: string;
-
   pasorPlanHash: string;
   pasorUnitId: string;
-
   workloadId: string;
   agentId: string;
   nodeId: string;
   packId: string;
   runtimeKind: "python" | "native";
-
-  /** TCX concurrency/fencing identity. */
   channelId?: string;
   leaseId?: string;
   expectedStateVersion?: number;
   preconditionHash?: string;
   deadline?: string;
-
   simulationHash?: string;
   provenanceHash?: string;
-
+  /** AEGIS authority binding for the current attempt. */
+  authorizationDecisionId?: string;
+  /** AEGIS verification proof binding for the current attempt. */
+  verificationProofId?: string;
   attemptId: string;
   attemptNumber: number;
   idempotencyKey: string;
   attemptHistory?: ExecutionTransactionAttempt[];
-
   receiptId?: string;
   receiptHash?: string;
   resultId?: string;
   resultHash?: string;
   attestationId?: string;
   attestationHash?: string;
-  /** SHA-256 identity of the durable TCX commit record for this attempt. */
   commitRecordHash?: string;
-
   state: ExecutionTransactionState;
-  /** Monotonic optimistic-concurrency version. Incremented on every persisted mutation. */
   stateVersion: number;
   createdAt: string;
   updatedAt: string;
 };
 
-export type CreateExecutionTransactionInput = Omit<
-  ExecutionTransaction,
-  | "transactionId"
-  | "attemptId"
-  | "attemptNumber"
-  | "idempotencyKey"
-  | "state"
-  | "stateVersion"
-  | "createdAt"
-  | "updatedAt"
-> & {
+export type CreateExecutionTransactionInput = Omit<ExecutionTransaction, "transactionId" | "attemptId" | "attemptNumber" | "idempotencyKey" | "state" | "stateVersion" | "createdAt" | "updatedAt"> & {
   transactionId?: string;
   attemptId?: string;
   attemptNumber?: number;
 };
 
-export function buildExecutionIdempotencyKey(
-  transactionId: string,
-  attemptId: string,
-): string {
+export function buildExecutionIdempotencyKey(transactionId: string, attemptId: string): string {
   return `transaction:${transactionId}:attempt:${attemptId}`;
 }
 
-export function createExecutionTransaction(
-  input: CreateExecutionTransactionInput,
-  now = new Date().toISOString(),
-): ExecutionTransaction {
+export function createExecutionTransaction(input: CreateExecutionTransactionInput, now = new Date().toISOString()): ExecutionTransaction {
   const transactionId = input.transactionId ?? randomUUID();
   const attemptId = input.attemptId ?? randomUUID();
   const attemptNumber = input.attemptNumber ?? 1;
-
-  if (attemptNumber < 1 || !Number.isInteger(attemptNumber)) {
-    throw new Error("invalid_execution_transaction_attempt_number");
-  }
-
-  const idempotencyKey = buildExecutionIdempotencyKey(
-    transactionId,
-    attemptId,
-  );
-
+  if (attemptNumber < 1 || !Number.isInteger(attemptNumber)) throw new Error("invalid_execution_transaction_attempt_number");
+  const idempotencyKey = buildExecutionIdempotencyKey(transactionId, attemptId);
   return {
     ...input,
     transactionId,
@@ -122,21 +93,6 @@ export function createExecutionTransaction(
   };
 }
 
-export function hashExecutionTransactionIdentity(
-  transaction: Pick<
-    ExecutionTransaction,
-    "transactionId" | "attemptId" | "artifactDigest" | "pasorPlanHash" | "pasorUnitId"
-  >,
-): string {
-  return createHash("sha256")
-    .update(
-      JSON.stringify({
-        transactionId: transaction.transactionId,
-        attemptId: transaction.attemptId,
-        artifactDigest: transaction.artifactDigest,
-        pasorPlanHash: transaction.pasorPlanHash,
-        pasorUnitId: transaction.pasorUnitId,
-      }),
-    )
-    .digest("hex");
+export function hashExecutionTransactionIdentity(transaction: Pick<ExecutionTransaction, "transactionId" | "attemptId" | "artifactDigest" | "pasorPlanHash" | "pasorUnitId">): string {
+  return createHash("sha256").update(JSON.stringify({ transactionId: transaction.transactionId, attemptId: transaction.attemptId, artifactDigest: transaction.artifactDigest, pasorPlanHash: transaction.pasorPlanHash, pasorUnitId: transaction.pasorUnitId })).digest("hex");
 }
