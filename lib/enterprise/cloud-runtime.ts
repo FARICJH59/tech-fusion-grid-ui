@@ -57,19 +57,11 @@ export async function createGoogleCloudRuntime(): Promise<{
 }> {
   const config = createWifConfig();
 
-  // GoogleAuth uses Application Default Credentials. In production this must
-  // resolve to the workload's federated/attached identity; no service-account
-  // key material is accepted or constructed here.
-  const { GoogleAuth } = await import("google-auth-library");
-  const auth = new GoogleAuth({
-    projectId: config.projectId,
-    scopes: CLOUD_PLATFORM_SCOPE,
-  });
-  await auth.getClient();
-
+  // Google Cloud SDKs consume Application Default Credentials. Production must
+  // supply federated/attached workload credentials; no service-account key is
+  // constructed or accepted by this layer.
   const options = {
     projectId: config.projectId,
-    auth,
     scopes: CLOUD_PLATFORM_SCOPE,
   };
 
@@ -98,9 +90,5 @@ export async function createGoogleCloudRuntime(): Promise<{
         : null,
   };
 
-  return {
-    config,
-    sdkPackages: PHASE7_GCP_SDKS,
-    clients,
-  };
+  return { config, sdkPackages: PHASE7_GCP_SDKS, clients };
 }
