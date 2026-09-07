@@ -2,7 +2,7 @@ import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-ex
 import type { SecretAccessPolicyEngine } from "./secret-access-policy";
 import type { SecretAccessRequest } from "./secret-provider";
 
-export type SecretRotationOperation = "rotate" | "revoke";
+export type SecretRotationOperation = "rotate" | "disable" | "destroy";
 
 export type SecretRotationRequest = Readonly<{
   tenantId: string;
@@ -87,7 +87,7 @@ export async function governedDisableSecret(
   request: SecretRotationRequest,
   options: GovernedSecretRotationOptions,
 ): Promise<SecretRotationResult> {
-  if (request.operation !== "revoke") throw new Error("secret_rotation_operation_invalid");
+  if (request.operation !== "disable") throw new Error("secret_rotation_operation_invalid");
   assertSecretRotationRequest(request, options);
   const result = await options.provider.disable(request);
   request.authority.assertValid();
@@ -98,7 +98,7 @@ export async function governedDestroySecret(
   request: SecretRotationRequest,
   options: GovernedSecretRotationOptions,
 ): Promise<SecretRotationResult> {
-  if (request.operation !== "revoke") throw new Error("secret_rotation_operation_invalid");
+  if (request.operation !== "destroy") throw new Error("secret_rotation_operation_invalid");
   assertSecretRotationRequest(request, options);
   const result = await options.provider.destroy(request);
   request.authority.assertValid();
