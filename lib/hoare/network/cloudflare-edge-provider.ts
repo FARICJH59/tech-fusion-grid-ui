@@ -12,6 +12,11 @@ export type CloudflareDnsRecord = Readonly<{
   proxied?: boolean;
 }>;
 
+export type CloudflareSecretCredentialRequest = Readonly<{
+  capability: SecretCapabilityReference;
+  access: SecretAccessRequest;
+}>;
+
 export type CloudflareEdgeRequest = Readonly<{
   tenantId: string;
   transactionId: string;
@@ -19,11 +24,7 @@ export type CloudflareEdgeRequest = Readonly<{
   recordId: string;
   record: CloudflareDnsRecord;
   authority: GovernedExecutionAuthority;
-}>;
-
-export type CloudflareSecretCredentialRequest = Readonly<{
-  capability: SecretCapabilityReference;
-  access: SecretAccessRequest;
+  credential?: CloudflareSecretCredentialRequest;
 }>;
 
 export type CloudflareEdgeResult = Readonly<{
@@ -41,7 +42,7 @@ export type CloudflareEdgeProviderOptions = Readonly<{
   token?: string;
   /** Legacy dynamic credential seam. */
   getToken?: () => Promise<string | undefined>;
-  /** Production credential seam: resolve a token from a governed capability. */
+  /** Production credential seam: resolve a token from a governed secret capability. */
   getTokenForRequest?: (request: CloudflareSecretCredentialRequest) => Promise<string | undefined>;
   tenantZoneBinding: ReadonlyMap<string, string>;
   apiBaseUrl?: string;
@@ -114,22 +115,10 @@ export class CloudflareEdgeProvider {
 
   private async resolveTokenForRequest(request: CloudflareEdgeRequest): Promise<string | undefined> {
     if (this.getTokenForRequest) {
-      return (
-        await this.getTokenForRequest({
-          capability: await this.requireCapabilityReference(request),
-          access: await this.requireSecretAccessRequest(request),
-        })
-      )?.trim() || undefined;
+      if (!request.credential) throw new Error("cloudflare_capability_credential_required");
+      return (await this.getTokenForRequest(request.credential))?.trim() || undefined;
     }
     if (this.getToken) return (await this.getToken())?.trim() || undefined;
     return this.token?.trim() || undefined;
-  }
-
-  private async requireCapabilityReference(_request: CloudflareEdgeRequest): Promise<SecretCapabilityReference> {
-    throw new Error("cloudflare_capability_credential_context_required");
-  }
-
-  private async requireSecretAccessRequest(_request: CloudflareEdgeRequest): Promise<SecretAccessRequest> {
-    throw new Error("cloudflare_capability_credential_context_required");
   }
 }
