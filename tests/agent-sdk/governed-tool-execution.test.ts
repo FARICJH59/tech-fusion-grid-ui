@@ -48,16 +48,17 @@ test("governed tool execution rejects a forged authority before the tool runs", 
   assert.equal(calls.count, 0);
 });
 
-test("governed tool execution rejects tenant mismatch before the tool runs", async () => {
+test("governed tool execution does not accept a plain object even when it resembles authority", async () => {
   const registry = new ToolRegistry();
   const calls = { count: 0 };
   registerTool(registry, calls);
 
-  const forged = {} as never;
-  Object.defineProperty(forged, Symbol.toStringTag, { value: "GovernedExecutionAuthority" });
-
   await assert.rejects(
-    registry.executeGoverned("test.side-effect", {}, { ...context, authority: forged }),
+    registry.executeGoverned("test.side-effect", {}, {
+      ...context,
+      authority: { tenantId: "tenant-b", transactionId: "tx-1", attemptId: "attempt-1" } as never,
+    }),
+    /tcx_execution_authority_not_issuer_created/,
   );
   assert.equal(calls.count, 0);
 });
