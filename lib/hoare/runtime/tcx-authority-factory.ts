@@ -2,7 +2,7 @@ import type { ExecutionTransaction } from "@/lib/hoare/execution/transaction";
 import type { ExecutionTransactionRepository } from "@/lib/hoare/execution/transaction-repository";
 import type { TcxLeaseRepository } from "@/lib/hoare/execution/tcx-dispatch-governance";
 import type { TcxExecutionFenceController } from "@/lib/hoare/execution/tcx-execution-fence";
-import type { GovernedExecutionAuthority } from "./governed-execution-authority";
+import { GovernedExecutionAuthority } from "./governed-execution-authority";
 
 export type IssueTcxAuthorityDependencies = {
   transactions: ExecutionTransactionRepository;
@@ -27,7 +27,7 @@ export async function issueTcxExecutionAuthority(transactionId: string, dependen
   const verificationProofId = transaction.verificationProofId;
   if (!authorizationDecisionId || !verificationProofId) throw new Error("tcx_authority_proof_binding_required");
 
-  const snapshot: GovernedExecutionAuthority = Object.freeze({
+  return GovernedExecutionAuthority.create({
     transactionId: transaction.transactionId,
     attemptId: transaction.attemptId,
     tenantId: transaction.tenantId,
@@ -51,7 +51,6 @@ export async function issueTcxExecutionAuthority(transactionId: string, dependen
       await assertFenceActive(dependencies.fence, current.transactionId, current.attemptId);
     },
   });
-  return snapshot;
 }
 
 async function assertFenceActive(fence: Pick<TcxExecutionFenceController, "assertActive">, transactionId: string, attemptId: string): Promise<void> {
