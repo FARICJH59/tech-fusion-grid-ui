@@ -22,6 +22,8 @@ type AuthorityConstructionInput = {
   assertValid: () => Promise<void>;
 };
 
+const issuedAuthorityBrand = new WeakSet<GovernedExecutionAuthority>();
+
 /** Opaque authority presented at a live side-effect boundary. */
 export class GovernedExecutionAuthority {
   readonly transactionId: string;
@@ -52,7 +54,9 @@ export class GovernedExecutionAuthority {
 }
 
 function createIssuedAuthority(input: AuthorityConstructionInput): GovernedExecutionAuthority {
-  return Reflect.construct(GovernedExecutionAuthority, [input]) as GovernedExecutionAuthority;
+  const authority = Reflect.construct(GovernedExecutionAuthority, [input]) as GovernedExecutionAuthority;
+  issuedAuthorityBrand.add(authority);
+  return authority;
 }
 
 /** Canonical TCX authority issuer. The authority constructor is not exported. */
@@ -108,5 +112,5 @@ function assertIssuableTransaction(transaction: ExecutionTransaction | null): as
 }
 
 export function assertTcxExecutionAuthority(value: unknown): asserts value is GovernedExecutionAuthority {
-  if (!(value instanceof GovernedExecutionAuthority)) throw new Error("tcx_execution_authority_not_issuer_created");
+  if (!(value instanceof GovernedExecutionAuthority) || !issuedAuthorityBrand.has(value)) throw new Error("tcx_execution_authority_not_issuer_created");
 }
