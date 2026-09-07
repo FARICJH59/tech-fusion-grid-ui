@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
+import { SecretAccessPolicyEngine } from "./secret-access-policy";
 import type { SecretAccessOperation } from "./secret-access-policy";
 import type { SecretAccessRequest } from "./secret-provider";
 
@@ -43,6 +44,7 @@ export interface SecretCapabilityStore {
   put(record: SecretCapabilityRecord): Promise<void>;
   get(capabilityId: string): Promise<SecretCapabilityRecord | null>;
   revoke(capabilityId: string): Promise<void>;
+  /** Must atomically transition active -> consumed and reject replay. */
   consume(capabilityId: string): Promise<SecretCapabilityRecord>;
 }
 
@@ -83,6 +85,7 @@ const assertNonEmpty = (value: string, error: string): string => {
 export class SecretCapabilityIssuer {
   constructor(
     private readonly store: SecretCapabilityStore,
+    private readonly accessPolicy: SecretAccessPolicyEngine,
     private readonly defaultTtlMs = 30_000,
     private readonly now: () => Date = () => new Date(),
   ) {
@@ -93,15 +96,16 @@ export class SecretCapabilityIssuer {
 
   async issue(
     request: SecretAccessRequest,
-    policyId: string,
     ttlMs = this.defaultTtlMs,
   ): Promise<SecretCapabilityReference> {
     assertTcxExecutionAuthority(request.authority);
     request.authority.assertValid();
-    const normalizedPolicyId = assertNonEmpty(policyId, "secret_capability_policy_required");
     if (!Number.isInteger(ttlMs) || ttlMs <= 0 || ttlMs > 300_000) {
       throw new Error("secret_capability_ttl_invalid");
     }
+
+    const decision = this.accessPolicy.authorize(request);
+    request.authority.assertValid();
 
     const issuedAt = this.now();
     const expiresAt = new Date(issuedAt.getTime() + ttlMs);
@@ -123,7 +127,7 @@ export class SecretCapabilityIssuer {
 
     const record: SecretCapabilityRecord = Object.freeze({
       capabilityId,
-      policyId: normalizedPolicyId,
+      policyId: decision.policyId,
       scope,
       issuedAt: issuedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
@@ -162,6 +166,12 @@ export class SecretCapabilityValidator {
     assertTcxExecutionAuthority(request.authority);
     request.authority.assertValid();
 
+    if (reference.capabilityId.trim() === "") throw new Error("secret_capability_reference_required");
+    if (reference.tenantId !== request.tenantId) throw new Error("secret_capability_reference_tenant_mismatch");
+    if (reference.projectId !== request.projectId) throw new Error("secret_capability_reference_project_mismatch");
+    if (reference.secretId !== request.secretId) throw new Error("secret_capability_reference_secret_mismatch");
+    if (reference.operation !== request.operation) throw new Error("secret_capability_reference_operation_mismatch");
+
     const record = await this.store.get(reference.capabilityId);
     if (!record) throw new Error("secret_capability_not_found");
     if (record.status !== "active") throw new Error("secret_capability_not_active");
@@ -169,6 +179,7 @@ export class SecretCapabilityValidator {
       await this.store.revoke(record.capabilityId);
       throw new Error("secret_capability_expired");
     }
+    if (record.expiresAt !== reference.expiresAt) throw new Error("secret_capability_reference_expiry_mismatch");
 
     const scope = record.scope;
     const pairs: Array<[string, string, string]> = [
@@ -190,6 +201,8 @@ export class SecretCapabilityValidator {
     if (scope.secretVersion !== request.secretVersion) throw new Error("secret_capability_version_mismatch");
 
     request.authority.assertValid();
-    return Object.freeze({ record, request });
+    const consumed = await this.store.consume(record.capabilityId);
+    request.authority.assertValid();
+    return Object.freeze({ record: consumed, request });
   }
 }
