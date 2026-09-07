@@ -27,9 +27,7 @@ export type FusionEvidenceIndex = Readonly<{
 export function assertValidEvidenceIndexFilter(filter: FusionEvidenceIndexFilter): void {
   if (!filter.tenantId) throw new Error("fusion_search_tenant_required");
   for (const value of [filter.observedFrom, filter.observedTo, filter.indexedFrom, filter.indexedTo]) {
-    if (value !== undefined && Number.isNaN(Date.parse(value))) {
-      throw new Error("fusion_search_invalid_date_filter");
-    }
+    if (value !== undefined && Number.isNaN(Date.parse(value))) throw new Error("fusion_search_invalid_date_filter");
   }
   if (filter.observedFrom && filter.observedTo && Date.parse(filter.observedFrom) > Date.parse(filter.observedTo)) {
     throw new Error("fusion_search_invalid_observed_range");
