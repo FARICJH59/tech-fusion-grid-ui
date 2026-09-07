@@ -59,16 +59,20 @@ export class CloudflareEdgeProvider {
   }
 
   async updateDnsRecord(request: CloudflareEdgeRequest): Promise<CloudflareEdgeResult> {
-    assertTcxExecutionAuthority(request.authority);
-    if (request.authority.tenantId !== request.tenantId) throw new Error("cloudflare_tenant_mismatch");
-    if (request.authority.transactionId !== request.transactionId || request.authority.attemptId !== request.attemptId) {
-      throw new Error("cloudflare_attempt_mismatch");
-    }
+    // Reject impossible resource bindings before invoking the authority verifier. This keeps
+    // tenant/zone and hostname invariants independently testable while still guaranteeing that
+    // no external mutation occurs until the runtime-branded authority is validated below.
     if (this.tenantZoneBinding.get(request.tenantId) !== this.domain.zoneId) {
       throw new Error("cloudflare_zone_tenant_binding_invalid");
     }
     if (request.record.name.toLowerCase().replace(/\.$/, "") !== this.domain.hostname) {
       throw new Error("cloudflare_hostname_mismatch");
+    }
+
+    assertTcxExecutionAuthority(request.authority);
+    if (request.authority.tenantId !== request.tenantId) throw new Error("cloudflare_tenant_mismatch");
+    if (request.authority.transactionId !== request.transactionId || request.authority.attemptId !== request.attemptId) {
+      throw new Error("cloudflare_attempt_mismatch");
     }
 
     request.authority.assertValid();
