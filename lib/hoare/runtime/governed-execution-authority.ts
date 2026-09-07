@@ -5,7 +5,8 @@ import type { TcxExecutionFenceController } from "@/lib/hoare/execution/tcx-exec
 
 export type IssueTcxAuthorityDependencies = {
   transactions: ExecutionTransactionRepository;
-  leases: TcxLeaseRepository;
+  /** Issuance needs read access only; mutation operations remain outside the issuer. */
+  leases: Pick<TcxLeaseRepository, "get">;
   fence: Pick<TcxExecutionFenceController, "assertActive">;
   now?: () => Date;
 };
@@ -51,8 +52,6 @@ export class GovernedExecutionAuthority {
 }
 
 function createIssuedAuthority(input: AuthorityConstructionInput): GovernedExecutionAuthority {
-  // Keep the constructor private while allowing the module-local issuer to
-  // instantiate the runtime-branded object without exposing a public factory.
   return Reflect.construct(GovernedExecutionAuthority, [input]) as GovernedExecutionAuthority;
 }
 
