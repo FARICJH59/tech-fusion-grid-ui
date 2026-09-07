@@ -36,7 +36,7 @@ A policy denial occurs before the external secret provider is invoked.
 
 The GCP provider retains its static tenant-to-secret binding in addition to the policy engine. This prevents a policy configuration from widening access beyond the explicitly bound tenant secret set.
 
-Google Cloud IAM remains a separate enforcement layer. The runtime identity should receive only the minimum Secret Manager permission needed, ideally at the individual secret rather than project level. Google documents that `roles/secretmanager.secretAccessor` can be granted directly on a secret and recommends lowest-level grants for least privilege. citeturn0search0turn0search4
+Google Cloud IAM remains a separate enforcement layer. The runtime identity should receive only the minimum Secret Manager permission needed, ideally at the individual secret rather than project level. Google documents that `roles/secretmanager.secretAccessor` can be granted directly on a secret and recommends lowest-level grants for least privilege.
 
 ## Secret material handling
 
@@ -50,7 +50,7 @@ Policy decisions contain identifiers and outcomes only. Secret values must never
 - source control
 - normal logs or traces
 
-Secret Manager access continues to use ADC/WIF rather than long-lived service-account keys. Google recommends workload identity federation for workloads authenticating to Google Cloud from another cloud or outside Google Cloud. citeturn0search4turn0search9
+Secret Manager access continues to use ADC/WIF rather than long-lived service-account keys. Workload identity federation is the preferred authentication approach for workloads accessing Google Cloud from outside Google Cloud.
 
 ## Versioning
 
