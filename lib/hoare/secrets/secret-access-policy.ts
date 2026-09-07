@@ -1,7 +1,7 @@
 import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import type { SecretAccessRequest } from "./secret-provider";
 
-export const SECRET_ACCESS_OPERATIONS = ["read", "inject", "rotate", "revoke"] as const;
+export const SECRET_ACCESS_OPERATIONS = ["read", "inject", "rotate", "disable", "destroy"] as const;
 export type SecretAccessOperation = (typeof SECRET_ACCESS_OPERATIONS)[number];
 
 export type SecretAccessPolicy = Readonly<{
