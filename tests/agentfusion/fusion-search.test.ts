@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { InMemoryMemoryProvider } from "../../packages/agent-sdk/src/memory";
 import { AgentFusionMemorySearchProvider } from "../../agentfusion/fusion-search/providers/memory-provider";
+import { HoareTransactionEvidenceProvider } from "../../agentfusion/fusion-search/providers/hoare-provider";
 import { EvidenceFusionEngine } from "../../agentfusion/fusion-search/fusion/evidence-fusion";
+import { InMemoryExecutionTransactionRepository } from "../../lib/hoare/execution/transaction-repository";
+import { createExecutionTransaction } from "../../lib/hoare/execution/transaction";
 import type { FusionEvidence, FusionSearchProvider } from "../../agentfusion/fusion-search/core/types";
 
 const context = { tenantId: "tenant-a", projectId: "project-a", agentId: "agent-a" } as const;
@@ -76,6 +79,65 @@ test("evidence fusion fails closed if a provider returns foreign-tenant evidence
     engine.search({ query: "anything", tenantId: "tenant-a" }, context),
     /fusion_search_cross_tenant_evidence/,
   );
+});
+
+test("HOARE provider exposes a transaction as tenant-scoped evidence", async () => {
+  const repository = new InMemoryExecutionTransactionRepository();
+  await repository.create(createExecutionTransaction({
+    transactionId: "tx-hoare-1",
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    releaseDigest: "release-1",
+    artifactDigest: "artifact-1",
+    artifactRef: "artifact://one",
+    pasorPlanHash: "plan-1",
+    pasorUnitId: "unit-1",
+    workloadId: "workload-a",
+    agentId: "agent-a",
+    nodeId: "node-a",
+    packId: "pack-a",
+    runtimeKind: "python",
+  }));
+
+  const provider = new HoareTransactionEvidenceProvider(repository);
+  const results = await provider.search({
+    query: "tx-hoare-1 artifact-1",
+    tenantId: "tenant-a",
+    projectId: "project-a",
+    transactionId: "tx-hoare-1",
+  }, context);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0]?.sourceType, "hoare-execution-transaction");
+  assert.equal(results[0]?.provenance.transactionId, "tx-hoare-1");
+  assert.equal(results[0]?.tenantId, "tenant-a");
+});
+
+test("HOARE provider cannot leak a foreign tenant transaction", async () => {
+  const repository = new InMemoryExecutionTransactionRepository();
+  await repository.create(createExecutionTransaction({
+    transactionId: "tx-foreign-hoare",
+    tenantId: "tenant-b",
+    projectId: "project-b",
+    releaseDigest: "release-2",
+    artifactDigest: "artifact-2",
+    artifactRef: "artifact://two",
+    pasorPlanHash: "plan-2",
+    pasorUnitId: "unit-2",
+    workloadId: "workload-b",
+    agentId: "agent-b",
+    nodeId: "node-b",
+    packId: "pack-b",
+    runtimeKind: "native",
+  }));
+
+  const provider = new HoareTransactionEvidenceProvider(repository);
+  const results = await provider.search({
+    query: "artifact-2",
+    tenantId: "tenant-a",
+    transactionId: "tx-foreign-hoare",
+  }, context);
+  assert.equal(results.length, 0);
 });
 
 test("hybrid fusion deduplicates and ranks evidence", async () => {
