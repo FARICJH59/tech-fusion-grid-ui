@@ -39,6 +39,7 @@ export type DeploymentLifecycleState =
 
 export type CloudRunServiceSpec = {
   service: string;
+  tenantId: string;
   image: string;
   region: string;
   projectId: string;
