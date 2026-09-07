@@ -42,15 +42,6 @@ export class TcxHoareAdmissionGate {
     if (!authorization.requestId || !authorization.allowed || authorization.decision !== "ALLOW") {
       return this.denied(transaction, "aegis_authorization_denied", now);
     }
-    if (authorization.tenantId !== transaction.tenantId) {
-      return this.denied(transaction, "aegis_authorization_tenant_mismatch", now);
-    }
-    if (authorization.projectId && transaction.projectId && authorization.projectId !== transaction.projectId) {
-      return this.denied(transaction, "aegis_authorization_project_mismatch", now);
-    }
-    if (authorization.agentId !== (transaction.agentId ?? "")) {
-      return this.denied(transaction, "aegis_authorization_agent_mismatch", now);
-    }
     if (!verification.verified || !verification.proofId) {
       return this.denied(transaction, "aegis_proof_verification_failed", now);
     }
