@@ -6,6 +6,69 @@ import {
   type FusionEvidenceIndexFilter,
 } from "./evidence-index";
 
+const PUT_EVIDENCE_SCRIPT = `
+local record = KEYS[1]
+local observed = KEYS[2]
+local indexed = KEYS[3]
+local membership = KEYS[4]
+local evidence_id = ARGV[1]
+local payload = ARGV[2]
+local content_hash = ARGV[3]
+local observed_at = ARGV[4]
+local indexed_at = ARGV[5]
+
+local existing = redis.call('GET', record)
+if existing then
+  local prior = cjson.decode(existing)
+  if prior.tenantId ~= cjson.decode(payload).tenantId then
+    return 'TENANT_MISMATCH'
+  end
+  if prior.contentHash ~= content_hash then
+    return 'VERSION_CONFLICT'
+  end
+  return 'UNCHANGED'
+end
+
+redis.call('SET', record, payload)
+redis.call('ZADD', observed, observed_at, evidence_id)
+redis.call('ZADD', indexed, indexed_at, evidence_id)
+for i = 5, #KEYS do
+  redis.call('SADD', KEYS[i], evidence_id)
+  redis.call('SADD', membership, KEYS[i])
+end
+return 'CREATED'
+`;
+
+const DELETE_EVIDENCE_SCRIPT = `
+local record = KEYS[1]
+local tenant = KEYS[2]
+local observed = KEYS[3]
+local indexed = KEYS[4]
+local membership = KEYS[5]
+local evidence_id = ARGV[1]
+local tenant_id = ARGV[2]
+
+local existing = redis.call('GET', record)
+if not existing then
+  return 'MISSING'
+end
+local evidence = cjson.decode(existing)
+if evidence.tenantId ~= tenant_id then
+  return 'TENANT_MISMATCH'
+end
+
+local memberships = redis.call('SMEMBERS', membership)
+redis.call('DEL', record)
+redis.call('SREM', tenant, evidence_id)
+redis.call('ZREM', observed, evidence_id)
+redis.call('ZREM', indexed, evidence_id)
+for i = 1, #memberships do
+  redis.call('SREM', memberships[i], evidence_id)
+end
+redis.call('DEL', membership)
+return 'DELETED'
+`;
+
 /** Durable metadata index. Secrets and authority objects are never persisted. */
 export class RedisFusionEvidenceIndex implements FusionEvidenceIndex {
   constructor(
@@ -16,22 +79,24 @@ export class RedisFusionEvidenceIndex implements FusionEvidenceIndex {
   async put(evidence: FusionEvidence): Promise<void> {
     this.assertEvidence(evidence);
     const key = this.key(evidence.tenantId, evidence.evidenceId);
-    const existing = await this.redis.get(key);
-    if (existing) {
-      const prior = JSON.parse(existing) as FusionEvidence;
-      if (prior.tenantId !== evidence.tenantId) throw new Error("fusion_search_cross_tenant_evidence");
-      if (prior.contentHash !== evidence.contentHash) throw new Error("fusion_search_evidence_version_conflict");
-      return;
-    }
-
     const indexKeys = this.indexKeys(evidence);
-    const multi = this.redis.multi();
-    multi.set(key, JSON.stringify(evidence));
-    for (const indexKey of indexKeys) multi.sadd(indexKey, evidence.evidenceId);
-    multi.zadd(this.observedKey(evidence.tenantId), Date.parse(evidence.observedAt), evidence.evidenceId);
-    multi.zadd(this.indexedKey(evidence.tenantId), Date.parse(evidence.indexedAt), evidence.evidenceId);
-    multi.sadd(this.membershipKey(evidence.tenantId, evidence.evidenceId), ...indexKeys);
-    await multi.exec();
+    const result = await this.redis.eval(
+      PUT_EVIDENCE_SCRIPT,
+      4 + indexKeys.length,
+      key,
+      this.observedKey(evidence.tenantId),
+      this.indexedKey(evidence.tenantId),
+      this.membershipKey(evidence.tenantId, evidence.evidenceId),
+      ...indexKeys,
+      evidence.evidenceId,
+      JSON.stringify(evidence),
+      evidence.contentHash,
+      String(Date.parse(evidence.observedAt)),
+      String(Date.parse(evidence.indexedAt)),
+    );
+
+    if (result === "TENANT_MISMATCH") throw new Error("fusion_search_cross_tenant_evidence");
+    if (result === "VERSION_CONFLICT") throw new Error("fusion_search_evidence_version_conflict");
   }
 
   async putMany(evidence: readonly FusionEvidence[]): Promise<void> {
@@ -65,23 +130,20 @@ export class RedisFusionEvidenceIndex implements FusionEvidenceIndex {
 
   async delete(evidenceId: string, tenantId: string): Promise<boolean> {
     if (!tenantId) throw new Error("fusion_search_tenant_required");
-    const key = this.key(tenantId, evidenceId);
-    const existing = await this.redis.get(key);
-    if (!existing) return false;
-    const evidence = JSON.parse(existing) as FusionEvidence;
-    if (evidence.tenantId !== tenantId) throw new Error("fusion_search_cross_tenant_evidence");
+    const result = await this.redis.eval(
+      DELETE_EVIDENCE_SCRIPT,
+      5,
+      this.key(tenantId, evidenceId),
+      this.tenantKey(tenantId),
+      this.observedKey(tenantId),
+      this.indexedKey(tenantId),
+      this.membershipKey(tenantId, evidenceId),
+      evidenceId,
+      tenantId,
+    );
 
-    const membership = await this.redis.smembers(this.membershipKey(tenantId, evidenceId));
-    const multi = this.redis.multi();
-    multi.del(key);
-    for (const indexKey of membership) multi.srem(indexKey, evidenceId);
-    multi.srem(this.tenantKey(tenantId), evidenceId);
-    multi.zrem(this.observedKey(tenantId), evidenceId);
-    multi.zrem(this.indexedKey(tenantId), evidenceId);
-    multi.del(this.membershipKey(tenantId, evidenceId));
-    const result = await multi.exec();
-    const first = result?.[0]?.[1];
-    return first === 1;
+    if (result === "TENANT_MISMATCH") throw new Error("fusion_search_cross_tenant_evidence");
+    return result === "DELETED";
   }
 
   private async candidateIds(filter: FusionEvidenceIndexFilter): Promise<string[]> {
