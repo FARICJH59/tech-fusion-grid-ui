@@ -16,6 +16,16 @@ export class RollbackEngine {
   constructor(private readonly cloudClient: Pick<GcpCloudClient, "updateTraffic" | "verifyHealth">) {}
 
   async execute(request: RollbackRequest): Promise<RollbackResult> {
+    const authority = request.authority;
+    if (!authority) {
+      throw new Error("tcx_authority_required_for_live_rollback");
+    }
+    if (authority.tenantId !== request.tenantId) {
+      throw new Error("tcx_authority_tenant_mismatch");
+    }
+
+    // Final authority validation occurs immediately before the live traffic mutation.
+    await authority.assertValid();
     const status = await this.cloudClient.updateTraffic(request.service, request.region, [
       { revision: request.toRevision, percent: 100 },
       { revision: request.fromRevision, percent: 0 },

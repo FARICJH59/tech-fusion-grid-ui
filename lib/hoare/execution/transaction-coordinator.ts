@@ -1,22 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { autonomousEventBus, AutonomousEventBus } from "@/lib/events/event-bus";
 import type { ExecutionTransaction } from "./transaction";
-import {
-  buildExecutionTransactionEvent,
-} from "./transaction-events";
+import { buildExecutionTransactionEvent } from "./transaction-events";
 import { buildExecutionIdempotencyKey } from "./transaction";
-import {
-  canTransitionExecutionTransaction,
-  type ExecutionTransactionState,
-} from "./transaction-state";
+import { canTransitionExecutionTransaction, type ExecutionTransactionState } from "./transaction-state";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
 import { RedisExecutionTransactionRepository } from "./redis-transaction-repository";
 
 export class ExecutionTransactionCoordinator {
-  constructor(
-    private readonly repository: ExecutionTransactionRepository = new RedisExecutionTransactionRepository(),
-    private readonly eventBus: AutonomousEventBus = autonomousEventBus,
-  ) {}
+  constructor(private readonly repository: ExecutionTransactionRepository = new RedisExecutionTransactionRepository(), private readonly eventBus: AutonomousEventBus = autonomousEventBus) {}
 
   async create(transaction: ExecutionTransaction): Promise<ExecutionTransaction> {
     const created = await this.repository.create(transaction);
@@ -27,38 +19,27 @@ export class ExecutionTransactionCoordinator {
   async transition(transactionId: string, to: ExecutionTransactionState): Promise<ExecutionTransaction> {
     const current = await this.repository.get(transactionId);
     if (!current) throw new Error("execution_transaction_not_found");
-    if (!canTransitionExecutionTransaction(current.state, to)) {
-      throw new Error(`invalid_execution_transaction_transition:${current.state}:${to}`);
-    }
-    const updated = await this.repository.transition(
-      transactionId,
-      current.state,
-      to,
-      current.stateVersion,
-    );
+    if (!canTransitionExecutionTransaction(current.state, to)) throw new Error(`invalid_execution_transaction_transition:${current.state}:${to}`);
+    const updated = await this.repository.transition(transactionId, current.state, to, current.stateVersion);
     await this.publish(updated, this.eventTypeForState(to), this.priorityForState(to));
     return updated;
   }
 
   /** Rotate a failed transaction to a new attempt while retaining immutable attempt history. */
   async prepareRetry(transactionId: string, maxAttempts: number, now = new Date().toISOString()): Promise<ExecutionTransaction> {
-    if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
-      throw new Error("invalid_execution_transaction_max_attempts");
-    }
+    if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error("invalid_execution_transaction_max_attempts");
     const current = await this.repository.get(transactionId);
     if (!current) throw new Error("execution_transaction_not_found");
-    if (!["REPAIRING", "RETRY_PENDING"].includes(current.state)) {
-      throw new Error(`execution_transaction_not_retryable:${current.state}`);
-    }
-    if (current.attemptNumber >= maxAttempts) {
-      throw new Error("execution_transaction_max_attempts_exceeded");
-    }
+    if (!["REPAIRING", "RETRY_PENDING"].includes(current.state)) throw new Error(`execution_transaction_not_retryable:${current.state}`);
+    if (current.attemptNumber >= maxAttempts) throw new Error("execution_transaction_max_attempts_exceeded");
 
     const previousAttempt = {
       attemptId: current.attemptId,
       attemptNumber: current.attemptNumber,
       idempotencyKey: current.idempotencyKey,
       state: current.state,
+      authorizationDecisionId: current.authorizationDecisionId,
+      verificationProofId: current.verificationProofId,
       receiptId: current.receiptId,
       receiptHash: current.receiptHash,
       resultId: current.resultId,
@@ -75,6 +56,8 @@ export class ExecutionTransactionCoordinator {
       attemptNumber: current.attemptNumber + 1,
       idempotencyKey: buildExecutionIdempotencyKey(transactionId, attemptId),
       attemptHistory: [...(current.attemptHistory ?? []), previousAttempt],
+      authorizationDecisionId: undefined,
+      verificationProofId: undefined,
       receiptId: undefined,
       receiptHash: undefined,
       resultId: undefined,
@@ -85,42 +68,21 @@ export class ExecutionTransactionCoordinator {
       updatedAt: now,
     };
 
-    // Attempt rotation and lifecycle advancement are one optimistic-concurrency
-    // mutation. A failed persistence operation therefore cannot leave a stale
-    // RETRY_PENDING state without the new attempt identity.
     const saved = await this.repository.update(updated, current.stateVersion);
     await this.publish(saved, "execution-transaction-retry-requested", "high");
     return saved;
   }
 
-  async get(transactionId: string): Promise<ExecutionTransaction | null> {
-    return this.repository.get(transactionId);
-  }
+  async get(transactionId: string): Promise<ExecutionTransaction | null> { return this.repository.get(transactionId); }
 
-  private async publish(
-    transaction: ExecutionTransaction,
-    type: Parameters<typeof buildExecutionTransactionEvent>[1],
-    priority: Parameters<typeof buildExecutionTransactionEvent>[2],
-  ): Promise<void> {
+  private async publish(transaction: ExecutionTransaction, type: Parameters<typeof buildExecutionTransactionEvent>[1], priority: Parameters<typeof buildExecutionTransactionEvent>[2]): Promise<void> {
     const accepted = await this.eventBus.publish(buildExecutionTransactionEvent(transaction, type, priority));
     if (!accepted) throw new Error("execution_transaction_event_duplicate");
   }
 
   private eventTypeForState(state: ExecutionTransactionState): Parameters<typeof buildExecutionTransactionEvent>[1] {
     const map: Partial<Record<ExecutionTransactionState, Parameters<typeof buildExecutionTransactionEvent>[1]>> = {
-      AUTHORIZED: "execution-transaction-authorized",
-      DISPATCHED: "execution-transaction-dispatched",
-      ADMITTED: "execution-transaction-admitted",
-      RUNNING: "execution-transaction-started",
-      SUCCEEDED: "execution-transaction-completed",
-      EXECUTION_FAILED: "execution-transaction-failed",
-      TIMEOUT: "execution-transaction-timeout",
-      REPAIRING: "execution-transaction-repair-requested",
-      RETRY_PENDING: "execution-transaction-retry-requested",
-      CANCELLED: "execution-transaction-cancelled",
-      REJECTED: "execution-transaction-failed",
-      AUTHORIZATION_FAILED: "execution-transaction-failed",
-      DELIVERY_FAILED: "execution-transaction-failed",
+      AUTHORIZED: "execution-transaction-authorized", DISPATCHED: "execution-transaction-dispatched", ADMITTED: "execution-transaction-admitted", RUNNING: "execution-transaction-started", SUCCEEDED: "execution-transaction-completed", EXECUTION_FAILED: "execution-transaction-failed", TIMEOUT: "execution-transaction-timeout", REPAIRING: "execution-transaction-repair-requested", RETRY_PENDING: "execution-transaction-retry-requested", CANCELLED: "execution-transaction-cancelled", REJECTED: "execution-transaction-failed", AUTHORIZATION_FAILED: "execution-transaction-failed", DELIVERY_FAILED: "execution-transaction-failed",
     };
     const eventType = map[state];
     if (!eventType) throw new Error(`execution_transaction_event_unmapped:${state}`);
@@ -128,7 +90,6 @@ export class ExecutionTransactionCoordinator {
   }
 
   private priorityForState(state: ExecutionTransactionState): Parameters<typeof buildExecutionTransactionEvent>[2] {
-    if (["EXECUTION_FAILED", "TIMEOUT", "AUTHORIZATION_FAILED", "DELIVERY_FAILED"].includes(state)) return "critical";
-    return "high";
+    return ["EXECUTION_FAILED", "TIMEOUT", "AUTHORIZATION_FAILED", "DELIVERY_FAILED"].includes(state) ? "critical" : "high";
   }
 }

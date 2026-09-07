@@ -10,6 +10,7 @@ import type { RollbackEngine } from "@/lib/cloud/rollback-engine";
 import type { IntelligentScalingEngine } from "@/lib/cloud/scaling-engine";
 import type { GcpCloudClient } from "@/lib/cloud/gcp-client";
 import type { AutonomousPolicyEngine } from "@/lib/policy/engine";
+import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import { cloudActionEventBus } from "@/lib/cloud/action-events";
 import { traceAutonomousWorkflow } from "@/lib/telemetry/autonomous-observability";
 
@@ -31,6 +32,7 @@ export class CloudRunController {
     reason: string;
     spec: CloudRunServiceSpec;
     riskLevel?: "low" | "medium" | "high" | "critical";
+    authority?: GovernedExecutionAuthority;
   }): Promise<{ deployment: DeploymentRecord; status: CloudRunRevisionStatus }> {
     return traceAutonomousWorkflow("cloud-deployment", async () => {
       const deployment = this.deploymentManager.request({
@@ -78,6 +80,13 @@ export class CloudRunController {
       this.deploymentManager.transition(deployment.id, "approved", decision.reason);
       this.deploymentManager.transition(deployment.id, "deploying", "Cloud Run rollout started");
 
+      if (!input.authority) {
+        throw new Error("tcx_authority_required_for_live_cloud_controller_deploy");
+      }
+      if (input.authority.tenantId !== input.tenantId) {
+        throw new Error("tcx_authority_tenant_mismatch");
+      }
+      await input.authority.assertValid();
       const status = await this.cloudClient.deployService(input.spec);
       this.deploymentManager.setRevision(deployment.id, status.latestRevision);
       this.deploymentManager.transition(deployment.id, "verifying", "Verifying deployment health");
@@ -92,6 +101,7 @@ export class CloudRunController {
           toRevision: deployment.previousRevision ?? `${input.spec.service}-stable`,
           trigger: "failed-health-check",
           reason: "Health verification failed after rollout",
+          authority: input.authority,
         });
         this.deploymentManager.transition(deployment.id, "rolled-back", "Automatic rollback executed");
       } else {
@@ -122,11 +132,23 @@ export class CloudRunController {
     });
   }
 
-  async migrateTraffic(service: string, region: string, revisions: Array<{ revision: string; percent: number }>) {
+  async migrateTraffic(
+    service: string,
+    region: string,
+    revisions: Array<{ revision: string; percent: number }>,
+    authority?: GovernedExecutionAuthority,
+  ) {
+    if (!authority) {
+      throw new Error("tcx_authority_required_for_live_cloud_traffic_migration");
+    }
+    if (!authority.tenantId) {
+      throw new Error("tcx_authority_tenant_required");
+    }
+    await authority.assertValid();
     const status = await this.cloudClient.updateTraffic(service, region, revisions);
     this.auditTrail.push({
-      id: `${service}:traffic:${Date.now().toString(36)}`,
-      tenantId: "system",
+      id: `${authority.tenantId}:${service}:traffic:${Date.now().toString(36)}`,
+      tenantId: authority.tenantId,
       actionType: "traffic-migration",
       resource: service,
       requestedBy: "cloud-controller",
