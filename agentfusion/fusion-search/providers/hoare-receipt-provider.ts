@@ -27,8 +27,7 @@ export class HoareReceiptEvidenceProvider implements FusionSearchProvider {
       if (query.projectId && receipt.project_id !== query.projectId) return false;
       if (query.workloadId && receipt.workload_id !== query.workloadId) return false;
       if (query.agentId && receipt.agent_id !== query.agentId) return false;
-      if (query.transactionId) return false;
-      if (query.attemptId) return false;
+      if (query.transactionId || query.attemptId) return false;
       return this.matchesQuery(receipt, query.query);
     });
 
@@ -51,9 +50,7 @@ export class HoareReceiptEvidenceProvider implements FusionSearchProvider {
       contentHash: receipt.receipt_hash,
       relevance: this.score(receipt, queryText),
       confidence: 1,
-      provenance: {
-        artifactDigest: receipt.artifact_path,
-      },
+      provenance: {},
     };
   }
 
