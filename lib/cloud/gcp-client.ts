@@ -58,6 +58,10 @@ export class GcpCloudClient {
     assertTcxExecutionAuthority(authority);
     await authority.assertValid();
     if (authority.tenantId.length === 0) throw new Error("tcx_authority_tenant_required");
+    if (spec.tenantId.length === 0) throw new Error("gcp_service_tenant_required");
+    if (spec.tenantId !== authority.tenantId) throw new Error("tcx_authority_tenant_mismatch");
+    if (spec.projectId !== this.projectId) throw new Error("gcp_project_mismatch");
+    if (spec.region !== this.region) throw new Error("gcp_region_mismatch");
     const createService = this.getCallable(this.clients.run, "createService");
     if (createService) await Promise.resolve(createService([{ spec }]));
     const revision = `${spec.service}-${spec.revisionSuffix ?? Date.now().toString(36)}`;
@@ -68,6 +72,7 @@ export class GcpCloudClient {
     assertTcxExecutionAuthority(authority);
     await authority.assertValid();
     if (authority.tenantId.length === 0) throw new Error("tcx_authority_tenant_required");
+    if (region !== this.region) throw new Error("gcp_region_mismatch");
     const updateService = this.getCallable(this.clients.run, "updateService");
     if (updateService) await Promise.resolve(updateService([{ service, region, traffic }]));
     return { service, region, latestRevision: traffic[0]?.revision ?? "unknown", traffic, status: "healthy", observedAt: new Date().toISOString() };
