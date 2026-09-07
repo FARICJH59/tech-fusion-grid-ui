@@ -30,6 +30,8 @@ export class GcpSecretManagerProvider implements SecretProvider {
   }
 
   async getSecret(request: SecretAccessRequest): Promise<SecretMaterial> {
+    if (request.projectId !== this.projectId) throw new Error("secret_project_mismatch");
+
     const allowedSecrets = this.tenantSecretBinding.get(request.tenantId);
     if (!allowedSecrets?.has(request.secretId)) {
       throw new Error("secret_tenant_binding_invalid");
@@ -42,7 +44,7 @@ export class GcpSecretManagerProvider implements SecretProvider {
     }
 
     request.authority.assertValid();
-    const name = `projects/${encodeURIComponent(this.projectId)}/secrets/${encodeURIComponent(request.secretId)}/versions/${encodeURIComponent(this.secretVersion)}`;
+    const name = `projects/${this.projectId}/secrets/${request.secretId}/versions/${this.secretVersion}`;
     const [version] = await this.client.accessSecretVersion({ name });
     request.authority.assertValid();
 
