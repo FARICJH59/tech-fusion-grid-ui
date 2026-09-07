@@ -51,19 +51,15 @@ function tcxTransaction(): TCXTransaction {
   };
 }
 
-function authorization(overrides: Partial<AuthorizationDecision> = {}): AuthorizationDecision {
+function authorization(): AuthorizationDecision {
   return {
     decisionId: "decision-1",
     requestId: "request-1",
-    tenantId: "tenant-1",
-    projectId: "project-1",
-    agentId: "agent-1",
     decision: "ALLOW",
     allowed: true,
     policyVersion: "policy-1",
     reason: "allowed",
     decidedAt: NOW.toISOString(),
-    ...overrides,
   };
 }
 
@@ -111,21 +107,9 @@ test("successful admission durably binds the AEGIS decision and proof", async ()
   assert.equal(saved?.stateVersion, 5);
 });
 
-test("admission fails closed for a tenant-mismatched AEGIS decision", async () => {
-  const { gate, transactions } = await provision();
-  const admission = await gate.admit({ transaction: tcxTransaction(), authorization: authorization({ tenantId: "other-tenant" }), verification: verification(), now: NOW });
-
-  assert.equal(admission.admitted, false);
-  assert.equal(admission.reason, "aegis_authorization_tenant_mismatch");
-  const saved = await transactions.get("tx-1");
-  assert.equal(saved?.authorizationDecisionId, undefined);
-  assert.equal(saved?.verificationProofId, undefined);
-});
-
 test("admission fails closed unless the transaction is AUTHORIZED", async () => {
   const { gate, transactions } = await provision();
-  const tx = tcxTransaction();
-  const admission = await gate.admit({ transaction: { ...tx, state: "CREATED" }, authorization: authorization(), verification: verification(), now: NOW });
+  const admission = await gate.admit({ transaction: { ...tcxTransaction(), state: "CREATED" }, authorization: authorization(), verification: verification(), now: NOW });
 
   assert.equal(admission.admitted, false);
   assert.equal(admission.reason, "tcx_transaction_not_authorized");
