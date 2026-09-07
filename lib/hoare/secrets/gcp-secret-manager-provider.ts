@@ -26,7 +26,7 @@ export class GcpSecretManagerProvider implements SecretProvider {
   private readonly secretVersion: string;
   private readonly tenantSecretBinding: ReadonlyMap<string, ReadonlySet<string>>;
   private readonly accessPolicy: SecretAccessPolicyEngine;
-  private readonly capabilityValidator: SecretCapabilityValidator;
+  private readonly capabilityValidator?: SecretCapabilityValidator;
 
   constructor(options: GcpSecretManagerProviderOptions) {
     if (!options.projectId.trim()) throw new Error("secret_manager_project_required");
@@ -35,12 +35,7 @@ export class GcpSecretManagerProvider implements SecretProvider {
     this.secretVersion = options.secretVersion?.trim() || "latest";
     this.tenantSecretBinding = options.tenantSecretBinding;
     this.accessPolicy = options.accessPolicy;
-    this.capabilityValidator = options.capabilityValidator ?? new SecretCapabilityValidator({
-      put: async () => { throw new Error("secret_capability_store_unconfigured"); },
-      get: async () => null,
-      revoke: async () => undefined,
-      consume: async () => { throw new Error("secret_capability_store_unconfigured"); },
-    });
+    this.capabilityValidator = options.capabilityValidator;
   }
 
   async getSecret(request: SecretAccessRequest): Promise<SecretMaterial> {
@@ -60,6 +55,52 @@ export class GcpSecretManagerProvider implements SecretProvider {
     this.accessPolicy.authorize(request);
     request.authority.assertValid();
 
+    return this.readSecretVersion(request);
+  }
+
+  /**
+   * Final read boundary for short-lived capabilities. Consumption occurs before the
+   * external read, so a capability can never be replayed even if the provider call fails.
+   */
+  async getSecretWithCapability(
+    reference: SecretCapabilityReference,
+    request: SecretAccessRequest,
+  ): Promise<SecretMaterial> {
+    if (!this.capabilityValidator) throw new Error("secret_capability_validator_required");
+    if (request.projectId !== this.projectId) throw new Error("secret_project_mismatch");
+
+    const allowedSecrets = this.tenantSecretBinding.get(request.tenantId);
+    if (!allowedSecrets?.has(request.secretId)) {
+      throw new Error("secret_tenant_binding_invalid");
+    }
+
+    assertTcxExecutionAuthority(request.authority);
+    if (request.authority.tenantId !== request.tenantId) throw new Error("secret_tenant_mismatch");
+    if (request.authority.transactionId !== request.transactionId || request.authority.attemptId !== request.attemptId) {
+      throw new Error("secret_attempt_mismatch");
+    }
+
+    await this.capabilityValidator.validate(reference, request);
+    this.accessPolicy.authorize(request);
+    request.authority.assertValid();
+    await this.capabilityValidator.validate(reference, request);
+
+    await this.capabilityValidatorStoreConsume(reference.capabilityId);
+    request.authority.assertValid();
+
+    return this.readSecretVersion(request);
+  }
+
+  private async capabilityValidatorStoreConsume(capabilityId: string): Promise<void> {
+    // The validator owns validation semantics; its store is intentionally kept behind
+    // the capability API in normal use. This method is replaced by the validator's
+    // atomic consume hook in the next distributed-store implementation.
+    const store = (this.capabilityValidator as unknown as { store?: { consume(id: string): Promise<unknown> } }).store;
+    if (!store?.consume) throw new Error("secret_capability_consume_unavailable");
+    await store.consume(capabilityId);
+  }
+
+  private async readSecretVersion(request: SecretAccessRequest): Promise<SecretMaterial> {
     const version = request.secretVersion?.trim() || this.secretVersion;
     if (!version) throw new Error("secret_version_required");
     const name = `projects/${this.projectId}/secrets/${request.secretId}/versions/${version}`;
@@ -75,17 +116,5 @@ export class GcpSecretManagerProvider implements SecretProvider {
     if (!resolvedVersion) throw new Error("secret_version_missing");
 
     return Object.freeze({ secretId: request.secretId, version: resolvedVersion, value });
-  }
-
-  /**
-   * Capability-gated read boundary. The capability is redeemed exactly once before
-   * the provider performs the final IAM-backed Secret Manager read.
-   */
-  async getSecretWithCapability(
-    reference: SecretCapabilityReference,
-    request: SecretAccessRequest,
-  ): Promise<SecretMaterial> {
-    await this.capabilityValidator.validate(reference, request);
-    return this.getSecret(request);
   }
 }
