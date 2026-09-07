@@ -8,6 +8,8 @@ export interface ExecutionTransactionRepository {
   update(transaction: ExecutionTransaction, expectedStateVersion?: number): Promise<ExecutionTransaction>;
   /** Atomically bind AEGIS decision/proof IDs to the current attempt. */
   bindAuthority(transactionId: string, attemptId: string, authorizationDecisionId: string, verificationProofId: string, expectedStateVersion: number): Promise<ExecutionTransaction>;
+  /** Atomically bind fresh AEGIS authority and move the current attempt to AUTHORIZED. */
+  authorizeWithAuthority(transactionId: string, attemptId: string, authorizationDecisionId: string, verificationProofId: string, expectedStateVersion: number): Promise<ExecutionTransaction>;
   findByAttempt(transactionId: string, attemptId: string): Promise<ExecutionTransaction | null>;
   transition(transactionId: string, from: ExecutionTransactionState, to: ExecutionTransactionState, expectedStateVersion?: number): Promise<ExecutionTransaction>;
 }
@@ -54,6 +56,19 @@ export class InMemoryExecutionTransactionRepository implements ExecutionTransact
     if (current.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
     if (current.authorizationDecisionId || current.verificationProofId) throw new Error("execution_transaction_authority_already_bound");
     const updated = { ...current, authorizationDecisionId, verificationProofId, stateVersion: current.stateVersion + 1, updatedAt: new Date().toISOString() };
+    this.transactions.set(transactionId, updated);
+    return { ...updated };
+  }
+
+  async authorizeWithAuthority(transactionId: string, attemptId: string, authorizationDecisionId: string, verificationProofId: string, expectedStateVersion: number): Promise<ExecutionTransaction> {
+    if (!authorizationDecisionId || !verificationProofId) throw new Error("execution_transaction_authority_binding_required");
+    const current = this.transactions.get(transactionId);
+    if (!current) throw new Error("execution_transaction_not_found");
+    if (!canTransitionExecutionTransaction(current.state, "AUTHORIZED")) throw new Error(`invalid_execution_transaction_transition:${current.state}:AUTHORIZED`);
+    if (current.attemptId !== attemptId) throw new Error("execution_transaction_attempt_conflict");
+    if (current.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
+    if (current.authorizationDecisionId || current.verificationProofId) throw new Error("execution_transaction_authority_already_bound");
+    const updated = { ...current, authorizationDecisionId, verificationProofId, state: "AUTHORIZED" as const, stateVersion: current.stateVersion + 1, updatedAt: new Date().toISOString() };
     this.transactions.set(transactionId, updated);
     return { ...updated };
   }
