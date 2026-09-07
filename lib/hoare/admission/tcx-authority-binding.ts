@@ -2,11 +2,12 @@ import type { TCXAdmission, TCXTransaction } from "@/packages/hoare-contracts/sr
 import type { ExecutionTransactionRepository } from "../execution/transaction-repository";
 
 /**
- * Stateful persistence boundary for an already-validated AEGIS -> TCX admission.
+ * Stateful persistence boundary for an already-authorized TCX admission.
  *
- * This service is deliberately separate from the pure admission gate: the gate
- * decides whether authority may be granted; this boundary durably binds the
- * resulting AEGIS decision/proof to the exact execution attempt using CAS.
+ * New authorization must use the repository's atomic authorizeWithAuthority()
+ * operation. This legacy binding helper is intentionally restricted to an
+ * already-AUTHORIZED transaction so it cannot create a pre-authorized state
+ * that can later be promoted without the atomic lifecycle gate.
  */
 export async function bindTcxAdmissionAuthority(
   transaction: TCXTransaction,
@@ -14,6 +15,7 @@ export async function bindTcxAdmissionAuthority(
   repository: ExecutionTransactionRepository,
 ): Promise<void> {
   if (!admission.admitted) throw new Error("tcx_admission_not_granted");
+  if (transaction.state !== "AUTHORIZED") throw new Error("tcx_admission_transaction_not_authorized");
   if (admission.transactionId !== transaction.transactionId) throw new Error("tcx_admission_transaction_mismatch");
   if (admission.attemptId !== transaction.attemptId) throw new Error("tcx_admission_attempt_mismatch");
   if (!admission.authorizationDecisionId || !admission.verificationProofId) throw new Error("tcx_admission_authority_binding_required");
