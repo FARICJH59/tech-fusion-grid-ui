@@ -10,6 +10,7 @@ import type { RollbackEngine } from "@/lib/cloud/rollback-engine";
 import type { IntelligentScalingEngine } from "@/lib/cloud/scaling-engine";
 import type { GcpCloudClient } from "@/lib/cloud/gcp-client";
 import type { AutonomousPolicyEngine } from "@/lib/policy/engine";
+import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import { cloudActionEventBus } from "@/lib/cloud/action-events";
 import { traceAutonomousWorkflow } from "@/lib/telemetry/autonomous-observability";
@@ -83,6 +84,7 @@ export class CloudRunController {
       if (!input.authority) {
         throw new Error("tcx_authority_required_for_live_cloud_controller_deploy");
       }
+      assertTcxExecutionAuthority(input.authority);
       if (input.authority.tenantId !== input.tenantId) {
         throw new Error("tcx_authority_tenant_mismatch");
       }
@@ -141,6 +143,7 @@ export class CloudRunController {
     if (!authority) {
       throw new Error("tcx_authority_required_for_live_cloud_traffic_migration");
     }
+    assertTcxExecutionAuthority(authority);
     if (!authority.tenantId) {
       throw new Error("tcx_authority_tenant_required");
     }
