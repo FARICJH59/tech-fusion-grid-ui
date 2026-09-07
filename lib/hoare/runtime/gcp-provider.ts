@@ -1,5 +1,6 @@
 import { GcpCloudClient } from "@/lib/cloud/gcp-client";
 import type { CloudRunServiceSpec } from "@/lib/cloud/cloud-types";
+import { assertTcxExecutionAuthority } from "./governed-execution-authority";
 import type { RuntimeDeploymentRequest, RuntimeDeploymentResult, RuntimeProvider } from "./provider";
 
 export class GcpRuntimeProvider implements RuntimeProvider {
@@ -12,6 +13,7 @@ export class GcpRuntimeProvider implements RuntimeProvider {
     if (!authority) {
       throw new Error("tcx_authority_required_for_live_gcp_execution");
     }
+    assertTcxExecutionAuthority(authority);
 
     if (authority.tenantId !== request.application.tenantId) {
       throw new Error("tcx_authority_tenant_mismatch");
