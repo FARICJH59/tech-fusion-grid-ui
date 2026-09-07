@@ -15,7 +15,15 @@ export class ExecutionTransactionDispatcher {
   constructor(private readonly repository: ExecutionTransactionRepository = new RedisExecutionTransactionRepository(), private readonly client: MqttDispatchClient = mqttClient, private readonly topic = process.env[DISPATCH_TOPIC_ENV], private readonly leases: TcxLeaseRepository = new RedisTcxLeaseRepository(), private readonly dispatchIntents: TcxDispatchIntentRepository = new RedisTcxDispatchIntentRepository()) {}
   register(): void { if (this.registered) return; if (!this.topic) throw new Error("missing_execution_dispatch_topic"); streamProcessor.register("execution-transaction-authorized", this.authorizedHandler()); streamProcessor.register("execution-transaction-retry-requested", this.retryHandler()); this.registered = true; }
   private authorizedHandler(): EventHandler { return async (event) => this.dispatch(event as ExecutionTransactionEvent); }
-  private retryHandler(): EventHandler { return async (event) => { const typedEvent = event as ExecutionTransactionEvent; const transaction = await this.repository.get(typedEvent.payload.transactionId); if (!transaction) throw new Error("execution_transaction_not_found"); if (transaction.attemptId !== typedEvent.payload.attemptId || transaction.attemptNumber !== typedEvent.payload.attemptNumber) throw new Error("stale_execution_transaction_event"); if (transaction.state !== "RETRY_PENDING") return; if (!transaction.authorizationDecisionId || !transaction.verificationProofId) throw new Error("tcx_retry_authority_binding_required"); await new ExecutionTransactionCoordinator(this.repository).transition(transaction.transactionId, "AUTHORIZED"); }; }
+  private retryHandler(): EventHandler { return async (event) => {
+    const typedEvent = event as ExecutionTransactionEvent;
+    const transaction = await this.repository.get(typedEvent.payload.transactionId);
+    if (!transaction) throw new Error("execution_transaction_not_found");
+    if (transaction.attemptId !== typedEvent.payload.attemptId || transaction.attemptNumber !== typedEvent.payload.attemptNumber) throw new Error("stale_execution_transaction_event");
+    // RETRY_PENDING is intentionally non-dispatchable and non-authorizable here.
+    // Fresh AEGIS decision/proof plus TCX admission owns RETRY_PENDING -> AUTHORIZED.
+    if (transaction.state === "RETRY_PENDING") return;
+  }; }
   private async dispatch(event: ExecutionTransactionEvent): Promise<void> {
     const transaction = await this.repository.get(event.payload.transactionId); if (!transaction) throw new Error("execution_transaction_not_found");
     if (transaction.attemptId !== event.payload.attemptId || transaction.attemptNumber !== event.payload.attemptNumber) throw new Error("stale_execution_transaction_event");
