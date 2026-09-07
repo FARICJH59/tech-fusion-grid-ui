@@ -5,6 +5,8 @@ import type {
   CloudRunServiceSpec,
   CloudRunTrafficTarget,
 } from "@/lib/cloud/cloud-types";
+import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
+import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 
 export type GcpClientSet = {
   run: unknown | null;
@@ -42,42 +44,30 @@ export class GcpCloudClient {
       import("@google-cloud/monitoring"),
       import("@google-cloud/logging"),
     ]);
-
     const wif = createWifConfig();
     const projectId = options.projectId ?? wif.projectId;
     const region = options.region ?? wif.region;
-
-    // Google Cloud client libraries use Application Default Credentials. The
-    // deployment environment must provide a federated/attached workload
-    // identity; this client never accepts or constructs long-lived keys.
-    const authOptions = {
-      projectId,
-      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-    };
-
+    const authOptions = { projectId, scopes: ["https://www.googleapis.com/auth/cloud-platform"] };
     const servicesClient = new ServicesClient(authOptions);
     const metricClient = new monitoringModule.MetricServiceClient(authOptions);
     const loggingClient = new loggingModule.Logging(authOptions);
-
-    return new GcpCloudClient({
-      projectId,
-      region,
-      clients: {
-        run: servicesClient,
-        monitoring: metricClient,
-        logging: loggingClient,
-      },
-    });
+    return new GcpCloudClient({ projectId, region, clients: { run: servicesClient, monitoring: metricClient, logging: loggingClient } });
   }
 
-  async deployService(spec: CloudRunServiceSpec): Promise<CloudRunRevisionStatus> {
+  async deployService(spec: CloudRunServiceSpec, authority: GovernedExecutionAuthority): Promise<CloudRunRevisionStatus> {
+    assertTcxExecutionAuthority(authority);
+    await authority.assertValid();
+    if (authority.tenantId.length === 0) throw new Error("tcx_authority_tenant_required");
     const createService = this.getCallable(this.clients.run, "createService");
     if (createService) await Promise.resolve(createService([{ spec }]));
     const revision = `${spec.service}-${spec.revisionSuffix ?? Date.now().toString(36)}`;
     return { service: spec.service, region: spec.region, latestRevision: revision, traffic: [{ revision, percent: 100 }], status: "healthy", observedAt: new Date().toISOString() };
   }
 
-  async updateTraffic(service: string, region: string, traffic: CloudRunTrafficTarget[]): Promise<CloudRunRevisionStatus> {
+  async updateTraffic(service: string, region: string, traffic: CloudRunTrafficTarget[], authority: GovernedExecutionAuthority): Promise<CloudRunRevisionStatus> {
+    assertTcxExecutionAuthority(authority);
+    await authority.assertValid();
+    if (authority.tenantId.length === 0) throw new Error("tcx_authority_tenant_required");
     const updateService = this.getCallable(this.clients.run, "updateService");
     if (updateService) await Promise.resolve(updateService([{ service, region, traffic }]));
     return { service, region, latestRevision: traffic[0]?.revision ?? "unknown", traffic, status: "healthy", observedAt: new Date().toISOString() };
