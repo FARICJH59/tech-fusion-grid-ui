@@ -7,48 +7,8 @@ import { createTestTcxAuthority } from "./fixtures/tcx-authority-fixture";
 function application() { return { id: "app-1", tenantId: "tenant-1", name: "app-1", status: "validated", image: "us-docker.pkg.dev/example/app:sha" } as never; }
 function node() { return { id: "node-1", tenantId: "tenant-1" } as never; }
 
-test("GCP runtime fails closed without TCX authority", async () => {
-  let deployed = false;
-  const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never;
-  const provider = new GcpRuntimeProvider(client);
-  await assert.rejects(provider.deploy({ application: application(), node: node() }), /tcx_authority_required_for_live_gcp_execution/);
-  assert.equal(deployed, false);
-});
-
-test("GCP runtime rejects a structurally forged authority", async () => {
-  let deployed = false;
-  const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never;
-  const provider = new GcpRuntimeProvider(client);
-  const forged = { transactionId: "tx-1", attemptId: "attempt-1", tenantId: "tenant-1", leaseId: "lease-1", stateVersion: 4, authorizationDecisionId: "decision-1", verificationProofId: "proof-1", assertValid: async () => undefined } as never;
-  assert.throws(() => assertTcxExecutionAuthority(forged), /tcx_execution_authority_not_issuer_created/);
-  await assert.rejects(provider.deploy({ application: application(), node: node(), authority: forged }), /tcx_execution_authority_not_issuer_created/);
-  assert.equal(deployed, false);
-});
-
-test("GCP runtime validates issuer-created authority before Cloud Run mutation", async () => {
-  let deployed = false;
-  const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never;
-  const provider = new GcpRuntimeProvider(client);
-  const governed = await createTestTcxAuthority({ tenantId: "tenant-1" });
-  const result = await provider.deploy({ application: application(), node: node(), authority: governed });
-  assert.equal(result.mode, "live");
-  assert.equal(deployed, true);
-});
-
-test("GCP runtime rejects a cross-tenant authority before mutation", async () => {
-  let deployed = false;
-  const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never;
-  const provider = new GcpRuntimeProvider(client);
-  const crossTenant = await createTestTcxAuthority({ tenantId: "tenant-2" });
-  await assert.rejects(provider.deploy({ application: application(), node: node(), authority: crossTenant }), /tcx_authority_tenant_mismatch/);
-  assert.equal(deployed, false);
-});
-
-test("GCP runtime rejects authority without AEGIS proof binding", async () => {
-  let deployed = false;
-  const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never;
-  const provider = new GcpRuntimeProvider(client);
-  const noProof = await createTestTcxAuthority({ verificationProofId: "" });
-  await assert.rejects(provider.deploy({ application: application(), node: node(), authority: noProof }), /tcx_authority_proof_binding_required/);
-  assert.equal(deployed, false);
-});
+test("GCP runtime fails closed without TCX authority", async () => { let deployed = false; const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never; const provider = new GcpRuntimeProvider(client); await assert.rejects(provider.deploy({ application: application(), node: node() }), /tcx_authority_required_for_live_gcp_execution/); assert.equal(deployed, false); });
+test("GCP runtime rejects a structurally forged authority", async () => { let deployed = false; const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never; const provider = new GcpRuntimeProvider(client); const forged = { transactionId: "tx-1", attemptId: "attempt-1", tenantId: "tenant-1", leaseId: "lease-1", stateVersion: 4, authorizationDecisionId: "decision-1", verificationProofId: "proof-1", assertValid: async () => undefined } as never; assert.throws(() => assertTcxExecutionAuthority(forged), /tcx_execution_authority_not_issuer_created/); await assert.rejects(provider.deploy({ application: application(), node: node(), authority: forged }), /tcx_execution_authority_not_issuer_created/); assert.equal(deployed, false); });
+test("GCP runtime validates issuer-created authority before Cloud Run mutation", async () => { let deployed = false; const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never; const provider = new GcpRuntimeProvider(client); const governed = await createTestTcxAuthority({ tenantId: "tenant-1" }); const result = await provider.deploy({ application: application(), node: node(), authority: governed }); assert.equal(result.mode, "live"); assert.equal(deployed, true); });
+test("GCP runtime rejects a cross-tenant authority before mutation", async () => { let deployed = false; const client = { projectId: "project-1", region: "us-east1", deployService: async () => { deployed = true; return { latestRevision: "rev-1" }; } } as never; const provider = new GcpRuntimeProvider(client); const crossTenant = await createTestTcxAuthority({ tenantId: "tenant-2" }); await assert.rejects(provider.deploy({ application: application(), node: node(), authority: crossTenant }), /tcx_authority_tenant_mismatch/); assert.equal(deployed, false); });
+test("TCX authority issuer rejects missing AEGIS proof binding", async () => { await assert.rejects(createTestTcxAuthority({ verificationProofId: "" }), /tcx_authority_proof_binding_required/); });
