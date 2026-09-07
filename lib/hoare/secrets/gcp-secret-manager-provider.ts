@@ -1,5 +1,6 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
+import { SecretAccessPolicyEngine } from "./secret-access-policy";
 import type { SecretAccessRequest, SecretMaterial, SecretProvider } from "./secret-provider";
 
 export type GcpSecretManagerClient = Pick<SecretManagerServiceClient, "accessSecretVersion">;
@@ -9,17 +10,20 @@ export type GcpSecretManagerProviderOptions = Readonly<{
   client?: GcpSecretManagerClient;
   secretVersion?: string;
   tenantSecretBinding: ReadonlyMap<string, ReadonlySet<string>>;
+  accessPolicy: SecretAccessPolicyEngine;
 }>;
 
 /**
  * Governed read boundary for tenant secrets stored in Google Secret Manager.
- * Secret material is returned only after TCX authority and tenant/project bindings pass.
+ * Secret material is returned only after static tenant binding, policy authorization,
+ * TCX authority validation, and transaction/attempt identity checks pass.
  */
 export class GcpSecretManagerProvider implements SecretProvider {
   private readonly projectId: string;
   private readonly client: GcpSecretManagerClient;
   private readonly secretVersion: string;
   private readonly tenantSecretBinding: ReadonlyMap<string, ReadonlySet<string>>;
+  private readonly accessPolicy: SecretAccessPolicyEngine;
 
   constructor(options: GcpSecretManagerProviderOptions) {
     if (!options.projectId.trim()) throw new Error("secret_manager_project_required");
@@ -27,6 +31,7 @@ export class GcpSecretManagerProvider implements SecretProvider {
     this.client = options.client ?? new SecretManagerServiceClient();
     this.secretVersion = options.secretVersion?.trim() || "latest";
     this.tenantSecretBinding = options.tenantSecretBinding;
+    this.accessPolicy = options.accessPolicy;
   }
 
   async getSecret(request: SecretAccessRequest): Promise<SecretMaterial> {
@@ -43,17 +48,21 @@ export class GcpSecretManagerProvider implements SecretProvider {
       throw new Error("secret_attempt_mismatch");
     }
 
-    request.authority.assertValid();
-    const name = `projects/${this.projectId}/secrets/${request.secretId}/versions/${this.secretVersion}`;
-    const [version] = await this.client.accessSecretVersion({ name });
+    this.accessPolicy.authorize(request);
     request.authority.assertValid();
 
-    const data = version.payload?.data;
+    const version = request.secretVersion?.trim() || this.secretVersion;
+    if (!version) throw new Error("secret_version_required");
+    const name = `projects/${this.projectId}/secrets/${request.secretId}/versions/${version}`;
+    const [resolvedSecretVersion] = await this.client.accessSecretVersion({ name });
+    request.authority.assertValid();
+
+    const data = resolvedSecretVersion.payload?.data;
     if (!data) throw new Error("secret_payload_missing");
     const value = Buffer.from(data).toString("utf8").trim();
     if (!value) throw new Error("secret_payload_empty");
 
-    const resolvedVersion = version.name?.split("/").pop();
+    const resolvedVersion = resolvedSecretVersion.name?.split("/").pop();
     if (!resolvedVersion) throw new Error("secret_version_missing");
 
     return Object.freeze({ secretId: request.secretId, version: resolvedVersion, value });
