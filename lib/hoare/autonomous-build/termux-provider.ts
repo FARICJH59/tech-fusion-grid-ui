@@ -3,13 +3,17 @@ import type { AutonomousBuildProvider, AutonomousBuildRequest, AutonomousBuildRe
 
 /**
  * Sends a governed build request to a HYDRA-EDGE/Termux worker.
- * The authority itself never crosses the network; the edge node must independently
- * authenticate the request and revalidate the transaction/attempt before side effects.
+ * The TCX authority itself never crosses the network. The edge node must
+ * independently authenticate the caller and revalidate transaction/attempt state.
  */
 export class TermuxAutonomousBuildProvider implements AutonomousBuildProvider {
   readonly target = "termux" as const;
 
-  constructor(private readonly endpoint: string, private readonly fetchImpl: typeof fetch = fetch) {}
+  constructor(
+    private readonly endpoint: string,
+    private readonly getAccessToken: () => Promise<string>,
+    private readonly fetchImpl: typeof fetch = fetch,
+  ) {}
 
   async execute(request: AutonomousBuildRequest): Promise<AutonomousBuildResult> {
     assertTcxExecutionAuthority(request.authority);
@@ -21,10 +25,15 @@ export class TermuxAutonomousBuildProvider implements AutonomousBuildProvider {
     }
 
     await request.authority.assertValid();
+    const accessToken = await this.getAccessToken();
+    if (!accessToken) throw new Error("termux_build_access_token_missing");
 
     const response = await this.fetchImpl(this.endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         repository: request.repository,
         ref: request.ref,
