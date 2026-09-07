@@ -19,9 +19,10 @@ export type HoareAdmissionDependencies = Readonly<{
 /**
  * Concrete fail-closed admission boundary between AEGIS and AgentFusion.
  *
- * Successful admission durably binds the AEGIS decision and verified proof to
- * the current execution attempt using an attempt/state-version CAS. The MQTT
- * transport is not involved and cannot supply or manufacture these bindings.
+ * Successful admission atomically binds the AEGIS decision and verified proof
+ * to the current execution attempt and moves that attempt to AUTHORIZED using
+ * an attempt/state-version CAS. The MQTT transport is not involved and cannot
+ * supply or manufacture these bindings.
  */
 export class TcxHoareAdmissionGate {
   constructor(private readonly dependencies: HoareAdmissionDependencies) {}
@@ -32,9 +33,6 @@ export class TcxHoareAdmissionGate {
 
     if (!transaction.transactionId || !transaction.attemptId) {
       return this.denied(transaction, "tcx_transaction_identity_invalid", now);
-    }
-    if (transaction.state !== "AUTHORIZED") {
-      return this.denied(transaction, "tcx_transaction_not_authorized", now);
     }
     if (!transaction.leaseId) {
       return this.denied(transaction, "tcx_lease_required", now);
@@ -58,7 +56,7 @@ export class TcxHoareAdmissionGate {
       const fence = await this.dependencies.fences.get(transaction.transactionId, transaction.attemptId);
       if (fence?.state === "FENCED") return this.denied(transaction, "tcx_execution_fenced", now);
 
-      const bound = await this.dependencies.transactions.bindAuthority(
+      const bound = await this.dependencies.transactions.authorizeWithAuthority(
         transaction.transactionId,
         transaction.attemptId,
         authorization.decisionId,
