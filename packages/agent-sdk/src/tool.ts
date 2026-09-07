@@ -1,5 +1,6 @@
 import type { AgentExecutionContext } from "./context";
 import type { AgentPermission } from "./permission";
+import { assertTcxExecutionAuthority, type GovernedExecutionAuthority } from "../../../lib/hoare/runtime/governed-execution-authority";
 
 export const TOOL_CATEGORIES = ["api", "database", "cloud", "iot", "enterprise"] as const;
 
@@ -17,6 +18,10 @@ export type ToolExecutionContext = AgentExecutionContext & {
   dryRun?: boolean;
   timeoutMs?: number;
 };
+
+export type GovernedToolExecutionContext = ToolExecutionContext & Readonly<{
+  authority: GovernedExecutionAuthority;
+}>;
 
 export type ToolReference = {
   id: string;
@@ -64,6 +69,29 @@ export class ToolRegistry {
   }
 
   async execute<Input, Output>(
+    toolId: string,
+    input: Input,
+    context: ToolExecutionContext,
+  ): Promise<ToolExecutionRecord<Output>> {
+    return this.executeInternal(toolId, input, context);
+  }
+
+  async executeGoverned<Input, Output>(
+    toolId: string,
+    input: Input,
+    context: GovernedToolExecutionContext,
+  ): Promise<ToolExecutionRecord<Output>> {
+    assertTcxExecutionAuthority(context.authority);
+    if (context.authority.tenantId !== context.tenant.tenantId) {
+      throw new Error("tcx_tool_execution_authority_tenant_mismatch");
+    }
+    await context.authority.assertValid();
+    const result = await this.executeInternal(toolId, input, context);
+    await context.authority.assertValid();
+    return result;
+  }
+
+  private async executeInternal<Input, Output>(
     toolId: string,
     input: Input,
     context: ToolExecutionContext,
