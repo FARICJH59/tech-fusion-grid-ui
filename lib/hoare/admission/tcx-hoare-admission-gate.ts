@@ -3,65 +3,50 @@ import type { TcxExecutionFenceController } from "../execution/tcx-execution-fen
 import { requireValidTcxLease, type TcxLeaseRepository } from "../execution/tcx-dispatch-governance";
 import type { ExecutionTransactionRepository } from "../execution/transaction-repository";
 
-export type HoareAdmissionInput = Readonly<{
-  transaction: TCXTransaction;
-  authorization: AuthorizationDecision;
-  verification: VerificationResult;
-  now?: Date;
-}>;
+export type HoareAdmissionInput = Readonly<{ transaction: TCXTransaction; authorization: AuthorizationDecision; verification: VerificationResult; now?: Date }>;
+export type HoareAdmissionDependencies = Readonly<{ leases: TcxLeaseRepository; fences: TcxExecutionFenceController; transactions: ExecutionTransactionRepository }>;
 
-export type HoareAdmissionDependencies = Readonly<{
-  leases: TcxLeaseRepository;
-  fences: TcxExecutionFenceController;
-  transactions: ExecutionTransactionRepository;
-}>;
-
-/**
- * Concrete fail-closed admission boundary between AEGIS and AgentFusion.
- *
- * Successful admission atomically binds the AEGIS decision and verified proof
- * to the current execution attempt and moves that attempt to AUTHORIZED using
- * an attempt/state-version CAS. The MQTT transport is not involved and cannot
- * supply or manufacture these bindings.
- */
 export class TcxHoareAdmissionGate {
   constructor(private readonly dependencies: HoareAdmissionDependencies) {}
 
   async admit(input: HoareAdmissionInput): Promise<TCXAdmission> {
     const { transaction, authorization, verification } = input;
     const now = input.now ?? new Date();
-
-    if (!transaction.transactionId || !transaction.attemptId) {
-      return this.denied(transaction, "tcx_transaction_identity_invalid", now);
-    }
-    if (!transaction.leaseId) {
-      return this.denied(transaction, "tcx_lease_required", now);
-    }
-    if (!authorization.requestId || !authorization.allowed || authorization.decision !== "ALLOW") {
-      return this.denied(transaction, "aegis_authorization_denied", now);
-    }
-    if (!verification.verified || !verification.proofId) {
-      return this.denied(transaction, "aegis_proof_verification_failed", now);
-    }
-    if (!authorization.decisionId) {
-      return this.denied(transaction, "aegis_decision_identity_invalid", now);
-    }
-    if (!Number.isInteger(transaction.stateVersion) || transaction.stateVersion < 1 ||
-        transaction.expectedStateVersion !== transaction.stateVersion) {
+    if (!transaction.transactionId || !transaction.attemptId) return this.denied(transaction, "tcx_transaction_identity_invalid", now);
+    if (!transaction.leaseId) return this.denied(transaction, "tcx_lease_required", now);
+    if (!authorization.requestId || !authorization.allowed || authorization.decision !== "ALLOW") return this.denied(transaction, "aegis_authorization_denied", now);
+    if (!verification.verified || !verification.proofId) return this.denied(transaction, "aegis_proof_verification_failed", now);
+    if (!authorization.decisionId) return this.denied(transaction, "aegis_decision_identity_invalid", now);
+    if (!Number.isInteger(transaction.stateVersion) || transaction.stateVersion < 1 || transaction.expectedStateVersion !== transaction.stateVersion) {
       return this.denied(transaction, "tcx_state_version_invalid", now);
     }
 
     try {
-      const lease = await requireValidTcxLease(transaction as never, this.dependencies.leases, now);
-      const fence = await this.dependencies.fences.get(transaction.transactionId, transaction.attemptId);
+      const canonical = await this.dependencies.transactions.get(transaction.transactionId);
+      if (!canonical) return this.denied(transaction, "tcx_transaction_not_found", now);
+      if (canonical.attemptId !== transaction.attemptId) return this.denied(transaction, "tcx_attempt_identity_mismatch", now);
+      if (canonical.tenantId !== transaction.tenantId || canonical.projectId !== transaction.projectId || canonical.agentId !== transaction.agentId) {
+        return this.denied(transaction, "tcx_transaction_identity_mismatch", now);
+      }
+      if (canonical.leaseId !== transaction.leaseId) return this.denied(transaction, "tcx_lease_identity_mismatch", now);
+      if (canonical.idempotencyKey !== transaction.idempotencyKey) return this.denied(transaction, "tcx_idempotency_identity_mismatch", now);
+      if (canonical.stateVersion !== transaction.stateVersion || canonical.stateVersion !== transaction.expectedStateVersion) {
+        return this.denied(transaction, "tcx_state_version_mismatch", now);
+      }
+      if (canonical.state !== "CREATED" && canonical.state !== "RETRY_PENDING") {
+        return this.denied(transaction, `invalid_execution_transaction_transition:${canonical.state}:AUTHORIZED`, now);
+      }
+
+      const lease = await requireValidTcxLease(canonical as never, this.dependencies.leases, now);
+      const fence = await this.dependencies.fences.get(canonical.transactionId, canonical.attemptId);
       if (fence?.state === "FENCED") return this.denied(transaction, "tcx_execution_fenced", now);
 
       const bound = await this.dependencies.transactions.authorizeWithAuthority(
-        transaction.transactionId,
-        transaction.attemptId,
+        canonical.transactionId,
+        canonical.attemptId,
         authorization.decisionId,
         verification.proofId,
-        transaction.stateVersion,
+        canonical.stateVersion,
       );
 
       return {
@@ -82,17 +67,6 @@ export class TcxHoareAdmissionGate {
   }
 
   private denied(transaction: TCXTransaction, reason: string, now: Date): TCXAdmission {
-    return {
-      transactionId: transaction.transactionId,
-      attemptId: transaction.attemptId,
-      admitted: false,
-      stateVersion: transaction.stateVersion,
-      leaseId: transaction.leaseId ?? "",
-      fenceValid: false,
-      authorizationDecisionId: "",
-      verificationProofId: "",
-      admittedAt: now.toISOString(),
-      reason,
-    };
+    return { transactionId: transaction.transactionId, attemptId: transaction.attemptId, admitted: false, stateVersion: transaction.stateVersion, leaseId: transaction.leaseId ?? "", fenceValid: false, authorizationDecisionId: "", verificationProofId: "", admittedAt: now.toISOString(), reason };
   }
 }
