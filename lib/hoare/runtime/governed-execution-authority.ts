@@ -46,23 +46,13 @@ export class GovernedExecutionAuthority {
   async assertValid(): Promise<void> {
     return this.#assertValid();
   }
-
-  /** Internal construction primitive. Only this module's issuer can call it. */
-  static issue(input: {
-    transactionId: string;
-    attemptId: string;
-    tenantId: string;
-    leaseId: string;
-    stateVersion: number;
-    authorizationDecisionId: string;
-    verificationProofId: string;
-    assertValid: () => Promise<void>;
-  }): GovernedExecutionAuthority {
-    return new GovernedExecutionAuthority(input);
-  }
 }
 
-/** Canonical TCX authority issuer. Callers receive an opaque, runtime-branded authority. */
+function createIssuedAuthority(input: ConstructorParameters<typeof GovernedExecutionAuthority>[0]): GovernedExecutionAuthority {
+  return new GovernedExecutionAuthority(input);
+}
+
+/** Canonical TCX authority issuer. The authority constructor is not exported. */
 export async function issueTcxExecutionAuthority(transactionId: string, dependencies: IssueTcxAuthorityDependencies): Promise<GovernedExecutionAuthority> {
   const transaction = await dependencies.transactions.get(transactionId);
   assertIssuableTransaction(transaction);
@@ -77,7 +67,7 @@ export async function issueTcxExecutionAuthority(transactionId: string, dependen
   const verificationProofId = transaction.verificationProofId;
   if (!authorizationDecisionId || !verificationProofId) throw new Error("tcx_authority_proof_binding_required");
 
-  return GovernedExecutionAuthority.issue({
+  return createIssuedAuthority({
     transactionId: transaction.transactionId,
     attemptId: transaction.attemptId,
     tenantId: transaction.tenantId,
