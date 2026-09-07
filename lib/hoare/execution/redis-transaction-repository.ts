@@ -53,6 +53,24 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
     }
     throw new Error("execution_transaction_authority_binding_conflict");
   }
+  async authorizeWithAuthority(transactionId: string, attemptId: string, authorizationDecisionId: string, verificationProofId: string, expectedStateVersion: number): Promise<ExecutionTransaction> {
+    if (!authorizationDecisionId || !verificationProofId) throw new Error("execution_transaction_authority_binding_required");
+    const transactionKey = key(transactionId);
+    for (let attempt = 0; attempt < TRANSITION_RETRIES; attempt += 1) {
+      const client = getRedis(); await client.watch(transactionKey);
+      try {
+        const raw = await client.get(transactionKey); if (raw === null) throw new Error("execution_transaction_not_found");
+        const current = JSON.parse(raw) as ExecutionTransaction;
+        if (!canTransitionExecutionTransaction(current.state, "AUTHORIZED")) throw new Error(`invalid_execution_transaction_transition:${current.state}:AUTHORIZED`);
+        if (current.attemptId !== attemptId) throw new Error("execution_transaction_attempt_conflict");
+        if (current.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
+        if (current.authorizationDecisionId || current.verificationProofId) throw new Error("execution_transaction_authority_already_bound");
+        const updated = { ...current, authorizationDecisionId, verificationProofId, state: "AUTHORIZED" as const, stateVersion: current.stateVersion + 1, updatedAt: new Date().toISOString() };
+        const result = await client.multi().set(transactionKey, JSON.stringify(updated)).exec(); if (result !== null) return clone(updated);
+      } catch (error) { await client.unwatch().catch(() => undefined); throw error; }
+    }
+    throw new Error("execution_transaction_authorize_conflict");
+  }
   async findByAttempt(transactionId: string, attemptId: string): Promise<ExecutionTransaction | null> {
     const transaction = await this.get(transactionId); if (!transaction) return null;
     if (transaction.attemptId === attemptId) return transaction;
