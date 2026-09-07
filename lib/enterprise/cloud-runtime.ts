@@ -39,11 +39,14 @@ function required(name: string, value: string | undefined): string {
 
 export function createWifConfig(): WorkloadIdentityFederationConfig {
   assertNoLongLivedKeys();
+  // Read WIF settings at call time so isolated test/runtime configuration is
+  // honored without weakening the production requirement for explicit WIF.
+  // `env` remains the typed application configuration surface elsewhere.
   return {
-    projectId: required("GOOGLE_CLOUD_PROJECT_ID", env.GOOGLE_CLOUD_PROJECT_ID),
-    region: required("GOOGLE_CLOUD_REGION", env.GOOGLE_CLOUD_REGION),
-    poolProvider: required("GOOGLE_CLOUD_WIF_PROVIDER", env.GOOGLE_CLOUD_WIF_PROVIDER),
-    serviceAccount: required("GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT", env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT),
+    projectId: required("GOOGLE_CLOUD_PROJECT_ID", process.env.GOOGLE_CLOUD_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT_ID),
+    region: required("GOOGLE_CLOUD_REGION", process.env.GOOGLE_CLOUD_REGION ?? env.GOOGLE_CLOUD_REGION),
+    poolProvider: required("GOOGLE_CLOUD_WIF_PROVIDER", process.env.GOOGLE_CLOUD_WIF_PROVIDER ?? env.GOOGLE_CLOUD_WIF_PROVIDER),
+    serviceAccount: required("GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT", process.env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT ?? env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT),
     mode: "workload-identity-federation",
   };
 }
