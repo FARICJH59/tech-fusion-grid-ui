@@ -30,13 +30,25 @@ export type HoareExecutionReceipt = {
 };
 
 function sha256(value: unknown): string {
-  return createHash("sha256")
-    .update(JSON.stringify(value))
-    .digest("hex");
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-function receiptId(plan: PasorPlan, unit: ExecutionUnit): string {
-  return `receipt-${sha256({ plan_hash: plan.plan_hash, unit_id: unit.unit_id }).slice(0, 32)}`;
+function receiptId(
+  plan: PasorPlan,
+  unit: ExecutionUnit,
+  binding: {
+    workload_id: string;
+    agent_id: string;
+    node_id: string;
+    pack_id: string;
+    runtime_kind: "python" | "native";
+  },
+): string {
+  return `receipt-${sha256({
+    plan_hash: plan.plan_hash,
+    unit_id: unit.unit_id,
+    ...binding,
+  }).slice(0, 32)}`;
 }
 
 /**
@@ -63,33 +75,27 @@ export function createHoareExecutionReceipt(
     artifact_path?: string;
   },
 ): HoareExecutionReceipt {
-  if (plan.schema !== "hoare.pasor-plan/v1") {
-    throw new Error("invalid_pasor_plan_schema");
-  }
+  if (plan.schema !== "hoare.pasor-plan/v1") throw new Error("invalid_pasor_plan_schema");
+  if (!plan.tenant_id || !plan.project_id || !plan.plan_hash) throw new Error("invalid_pasor_plan_identity");
+  if (!unit.unit_id || !unit.command_id) throw new Error("invalid_pasor_execution_unit");
 
-  if (!plan.tenant_id || !plan.project_id || !plan.plan_hash) {
-    throw new Error("invalid_pasor_plan_identity");
-  }
-
-  if (!unit.unit_id || !unit.command_id) {
-    throw new Error("invalid_pasor_execution_unit");
-  }
-
-  const receiptCore = {
-    schema: "hoare.execution-receipt/v1" as const,
-    receipt_id: receiptId(plan, unit),
-    admission_status: "ADMITTED" as const,
-    tenant_id: plan.tenant_id,
-    project_id: plan.project_id,
+  const binding = {
     workload_id: options.workload_id,
     agent_id: options.agent_id,
     node_id: options.node_id,
     pack_id: options.pack_id,
     runtime_kind: options.runtime_kind,
+  };
+
+  const receiptCore = {
+    schema: "hoare.execution-receipt/v1" as const,
+    receipt_id: receiptId(plan, unit, binding),
+    admission_status: "ADMITTED" as const,
+    tenant_id: plan.tenant_id,
+    project_id: plan.project_id,
+    ...binding,
     capabilities: [...options.capabilities],
-    ...(options.required_capability
-      ? { required_capability: options.required_capability }
-      : {}),
+    ...(options.required_capability ? { required_capability: options.required_capability } : {}),
     command_id: unit.command_id,
     parameters: unit.parameters,
     dependencies: [...unit.dependencies],
@@ -104,8 +110,5 @@ export function createHoareExecutionReceipt(
     ...(options.artifact_path ? { artifact_path: options.artifact_path } : {}),
   };
 
-  return {
-    ...receiptCore,
-    receipt_hash: sha256(receiptCore),
-  };
+  return { ...receiptCore, receipt_hash: sha256(receiptCore) };
 }
