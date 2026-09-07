@@ -1,6 +1,7 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import { SecretAccessPolicyEngine } from "./secret-access-policy";
+import { SecretCapabilityValidator, type SecretCapabilityReference } from "./secret-capability";
 import type { SecretAccessRequest, SecretMaterial, SecretProvider } from "./secret-provider";
 
 export type GcpSecretManagerClient = Pick<SecretManagerServiceClient, "accessSecretVersion">;
@@ -11,6 +12,7 @@ export type GcpSecretManagerProviderOptions = Readonly<{
   secretVersion?: string;
   tenantSecretBinding: ReadonlyMap<string, ReadonlySet<string>>;
   accessPolicy: SecretAccessPolicyEngine;
+  capabilityValidator?: SecretCapabilityValidator;
 }>;
 
 /**
@@ -24,6 +26,7 @@ export class GcpSecretManagerProvider implements SecretProvider {
   private readonly secretVersion: string;
   private readonly tenantSecretBinding: ReadonlyMap<string, ReadonlySet<string>>;
   private readonly accessPolicy: SecretAccessPolicyEngine;
+  private readonly capabilityValidator: SecretCapabilityValidator;
 
   constructor(options: GcpSecretManagerProviderOptions) {
     if (!options.projectId.trim()) throw new Error("secret_manager_project_required");
@@ -32,6 +35,12 @@ export class GcpSecretManagerProvider implements SecretProvider {
     this.secretVersion = options.secretVersion?.trim() || "latest";
     this.tenantSecretBinding = options.tenantSecretBinding;
     this.accessPolicy = options.accessPolicy;
+    this.capabilityValidator = options.capabilityValidator ?? new SecretCapabilityValidator({
+      put: async () => { throw new Error("secret_capability_store_unconfigured"); },
+      get: async () => null,
+      revoke: async () => undefined,
+      consume: async () => { throw new Error("secret_capability_store_unconfigured"); },
+    });
   }
 
   async getSecret(request: SecretAccessRequest): Promise<SecretMaterial> {
@@ -66,5 +75,17 @@ export class GcpSecretManagerProvider implements SecretProvider {
     if (!resolvedVersion) throw new Error("secret_version_missing");
 
     return Object.freeze({ secretId: request.secretId, version: resolvedVersion, value });
+  }
+
+  /**
+   * Capability-gated read boundary. The capability is redeemed exactly once before
+   * the provider performs the final IAM-backed Secret Manager read.
+   */
+  async getSecretWithCapability(
+    reference: SecretCapabilityReference,
+    request: SecretAccessRequest,
+  ): Promise<SecretMaterial> {
+    await this.capabilityValidator.validate(reference, request);
+    return this.getSecret(request);
   }
 }
