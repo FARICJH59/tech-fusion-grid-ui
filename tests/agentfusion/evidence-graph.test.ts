@@ -22,7 +22,6 @@ test("evidence graph links transaction, attempt, and artifact relationships", ()
   const graph = buildEvidenceGraph([
     evidence("a", "tx-1", "attempt-1", "artifact-1"),
     evidence("b", "tx-1", "attempt-1", "artifact-1"),
-    { ...evidence("foreign", "tx-2", "attempt-2", "artifact-2"), tenantId: "tenant-b" },
   ], "tenant-a");
 
   assert.equal(graph.nodes.length, 2);
@@ -30,4 +29,14 @@ test("evidence graph links transaction, attempt, and artifact relationships", ()
   assert.ok(graph.edges.some((edge) => edge.relation === "same-attempt"));
   assert.ok(graph.edges.some((edge) => edge.relation === "same-artifact"));
   assert.match(graph.graphHash, /^[a-f0-9]{64}$/);
+});
+
+test("evidence graph fails closed on mixed-tenant evidence", () => {
+  assert.throws(
+    () => buildEvidenceGraph([
+      evidence("a", "tx-1", "attempt-1", "artifact-1"),
+      { ...evidence("foreign", "tx-2", "attempt-2", "artifact-2"), tenantId: "tenant-b" },
+    ], "tenant-a"),
+    /fusion_search_cross_tenant_evidence/,
+  );
 });
