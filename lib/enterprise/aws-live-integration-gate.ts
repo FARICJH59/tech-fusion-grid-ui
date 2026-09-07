@@ -19,8 +19,6 @@ export function loadAwsLiveIntegrationConfig(env: Record<string, string | undefi
 export function assertAwsLiveIntegrationEnabled(config: AwsLiveIntegrationConfig, plan: AwsApprovedExecutionPlan): void {
   if (!config.enabled) throw new Error("AWS live integration disabled; set HOARE_AWS_LIVE_TEST=true");
   if (!config.region || !config.executionRoleArn || !config.tenantId) throw new Error("AWS live integration environment incomplete");
-  if (config.region !== plan.request.permissionsBoundaryArn.split(":")[3] && config.region !== "us-east-1") {
-    throw new Error("AWS live integration region mismatch");
-  }
+  if (!plan.request.region || config.region !== plan.request.region) throw new Error("AWS live integration region mismatch");
   if (config.tenantId !== plan.request.tenantId) throw new Error("AWS live integration tenant mismatch");
 }
