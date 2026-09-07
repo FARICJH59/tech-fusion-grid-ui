@@ -16,7 +16,8 @@ export class RollbackEngine {
     assertTcxExecutionAuthority(authority);
     if (authority.tenantId !== request.tenantId) throw new Error("tcx_authority_tenant_mismatch");
 
-    // The GCP client is the final live mutation boundary and repeats authority validation.
+    // Revalidate immediately before the injected mutation boundary as defense in depth.
+    await authority.assertValid();
     const status = await this.cloudClient.updateTraffic(request.service, request.region, [
       { revision: request.toRevision, percent: 100 },
       { revision: request.fromRevision, percent: 0 },
