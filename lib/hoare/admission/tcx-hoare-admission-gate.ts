@@ -33,11 +33,23 @@ export class TcxHoareAdmissionGate {
     if (!transaction.transactionId || !transaction.attemptId) {
       return this.denied(transaction, "tcx_transaction_identity_invalid", now);
     }
+    if (transaction.state !== "AUTHORIZED") {
+      return this.denied(transaction, "tcx_transaction_not_authorized", now);
+    }
     if (!transaction.leaseId) {
       return this.denied(transaction, "tcx_lease_required", now);
     }
     if (!authorization.requestId || !authorization.allowed || authorization.decision !== "ALLOW") {
       return this.denied(transaction, "aegis_authorization_denied", now);
+    }
+    if (authorization.tenantId !== transaction.tenantId) {
+      return this.denied(transaction, "aegis_authorization_tenant_mismatch", now);
+    }
+    if (authorization.projectId && transaction.projectId && authorization.projectId !== transaction.projectId) {
+      return this.denied(transaction, "aegis_authorization_project_mismatch", now);
+    }
+    if (authorization.agentId !== (transaction.agentId ?? "")) {
+      return this.denied(transaction, "aegis_authorization_agent_mismatch", now);
     }
     if (!verification.verified || !verification.proofId) {
       return this.denied(transaction, "aegis_proof_verification_failed", now);
