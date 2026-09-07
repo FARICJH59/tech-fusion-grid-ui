@@ -1,7 +1,6 @@
 import { mqttClient } from "@/lib/mqtt";
 import type { ExecutionDispatchEnvelope } from "./dispatch-envelope";
 import { parseExecutionDispatchEnvelope } from "./dispatch-envelope";
-import { ExecutionTransactionCoordinator } from "./transaction-coordinator";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
 import { RedisExecutionTransactionRepository } from "./redis-transaction-repository";
 import { RedisTcxDispatchIntentRepository, RedisTcxLeaseRepository, type TcxDispatchIntentRepository, type TcxLeaseRepository } from "./tcx-dispatch-governance";
@@ -82,9 +81,15 @@ export class TcxMqttExecutionReceiver {
       const admission = await admitTcxDispatch(envelope, dependencies);
       if (admission.duplicate) return;
 
-      const coordinator = new ExecutionTransactionCoordinator(this.repository);
-      const running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
-      if (!running.authorizationDecisionId || !running.verificationProofId) throw new Error("tcx_authority_proof_binding_required");
+      // The repository performs the ADMITTED -> RUNNING transition with a CAS
+      // and refuses the transition unless the current attempt already carries
+      // complete AEGIS decision/proof binding. There is no RUNNING window in
+      // which the receiver can execute before TCX authority is issuable.
+      const running = await this.repository.startWithAuthority(
+        admission.transaction.transactionId,
+        admission.transaction.attemptId,
+        admission.transaction.stateVersion,
+      );
       await this.fenceController.assertActive(running.transactionId, running.attemptId);
 
       // Authority is reconstructed exclusively from canonical repository state;
