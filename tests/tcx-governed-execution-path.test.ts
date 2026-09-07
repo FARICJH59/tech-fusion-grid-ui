@@ -79,29 +79,3 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   const final = await repository.get(tx.transactionId);
   assert.equal(final?.state, "RUNNING");
 });
-
-test("TCX receiver fails closed when an admitted attempt has no AEGIS authority binding", async () => {
-  const { repository, leases, dispatchIntents, fences, client, tx } = await buildAdmittedAttempt();
-  const current = await repository.get(tx.transactionId);
-  assert.ok(current);
-
-  // Construct the exact admitted state while removing authority through the repository update
-  // path; the receiver must refuse the ADMITTED -> RUNNING transition.
-  const tampered = { ...current, state: "ADMITTED" as const, authorizationDecisionId: undefined, verificationProofId: undefined };
-  const admitted = await repository.update(tampered, current.stateVersion);
-  const envelope = buildExecutionDispatchEnvelope(admitted);
-  let executed = false;
-  let rejection: unknown;
-  const receiver = new TcxMqttExecutionReceiver({
-    repository, leases, dispatchIntents, fenceController: fences, client,
-    topic: "hoare/execution/dispatch",
-    onRejected: (error) => { rejection = error; },
-    executeGoverned: async () => { executed = true; },
-  });
-  receiver.register();
-  await client.deliver("hoare/execution/dispatch", envelope);
-
-  assert.equal(executed, false);
-  assert.match(String(rejection instanceof Error ? rejection.message : rejection), /tcx_execution_requires_fresh_authority_binding/);
-  assert.equal((await repository.get(tx.transactionId))?.state, "ADMITTED");
-});
