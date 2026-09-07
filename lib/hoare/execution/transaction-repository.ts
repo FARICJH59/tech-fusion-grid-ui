@@ -7,20 +7,19 @@ export interface ExecutionTransactionRepository {
   get(transactionId: string): Promise<ExecutionTransaction | null>;
   update(transaction: ExecutionTransaction, expectedStateVersion?: number): Promise<ExecutionTransaction>;
   /** Atomically bind AEGIS decision/proof IDs to the current attempt. */
-  bindAuthority(
-    transactionId: string,
-    attemptId: string,
-    authorizationDecisionId: string,
-    verificationProofId: string,
-    expectedStateVersion: number,
-  ): Promise<ExecutionTransaction>;
+  bindAuthority(transactionId: string, attemptId: string, authorizationDecisionId: string, verificationProofId: string, expectedStateVersion: number): Promise<ExecutionTransaction>;
   findByAttempt(transactionId: string, attemptId: string): Promise<ExecutionTransaction | null>;
-  transition(
-    transactionId: string,
-    from: ExecutionTransactionState,
-    to: ExecutionTransactionState,
-    expectedStateVersion?: number,
-  ): Promise<ExecutionTransaction>;
+  transition(transactionId: string, from: ExecutionTransactionState, to: ExecutionTransactionState, expectedStateVersion?: number): Promise<ExecutionTransaction>;
+}
+
+function hasCompleteAuthority(transaction: ExecutionTransaction): boolean {
+  return Boolean(transaction.authorizationDecisionId && transaction.verificationProofId);
+}
+
+function assertAuthorityForAuthorization(transaction: ExecutionTransaction, to: ExecutionTransactionState): void {
+  if (to === "AUTHORIZED" && !hasCompleteAuthority(transaction)) {
+    throw new Error("tcx_authorization_requires_fresh_authority_binding");
+  }
 }
 
 export class InMemoryExecutionTransactionRepository implements ExecutionTransactionRepository {
@@ -42,6 +41,7 @@ export class InMemoryExecutionTransactionRepository implements ExecutionTransact
     if (!current) throw new Error("execution_transaction_not_found");
     if (expectedStateVersion !== undefined && current.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
     const updated = { ...transaction, stateVersion: current.stateVersion + 1, updatedAt: new Date().toISOString() };
+    assertAuthorityForAuthorization(updated, updated.state);
     this.transactions.set(transaction.transactionId, updated);
     return { ...updated };
   }
@@ -70,6 +70,7 @@ export class InMemoryExecutionTransactionRepository implements ExecutionTransact
     if (!transaction) throw new Error("execution_transaction_not_found");
     if (transaction.state !== from) throw new Error("execution_transaction_state_conflict");
     if (expectedStateVersion !== undefined && transaction.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
+    assertAuthorityForAuthorization(transaction, to);
     const updated = { ...transaction, state: to, stateVersion: transaction.stateVersion + 1, updatedAt: new Date().toISOString() };
     this.transactions.set(transactionId, updated);
     return { ...updated };
