@@ -10,6 +10,7 @@ const plan: AwsApprovedExecutionPlan = {
   request: {
     action: "iam.create-role",
     tenantId: "tenant-a",
+    region: "us-east-1",
     roleName: "hoare-tenant-agent-tenant-a",
     trustPolicyHash: "sha256:test",
     permissionsBoundaryArn: "arn:aws:iam::123456789012:policy/HOARETenantBoundary",
@@ -32,6 +33,6 @@ test("AWS live integration requires explicit environment and tenant match", () =
     HOARE_TEST_TENANT: "tenant-a",
   });
   assert.doesNotThrow(() => assertAwsLiveIntegrationEnabled(config, plan));
-
+  assert.throws(() => assertAwsLiveIntegrationEnabled({ ...config, region: "us-west-2" }, plan), /region/);
   assert.throws(() => assertAwsLiveIntegrationEnabled({ ...config, tenantId: "tenant-b" }, plan), /tenant/);
 });
