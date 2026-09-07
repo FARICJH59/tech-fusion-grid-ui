@@ -7,7 +7,7 @@ export type RuntimeExecutorConfig = {
   gcp?: RuntimeProvider;
   edge?: RuntimeProvider;
   resolver: BuilderRuntimeResolver;
-  authority?: GovernedExecutionAuthority;
+  authority: GovernedExecutionAuthority;
 };
 
 /**
