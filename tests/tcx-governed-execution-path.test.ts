@@ -17,7 +17,7 @@ class FakeMqtt {
   }
 }
 
-test("TCX receiver supplies a live fenced execution context only after RUNNING admission", async () => {
+async function buildAdmittedAttempt() {
   const repository = new InMemoryExecutionTransactionRepository();
   const leases = new InMemoryTcxLeaseRepository();
   const dispatchIntents = new InMemoryTcxDispatchIntentRepository();
@@ -33,14 +33,25 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
     channelId: "channel-1", leaseId,
   });
   await repository.create(tx);
-  const current = await repository.transition(tx.transactionId, "CREATED", "AUTHORIZED", tx.stateVersion);
-  const envelope = buildExecutionDispatchEnvelope(current);
-  await repository.transition(tx.transactionId, "AUTHORIZED", "DISPATCHED", current.stateVersion);
+  const authorized = await repository.authorizeWithAuthority(
+    tx.transactionId,
+    tx.attemptId,
+    "decision-test",
+    "proof-test",
+    tx.stateVersion,
+  );
+  const envelope = buildExecutionDispatchEnvelope(authorized);
+  await repository.transition(tx.transactionId, "AUTHORIZED", "DISPATCHED", authorized.stateVersion);
   const dispatched = await repository.get(tx.transactionId);
   assert.ok(dispatched);
   assert.equal(dispatched.stateVersion, envelope.stateVersion + 1);
   await leases.put({ leaseId, transactionId: tx.transactionId, attemptId: tx.attemptId, holderId: tx.nodeId, issuedAt: new Date(Date.now() - 1_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() });
   await dispatchIntents.create({ dispatchKey: buildTcxDispatchKey(tx.transactionId, tx.attemptId), transactionId: tx.transactionId, attemptId: tx.attemptId, attemptNumber: tx.attemptNumber, stateVersion: envelope.stateVersion, idempotencyKey: envelope.idempotencyKey, channelId: tx.channelId, status: "CLAIMED", createdAt: new Date().toISOString() });
+  return { repository, leases, dispatchIntents, fences, client, tx, envelope };
+}
+
+test("TCX receiver supplies a live fenced execution context only after RUNNING admission", async () => {
+  const { repository, leases, dispatchIntents, fences, client, tx, envelope } = await buildAdmittedAttempt();
 
   let received: TcxExecutionContext | undefined;
   let rejection: unknown;
@@ -53,6 +64,7 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
       assert.equal(admittedEnvelope.transactionId, tx.transactionId);
       received = tcxExecution;
       await tcxExecution.fenceController.assertActive(tcxExecution.transactionId, tcxExecution.attemptId);
+      await tcxExecution.authority.assertValid();
     },
   });
   receiver.register();
@@ -62,6 +74,34 @@ test("TCX receiver supplies a live fenced execution context only after RUNNING a
   assert.equal(received?.transactionId, tx.transactionId);
   assert.equal(received?.attemptId, tx.attemptId);
   assert.ok(received?.fenceController);
+  assert.equal(received?.authority.authorizationDecisionId, "decision-test");
+  assert.equal(received?.authority.verificationProofId, "proof-test");
   const final = await repository.get(tx.transactionId);
   assert.equal(final?.state, "RUNNING");
+});
+
+test("TCX receiver fails closed when an admitted attempt has no AEGIS authority binding", async () => {
+  const { repository, leases, dispatchIntents, fences, client, tx } = await buildAdmittedAttempt();
+  const current = await repository.get(tx.transactionId);
+  assert.ok(current);
+
+  // Construct the exact admitted state while removing authority through the repository update
+  // path; the receiver must refuse the ADMITTED -> RUNNING transition.
+  const tampered = { ...current, state: "ADMITTED" as const, authorizationDecisionId: undefined, verificationProofId: undefined };
+  const admitted = await repository.update(tampered, current.stateVersion);
+  const envelope = buildExecutionDispatchEnvelope(admitted);
+  let executed = false;
+  let rejection: unknown;
+  const receiver = new TcxMqttExecutionReceiver({
+    repository, leases, dispatchIntents, fenceController: fences, client,
+    topic: "hoare/execution/dispatch",
+    onRejected: (error) => { rejection = error; },
+    executeGoverned: async () => { executed = true; },
+  });
+  receiver.register();
+  await client.deliver("hoare/execution/dispatch", envelope);
+
+  assert.equal(executed, false);
+  assert.match(String(rejection instanceof Error ? rejection.message : rejection), /tcx_execution_requires_fresh_authority_binding/);
+  assert.equal((await repository.get(tx.transactionId))?.state, "ADMITTED");
 });
