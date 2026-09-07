@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ExecutionTransaction } from "../../../lib/hoare/execution/transaction";
 import type { ExecutionTransactionRepository } from "../../../lib/hoare/execution/transaction-repository";
 import {
@@ -94,7 +95,7 @@ export class HoareTransactionEvidenceProvider implements FusionSearchProvider {
       content,
       observedAt: transaction.updatedAt,
       indexedAt: new Date().toISOString(),
-      contentHash: this.hash(JSON.stringify(content)),
+      contentHash: createHash("sha256").update(JSON.stringify(content)).digest("hex"),
       relevance,
       confidence: 1,
       provenance: {
@@ -118,14 +119,5 @@ export class HoareTransactionEvidenceProvider implements FusionSearchProvider {
     if (terms.length === 0) return 1;
     const text = JSON.stringify(value).toLowerCase();
     return terms.filter((term) => text.includes(term)).length / terms.length;
-  }
-
-  private hash(value: string): string {
-    let hash = 0x811c9dc5;
-    for (let i = 0; i < value.length; i += 1) {
-      hash ^= value.charCodeAt(i);
-      hash = Math.imul(hash, 0x01000193);
-    }
-    return (hash >>> 0).toString(16).padStart(8, "0");
   }
 }
