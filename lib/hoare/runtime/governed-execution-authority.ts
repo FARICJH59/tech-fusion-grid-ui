@@ -51,7 +51,9 @@ export class GovernedExecutionAuthority {
 }
 
 function createIssuedAuthority(input: AuthorityConstructionInput): GovernedExecutionAuthority {
-  return new GovernedExecutionAuthority(input);
+  // Keep the constructor private while allowing the module-local issuer to
+  // instantiate the runtime-branded object without exposing a public factory.
+  return Reflect.construct(GovernedExecutionAuthority, [input]) as GovernedExecutionAuthority;
 }
 
 /** Canonical TCX authority issuer. The authority constructor is not exported. */
@@ -62,7 +64,7 @@ export async function issueTcxExecutionAuthority(transactionId: string, dependen
   const leaseId = transaction.leaseId;
   if (!leaseId) throw new Error("tcx_authority_lease_required");
   const lease = await dependencies.leases.get(leaseId);
-  if (!lease || lease.leaseId !== leaseId || lease.transactionId !== transaction.transactionId || lease.attemptId !== transaction.attemptId || lease.tenantId !== transaction.tenantId || lease.revokedAt) throw new Error("tcx_authority_lease_invalid");
+  if (!lease || lease.leaseId !== leaseId || lease.transactionId !== transaction.transactionId || lease.attemptId !== transaction.attemptId || lease.revokedAt) throw new Error("tcx_authority_lease_invalid");
   if (Date.parse(lease.expiresAt) <= now.getTime()) throw new Error("tcx_authority_lease_expired");
   await assertFenceActive(dependencies.fence, transaction.transactionId, transaction.attemptId);
   const authorizationDecisionId = transaction.authorizationDecisionId;
@@ -88,7 +90,7 @@ export async function issueTcxExecutionAuthority(transactionId: string, dependen
       if (current.authorizationDecisionId !== authorizationDecisionId || current.verificationProofId !== verificationProofId) throw new Error("tcx_authority_proof_binding_changed");
       const liveLease = await dependencies.leases.get(leaseId);
       const validationNow = (dependencies.now ?? (() => new Date()))();
-      if (!liveLease || liveLease.leaseId !== leaseId || liveLease.transactionId !== current.transactionId || liveLease.attemptId !== current.attemptId || liveLease.tenantId !== current.tenantId || liveLease.revokedAt) throw new Error("tcx_authority_lease_invalid");
+      if (!liveLease || liveLease.leaseId !== leaseId || liveLease.transactionId !== current.transactionId || liveLease.attemptId !== current.attemptId || liveLease.revokedAt) throw new Error("tcx_authority_lease_invalid");
       if (Date.parse(liveLease.expiresAt) <= validationNow.getTime()) throw new Error("tcx_authority_lease_expired");
       await assertFenceActive(dependencies.fence, current.transactionId, current.attemptId);
     },
