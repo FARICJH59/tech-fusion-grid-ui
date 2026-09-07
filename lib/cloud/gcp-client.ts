@@ -58,7 +58,7 @@ export class GcpCloudClient {
     assertTcxExecutionAuthority(authority);
     await authority.assertValid();
     if (authority.tenantId.length === 0) throw new Error("tcx_authority_tenant_required");
-    if (spec.tenantId.length === 0) throw new Error("gcp_service_tenant_required");
+    if (!spec.tenantId || spec.tenantId.length === 0) throw new Error("gcp_service_tenant_required");
     if (spec.tenantId !== authority.tenantId) throw new Error("tcx_authority_tenant_mismatch");
     if (spec.projectId !== this.projectId) throw new Error("gcp_project_mismatch");
     if (spec.region !== this.region) throw new Error("gcp_region_mismatch");
