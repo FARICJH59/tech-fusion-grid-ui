@@ -21,6 +21,7 @@ export class GcpRuntimeProvider implements RuntimeProvider {
 
     const spec: CloudRunServiceSpec = {
       service: request.application.id,
+      tenantId: request.application.tenantId,
       region: this.client.region,
       projectId: this.client.projectId,
       image,
