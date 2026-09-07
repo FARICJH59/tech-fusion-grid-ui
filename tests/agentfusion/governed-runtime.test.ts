@@ -22,8 +22,8 @@ function context(requestId: string): AgentExecutionContext {
   return { requestId, tenant: { tenantId: "tenant-1" }, actor: { id: "viewer-1", role: "viewer", type: "user" } };
 }
 
-async function governedContext(fenceController: InMemoryTcxExecutionFenceController) {
-  return { transactionId: "tx-1", attemptId: "attempt-1", fenceController, authority: await createTestTcxAuthority({ tenantId: "tenant-1" }) };
+async function governedContext(fenceController: InMemoryTcxExecutionFenceController, transactionId = "tx-1", attemptId = "attempt-1") {
+  return { transactionId, attemptId, fenceController, authority: await createTestTcxAuthority({ tenantId: "tenant-1", transactionId, attemptId }) };
 }
 
 test("AgentRuntime governed execution delegates through executeGoverned with TCX context", async () => {
@@ -47,7 +47,7 @@ test("AgentRuntime governed execution fails closed when the TCX attempt is fence
   await fenceController.fence("tx-2", "attempt-2", "test-revocation");
   let handlerCalled = false;
   runtime.registerExecutionHandler(agent.identity.id, async () => { handlerCalled = true; return { ok: true }; });
-  const result = await runtime.executeAgentGoverned({ agentId: agent.identity.id, tenantId: "tenant-1", context: context("req-governed-fenced") }, { ...(await governedContext(fenceController)), transactionId: "tx-2", attemptId: "attempt-2" });
+  const result = await runtime.executeAgentGoverned({ agentId: agent.identity.id, tenantId: "tenant-1", context: context("req-governed-fenced") }, await governedContext(fenceController, "tx-2", "attempt-2"));
   assert.equal(handlerCalled, false);
   assert.equal(result.status, "failed");
   assert.match(result.error ?? "", /tcx_execution_fenced/);
