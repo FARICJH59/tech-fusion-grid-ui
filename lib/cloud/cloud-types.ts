@@ -39,7 +39,8 @@ export type DeploymentLifecycleState =
 
 export type CloudRunServiceSpec = {
   service: string;
-  tenantId: string;
+  /** Canonical tenant identity supplied by governed runtime composition. */
+  tenantId?: string;
   image: string;
   region: string;
   projectId: string;
