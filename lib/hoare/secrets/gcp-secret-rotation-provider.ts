@@ -72,7 +72,7 @@ export class GcpSecretRotationProvider implements SecretRotationProvider {
   }
 
   async disable(request: SecretRotationRequest): Promise<SecretRotationResult> {
-    if (request.operation !== "revoke") throw new Error("secret_rotation_operation_invalid");
+    if (request.operation !== "disable") throw new Error("secret_rotation_operation_invalid");
     this.assertRequest(request);
     const version = request.targetVersion?.trim();
     if (!version) throw new Error("secret_rotation_version_required");
@@ -87,7 +87,7 @@ export class GcpSecretRotationProvider implements SecretRotationProvider {
   }
 
   async destroy(request: SecretRotationRequest): Promise<SecretRotationResult> {
-    if (request.operation !== "revoke") throw new Error("secret_rotation_operation_invalid");
+    if (request.operation !== "destroy") throw new Error("secret_rotation_operation_invalid");
     this.assertRequest(request);
     const version = request.targetVersion?.trim();
     if (!version) throw new Error("secret_rotation_version_required");
