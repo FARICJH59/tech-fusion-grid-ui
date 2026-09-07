@@ -9,7 +9,7 @@
     "lint": "eslint app components lib packages agentfusion",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts tests/agent-sdk/*.test.ts tests/agentfusion/*.test.ts builder/**/*.test.ts lib/hoare/**/*.test.ts packages/**/*.test.ts",
-    "test:integration": "node --import tsx --test tests/*.integration.test.ts tests/*.integration.spec.ts",
+    "test:integration": "node --import tsx --test tests/*.integration.test.ts tests/*.integration.spec.ts tests/agentfusion/*.integration.test.ts",
     "hoare:build-manifest": "node scripts/hoare-build-manifest.mjs"
   },
   "dependencies": {
