@@ -35,11 +35,11 @@ export class HoareTransactionEvidenceProvider implements FusionSearchProvider {
     if (query.workloadId && transaction.workloadId !== query.workloadId) return [];
     if (query.agentId && transaction.agentId !== query.agentId) return [];
 
-    const evidence = this.toEvidence(transaction, query.query);
+    const evidence = this.toEvidence(transaction, query.query, Boolean(query.transactionId));
     return evidence && this.matchesTimeRange(evidence, query) ? [evidence].slice(0, clampLimit(query.limit)) : [];
   }
 
-  private toEvidence(transaction: ExecutionTransaction, queryText: string): FusionEvidence | undefined {
+  private toEvidence(transaction: ExecutionTransaction, queryText: string, explicitLookup: boolean): FusionEvidence | undefined {
     const content = {
       transactionId: transaction.transactionId,
       attemptId: transaction.attemptId,
@@ -81,7 +81,7 @@ export class HoareTransactionEvidenceProvider implements FusionSearchProvider {
       attemptHistory: transaction.attemptHistory,
     };
 
-    const relevance = this.score(content, queryText);
+    const relevance = explicitLookup ? 1 : this.score(content, queryText);
     if (relevance <= 0) return undefined;
 
     return {
