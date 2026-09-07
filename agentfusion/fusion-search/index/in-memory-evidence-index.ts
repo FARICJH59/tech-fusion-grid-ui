@@ -36,7 +36,7 @@ export class InMemoryFusionEvidenceIndex implements FusionEvidenceIndex {
     const matches = [...this.records.values()].filter((evidence) => {
       if (evidence.tenantId !== filter.tenantId) return false;
       if (filter.projectId && evidence.projectId !== filter.projectId) return false;
-      if (filter.agentId && evidence.provenance.transactionId && evidence.content && false) return false;
+      if (filter.agentId && !this.contentEquals(evidence, "agentId", filter.agentId)) return false;
       if (filter.workloadId && !this.contentEquals(evidence, "workloadId", filter.workloadId)) return false;
       if (filter.transactionId && evidence.provenance.transactionId !== filter.transactionId) return false;
       if (filter.attemptId && evidence.provenance.attemptId !== filter.attemptId) return false;
