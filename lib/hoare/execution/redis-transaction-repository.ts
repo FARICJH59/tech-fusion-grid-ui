@@ -8,6 +8,10 @@ const KEY_PREFIX = "phase85:execution:transaction";
 const TRANSITION_RETRIES = 3;
 function key(transactionId: string): string { if (!transactionId || transactionId.includes("\u0000")) throw new Error("invalid_execution_transaction_id"); return `${KEY_PREFIX}:${transactionId}`; }
 function clone(transaction: ExecutionTransaction): ExecutionTransaction { return structuredClone(transaction); }
+function hasCompleteAuthority(transaction: ExecutionTransaction): boolean { return Boolean(transaction.authorizationDecisionId && transaction.verificationProofId); }
+function assertAuthorityForAuthorization(transaction: ExecutionTransaction, to: ExecutionTransactionState): void {
+  if (to === "AUTHORIZED" && !hasCompleteAuthority(transaction)) throw new Error("tcx_authorization_requires_fresh_authority_binding");
+}
 
 export class RedisExecutionTransactionRepository implements ExecutionTransactionRepository {
   async create(transaction: ExecutionTransaction): Promise<ExecutionTransaction> {
@@ -26,6 +30,7 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
       const current = JSON.parse(raw) as ExecutionTransaction;
       if (expectedStateVersion !== undefined && current.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
       const updated = { ...transaction, stateVersion: current.stateVersion + 1, updatedAt: new Date().toISOString() };
+      assertAuthorityForAuthorization(updated, updated.state);
       const result = await client.multi().set(transactionKey, JSON.stringify(updated)).exec();
       if (result === null) throw new Error("execution_transaction_version_conflict"); return clone(updated);
     } catch (error) { await client.unwatch().catch(() => undefined); throw error; }
@@ -64,6 +69,7 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
         const current = JSON.parse(raw) as ExecutionTransaction;
         if (current.state !== from) throw new Error("execution_transaction_state_conflict");
         if (expectedStateVersion !== undefined && current.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
+        assertAuthorityForAuthorization(current, to);
         const updated = { ...current, state: to, stateVersion: current.stateVersion + 1, updatedAt: new Date().toISOString() };
         const result = await client.multi().set(transactionKey, JSON.stringify(updated)).exec(); if (result !== null) return clone(updated);
       } catch (error) { await client.unwatch().catch(() => undefined); throw error; }
