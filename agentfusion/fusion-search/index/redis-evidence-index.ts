@@ -17,10 +17,11 @@ local content_hash = ARGV[3]
 local observed_at = ARGV[4]
 local indexed_at = ARGV[5]
 
+local incoming = cjson.decode(payload)
 local existing = redis.call('GET', record)
 if existing then
   local prior = cjson.decode(existing)
-  if prior.tenantId ~= cjson.decode(payload).tenantId then
+  if prior.tenantId ~= incoming.tenantId then
     return 'TENANT_MISMATCH'
   end
   if prior.contentHash ~= content_hash then
