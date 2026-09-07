@@ -1,8 +1,5 @@
-import {
-  buildDefaultControlPlane,
-  CONTROL_PLANE_MODULES,
-} from "@/lib/enterprise/control-plane";
-import { createGoogleCloudProfile, GOOGLE_CLOUD_SERVICES } from "@/lib/enterprise/cloud";
+import { buildDefaultControlPlane, CONTROL_PLANE_MODULES } from "@/lib/enterprise/control-plane";
+import { createGoogleCloudProfile, GOOGLE_CLOUD_SERVICES, type GoogleCloudProfile } from "@/lib/enterprise/cloud";
 import { createDefaultAgentFramework, AGENT_FRAMEWORK_FEATURES } from "@/lib/enterprise/agents";
 import { createDefaultInfrastructure, INFRA_COMPONENTS } from "@/lib/enterprise/infrastructure";
 import { createDefaultMarketplace, MARKETPLACE_EXTENSION_TYPES } from "@/lib/enterprise/marketplace";
@@ -21,13 +18,18 @@ import { REDIS_RUNTIME_CAPABILITIES, RUNTIME_STATE_ENTITIES } from "@/lib/enterp
 import { autonomousScalingEngine } from "@/lib/enterprise/scaling";
 import { DEFAULT_POLICY_RULES } from "@/lib/policy/rules";
 
+function unconfiguredCloudProfile(): GoogleCloudProfile {
+  const services = Object.fromEntries(GOOGLE_CLOUD_SERVICES.map((service) => [service, { enabled: false }])) as GoogleCloudProfile["services"];
+  return { projectId: "UNCONFIGURED", region: "us-central1", auth: { mode: "workload-identity-federation", provider: "UNCONFIGURED", serviceAccount: "UNCONFIGURED" }, sdkIntegrations: [], services };
+}
+
 export class HoareEnterprisePlatform {
   readonly controlPlane = buildDefaultControlPlane();
   readonly runtime = new RuntimeIntegration();
   readonly providers = createAIProviderGateway();
   readonly infrastructure = createDefaultInfrastructure();
   readonly agents = createDefaultAgentFramework();
-  readonly cloud = createGoogleCloudProfile();
+  readonly cloud = (() => { try { return createGoogleCloudProfile(); } catch { return unconfiguredCloudProfile(); } })();
   readonly sdk = createDefaultSDKRegistry();
   readonly marketplace = createDefaultMarketplace();
   readonly security = new EnterpriseSecurity();
@@ -60,24 +62,11 @@ export class HoareEnterprisePlatform {
         notificationChannels: ALERT_CHANNELS,
         multiRegion: this.fleet.snapshot().map((item) => item.region),
         integrationConnectors: ENTERPRISE_CONNECTORS,
-        autonomousCloudControl: [
-          "cloud-run-controller",
-          "deployment-manager",
-          "scaling-engine",
-          "rollback-engine",
-        ],
-        secretVaultProviders: [
-          "gcp-secret-manager",
-          "vault-compatible",
-          "aws-secrets-manager",
-          "azure-key-vault",
-        ],
+        autonomousCloudControl: ["cloud-run-controller", "deployment-manager", "scaling-engine", "rollback-engine"],
+        secretVaultProviders: ["gcp-secret-manager", "vault-compatible", "aws-secrets-manager", "azure-key-vault"],
         governancePolicies: DEFAULT_POLICY_RULES.map((rule) => rule.id),
       },
-      health: {
-        controlPlane: this.controlPlane.snapshotHealth(),
-        runtime: this.runtime.getHealth(),
-      },
+      health: { controlPlane: this.controlPlane.snapshotHealth(), runtime: this.runtime.getHealth() },
       cloud: this.cloud,
     };
   }

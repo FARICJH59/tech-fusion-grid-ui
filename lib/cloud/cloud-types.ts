@@ -39,6 +39,8 @@ export type DeploymentLifecycleState =
 
 export type CloudRunServiceSpec = {
   service: string;
+  /** Canonical tenant identity supplied by governed runtime composition. */
+  tenantId?: string;
   image: string;
   region: string;
   projectId: string;
@@ -121,6 +123,8 @@ export type RollbackTrigger =
   | "policy-violation"
   | "failed-verification";
 
+import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
+
 export type RollbackRequest = {
   tenantId: string;
   service: string;
@@ -129,6 +133,8 @@ export type RollbackRequest = {
   toRevision: string;
   trigger: RollbackTrigger;
   reason: string;
+  /** Required for any rollback that can mutate live Cloud Run traffic. */
+  authority?: GovernedExecutionAuthority;
 };
 
 export type CloudProviderHealth = {

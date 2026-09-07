@@ -41,7 +41,9 @@ function getRedis(): Redis {
 
 export const redis = new Proxy({} as Redis, {
   get(_target, prop) {
-    return getRedis()[prop as keyof Redis];
+    const client = getRedis();
+    const value = client[prop as keyof Redis];
+    return typeof value === "function" ? value.bind(client) : value;
   },
 });
 

@@ -4,13 +4,17 @@ export default function TelemetryChart({ triggerEvent }) {
   const [dataPoints, setDataPoints] = useState([30, 40, 35, 50, 45, 60, 55, 70, 65, 80]);
 
   useEffect(() => {
-    if (triggerEvent) {
+    if (!triggerEvent) return;
+
+    const timer = setTimeout(() => {
       setDataPoints((prev) => {
         const nextPoints = [...prev.slice(1)];
         const variance = Math.floor(Math.random() * 50) + 45;
         return [...nextPoints, variance];
       });
-    }
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [triggerEvent]);
 
   const width = 500;

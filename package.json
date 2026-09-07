@@ -4,44 +4,43 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
-    "lint": "next lint --dir app --dir components --dir lib --dir packages --dir agentfusion",
+    "lint": "eslint app components lib packages agentfusion",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts tests/agent-sdk/*.test.ts tests/agentfusion/*.test.ts",
+    "test": "node --import tsx --test tests/*.test.ts tests/agent-sdk/*.test.ts tests/agentfusion/*.test.ts builder/**/*.test.ts lib/hoare/**/*.test.ts packages/**/*.test.ts",
+    "test:integration": "node --import tsx --test tests/*.integration.test.ts tests/*.integration.spec.ts",
     "hoare:build-manifest": "node scripts/hoare-build-manifest.mjs"
   },
   "dependencies": {
     "@google-cloud/artifact-registry": "^4.7.1",
-    "@google-cloud/logging": "^11.2.3",
+    "@google-cloud/logging": "^12.0.1",
     "@google-cloud/monitoring": "^5.4.0",
-    "@google-cloud/pubsub": "^5.3.1",
+    "@google-cloud/pubsub": "^6.0.1",
     "@google-cloud/run": "^3.3.0",
     "@google-cloud/secret-manager": "^6.2.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/auto-instrumentations-node": "^0.78.0",
-    "@opentelemetry/exporter-otlp-http": "^0.26.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
     "@opentelemetry/resources": "^2.9.0",
     "@opentelemetry/sdk-node": "^0.220.0",
+    "@opentelemetry/winston-transport": "^0.32.0",
     "@supabase/supabase-js": "^2.108.1",
     "@types/jsonwebtoken": "^9.0.10",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
     "mqtt": "^5.15.1",
-    "next": "15.5.19",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "next": "16.3.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^18.19.130",
     "@types/react": "^18.3.31",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "15.5.19",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.4",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
-  },
-  "overrides": {
-    "postcss": "8.5.16"
   }
 }
