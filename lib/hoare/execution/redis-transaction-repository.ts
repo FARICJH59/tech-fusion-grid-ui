@@ -71,6 +71,24 @@ export class RedisExecutionTransactionRepository implements ExecutionTransaction
     }
     throw new Error("execution_transaction_authorize_conflict");
   }
+  async startWithAuthority(transactionId: string, attemptId: string, expectedStateVersion: number): Promise<ExecutionTransaction> {
+    const transactionKey = key(transactionId);
+    for (let attempt = 0; attempt < TRANSITION_RETRIES; attempt += 1) {
+      const client = getRedis(); await client.watch(transactionKey);
+      try {
+        const raw = await client.get(transactionKey); if (raw === null) throw new Error("execution_transaction_not_found");
+        const current = JSON.parse(raw) as ExecutionTransaction;
+        if (!canTransitionExecutionTransaction(current.state, "RUNNING")) throw new Error(`invalid_execution_transaction_transition:${current.state}:RUNNING`);
+        if (current.state !== "ADMITTED") throw new Error("execution_transaction_not_admitted");
+        if (current.attemptId !== attemptId) throw new Error("execution_transaction_attempt_conflict");
+        if (current.stateVersion !== expectedStateVersion) throw new Error("execution_transaction_version_conflict");
+        if (!hasCompleteAuthority(current)) throw new Error("tcx_execution_requires_fresh_authority_binding");
+        const updated = { ...current, state: "RUNNING" as const, stateVersion: current.stateVersion + 1, updatedAt: new Date().toISOString() };
+        const result = await client.multi().set(transactionKey, JSON.stringify(updated)).exec(); if (result !== null) return clone(updated);
+      } catch (error) { await client.unwatch().catch(() => undefined); throw error; }
+    }
+    throw new Error("execution_transaction_start_conflict");
+  }
   async findByAttempt(transactionId: string, attemptId: string): Promise<ExecutionTransaction | null> {
     const transaction = await this.get(transactionId); if (!transaction) return null;
     if (transaction.attemptId === attemptId) return transaction;
