@@ -1,5 +1,7 @@
 import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
+import type { SecretAccessRequest } from "@/lib/hoare/secrets/secret-provider";
+import type { SecretCapabilityReference } from "@/lib/hoare/secrets/secret-capability";
 import type { CloudflareDomainConfig } from "./cloudflare-domain";
 
 export type CloudflareDnsRecord = Readonly<{
@@ -19,6 +21,11 @@ export type CloudflareEdgeRequest = Readonly<{
   authority: GovernedExecutionAuthority;
 }>;
 
+export type CloudflareSecretCredentialRequest = Readonly<{
+  capability: SecretCapabilityReference;
+  access: SecretAccessRequest;
+}>;
+
 export type CloudflareEdgeResult = Readonly<{
   accepted: true;
   executionId: string;
@@ -30,8 +37,12 @@ type FetchLike = typeof fetch;
 
 export type CloudflareEdgeProviderOptions = Readonly<{
   domain: CloudflareDomainConfig;
+  /** Static token is retained only for local/test compatibility. */
   token?: string;
+  /** Legacy dynamic credential seam. */
   getToken?: () => Promise<string | undefined>;
+  /** Production credential seam: resolve a token from a governed capability. */
+  getTokenForRequest?: (request: CloudflareSecretCredentialRequest) => Promise<string | undefined>;
   tenantZoneBinding: ReadonlyMap<string, string>;
   apiBaseUrl?: string;
   fetchImpl?: FetchLike;
@@ -44,6 +55,7 @@ export class CloudflareEdgeProvider {
   private readonly domain: CloudflareDomainConfig;
   private readonly token?: string;
   private readonly getToken?: () => Promise<string | undefined>;
+  private readonly getTokenForRequest?: (request: CloudflareSecretCredentialRequest) => Promise<string | undefined>;
   private readonly tenantZoneBinding: ReadonlyMap<string, string>;
   private readonly apiBaseUrl: string;
   private readonly fetchImpl: FetchLike;
@@ -52,16 +64,16 @@ export class CloudflareEdgeProvider {
     this.domain = options.domain;
     this.token = options.token;
     this.getToken = options.getToken;
+    this.getTokenForRequest = options.getTokenForRequest;
     this.tenantZoneBinding = options.tenantZoneBinding;
     this.apiBaseUrl = (options.apiBaseUrl ?? "https://api.cloudflare.com/client/v4").replace(/\/$/, "");
     this.fetchImpl = options.fetchImpl ?? fetch;
-    if (!this.token && !this.getToken) throw new Error("cloudflare_credential_provider_required");
+    if (!this.token && !this.getToken && !this.getTokenForRequest) {
+      throw new Error("cloudflare_credential_provider_required");
+    }
   }
 
   async updateDnsRecord(request: CloudflareEdgeRequest): Promise<CloudflareEdgeResult> {
-    // Reject impossible resource bindings before invoking the authority verifier. This keeps
-    // tenant/zone and hostname invariants independently testable while still guaranteeing that
-    // no external mutation occurs until the runtime-branded authority is validated below.
     if (this.tenantZoneBinding.get(request.tenantId) !== this.domain.zoneId) {
       throw new Error("cloudflare_zone_tenant_binding_invalid");
     }
@@ -76,7 +88,7 @@ export class CloudflareEdgeProvider {
     }
 
     request.authority.assertValid();
-    const token = await this.resolveToken();
+    const token = await this.resolveTokenForRequest(request);
     if (!token) throw new Error("cloudflare_credential_missing");
     request.authority.assertValid();
 
@@ -100,8 +112,24 @@ export class CloudflareEdgeProvider {
     };
   }
 
-  private async resolveToken(): Promise<string | undefined> {
+  private async resolveTokenForRequest(request: CloudflareEdgeRequest): Promise<string | undefined> {
+    if (this.getTokenForRequest) {
+      return (
+        await this.getTokenForRequest({
+          capability: await this.requireCapabilityReference(request),
+          access: await this.requireSecretAccessRequest(request),
+        })
+      )?.trim() || undefined;
+    }
     if (this.getToken) return (await this.getToken())?.trim() || undefined;
     return this.token?.trim() || undefined;
+  }
+
+  private async requireCapabilityReference(_request: CloudflareEdgeRequest): Promise<SecretCapabilityReference> {
+    throw new Error("cloudflare_capability_credential_context_required");
+  }
+
+  private async requireSecretAccessRequest(_request: CloudflareEdgeRequest): Promise<SecretAccessRequest> {
+    throw new Error("cloudflare_capability_credential_context_required");
   }
 }
