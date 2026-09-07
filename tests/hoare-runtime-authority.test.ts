@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GcpRuntimeProvider } from "../lib/hoare/runtime/gcp-provider";
-import type { GovernedExecutionAuthority } from "../lib/hoare/runtime/governed-execution-authority";
+import { assertTcxExecutionAuthority, GovernedExecutionAuthority } from "../lib/hoare/runtime/governed-execution-authority";
 
 function application() {
   return {
@@ -17,18 +17,17 @@ function node() {
   return { id: "node-1", tenantId: "tenant-1" } as never;
 }
 
-function authority(overrides: Partial<GovernedExecutionAuthority> = {}): GovernedExecutionAuthority {
-  return {
-    transactionId: "tx-1",
-    attemptId: "attempt-1",
-    tenantId: "tenant-1",
-    leaseId: "lease-1",
-    stateVersion: 4,
-    authorizationDecisionId: "decision-1",
-    verificationProofId: "proof-1",
-    assertValid: async () => undefined,
-    ...overrides,
-  };
+function authority(overrides: Partial<Pick<GovernedExecutionAuthority, "transactionId" | "attemptId" | "tenantId" | "leaseId" | "stateVersion" | "authorizationDecisionId" | "verificationProofId">> & { assertValid?: () => Promise<void> } = {}): GovernedExecutionAuthority {
+  return GovernedExecutionAuthority.create({
+    transactionId: overrides.transactionId ?? "tx-1",
+    attemptId: overrides.attemptId ?? "attempt-1",
+    tenantId: overrides.tenantId ?? "tenant-1",
+    leaseId: overrides.leaseId ?? "lease-1",
+    stateVersion: overrides.stateVersion ?? 4,
+    authorizationDecisionId: overrides.authorizationDecisionId ?? "decision-1",
+    verificationProofId: overrides.verificationProofId ?? "proof-1",
+    assertValid: overrides.assertValid ?? (async () => undefined),
+  });
 }
 
 test("GCP runtime fails closed without TCX authority", async () => {
@@ -47,6 +46,33 @@ test("GCP runtime fails closed without TCX authority", async () => {
     provider.deploy({ application: application(), node: node() }),
     /tcx_authority_required_for_live_gcp_execution/,
   );
+  assert.equal(deployed, false);
+});
+
+test("GCP runtime rejects a structurally forged authority", async () => {
+  let deployed = false;
+  const client = {
+    projectId: "project-1",
+    region: "us-east1",
+    deployService: async () => {
+      deployed = true;
+      return { latestRevision: "rev-1" };
+    },
+  } as never;
+  const provider = new GcpRuntimeProvider(client);
+  const forged = {
+    transactionId: "tx-1",
+    attemptId: "attempt-1",
+    tenantId: "tenant-1",
+    leaseId: "lease-1",
+    stateVersion: 4,
+    authorizationDecisionId: "decision-1",
+    verificationProofId: "proof-1",
+    assertValid: async () => undefined,
+  } as never;
+
+  assert.throws(() => assertTcxExecutionAuthority(forged), /tcx_execution_authority_not_issuer_created/);
+  await assert.rejects(provider.deploy({ application: application(), node: node(), authority: forged }), /tcx_execution_authority_not_issuer_created/);
   assert.equal(deployed, false);
 });
 
