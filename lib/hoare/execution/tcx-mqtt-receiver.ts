@@ -8,7 +8,7 @@ import { RedisTcxDispatchIntentRepository, RedisTcxLeaseRepository, type TcxDisp
 import { admitTcxDispatch, type TcxDispatchAdmissionDependencies } from "./tcx-dispatch-admission";
 import { RedisTcxExecutionFenceController } from "./redis-tcx-execution-fence";
 import type { TcxExecutionFenceController } from "./tcx-execution-fence";
-import type { GovernedExecutionAuthority } from "../runtime/governed-execution-authority";
+import { assertTcxExecutionAuthority, type GovernedExecutionAuthority } from "../runtime/governed-execution-authority";
 import { issueTcxExecutionAuthority } from "../runtime/tcx-authority-factory";
 
 const DISPATCH_TOPIC_ENV = "HOARE_EXECUTION_DISPATCH_TOPIC";
@@ -87,11 +87,14 @@ export class TcxMqttExecutionReceiver {
       if (!running.authorizationDecisionId || !running.verificationProofId) throw new Error("tcx_authority_proof_binding_required");
       await this.fenceController.assertActive(running.transactionId, running.attemptId);
 
+      // Authority is reconstructed exclusively from canonical repository state;
+      // no MQTT field or caller-supplied context can inject its identity.
       const authority = await issueTcxExecutionAuthority(running.transactionId, {
         transactions: this.repository,
         leases: this.leases,
         fence: this.fenceController,
       });
+      assertTcxExecutionAuthority(authority);
       const tcxExecution: TcxExecutionContext = Object.freeze({ transactionId: running.transactionId, attemptId: running.attemptId, fenceController: this.fenceController, authority });
 
       await authority.assertValid();
