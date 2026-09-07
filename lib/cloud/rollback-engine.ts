@@ -1,5 +1,6 @@
 import type { CloudActionEvent, RollbackRequest } from "@/lib/cloud/cloud-types";
 import type { GcpCloudClient } from "@/lib/cloud/gcp-client";
+import { assertTcxExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 import { cloudActionEventBus } from "@/lib/cloud/action-events";
 import { recordRollback } from "@/lib/telemetry/autonomous-observability";
 
@@ -20,6 +21,7 @@ export class RollbackEngine {
     if (!authority) {
       throw new Error("tcx_authority_required_for_live_rollback");
     }
+    assertTcxExecutionAuthority(authority);
     if (authority.tenantId !== request.tenantId) {
       throw new Error("tcx_authority_tenant_mismatch");
     }
