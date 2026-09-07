@@ -6,11 +6,26 @@ local value = redis.call("GET", KEYS[1])
 if not value then return {"NOT_FOUND", ""} end
 local record = cjson.decode(value)
 if record.status ~= "active" then return {"NOT_ACTIVE", value} end
-record.status = "consumed"
 local ttl = redis.call("PTTL", KEYS[1])
 if ttl < 1 then return {"EXPIRED", value} end
-redis.call("PSETEX", KEYS[1], ttl, cjson.encode(record))
-return {"OK", cjson.encode(record)}
+record.status = "consumed"
+local encoded = cjson.encode(record)
+redis.call("PSETEX", KEYS[1], ttl, encoded)
+return {"OK", encoded}
+`;
+
+const REVOKE_SCRIPT = `
+local value = redis.call("GET", KEYS[1])
+if not value then return {"NOT_FOUND", ""} end
+local record = cjson.decode(value)
+if record.status == "revoked" then return {"ALREADY_REVOKED", value} end
+if record.status ~= "active" then return {"NOT_ACTIVE", value} end
+local ttl = redis.call("PTTL", KEYS[1])
+if ttl < 1 then return {"EXPIRED", value} end
+record.status = "revoked"
+local encoded = cjson.encode(record)
+redis.call("PSETEX", KEYS[1], ttl, encoded)
+return {"OK", encoded}
 `;
 
 const assertCapabilityId = (capabilityId: string): string => {
@@ -27,7 +42,7 @@ const parseRecord = (value: string | null): SecretCapabilityRecord | null => {
 /**
  * Production-oriented Redis implementation of the capability store.
  * Records contain metadata only; secret material is never persisted here.
- * `consume` is an atomic active -> consumed transition implemented by Lua.
+ * `consume` and `revoke` are atomic state transitions implemented by Lua.
  */
 export class RedisSecretCapabilityStore implements SecretCapabilityStore {
   private readonly redis: Redis;
@@ -61,11 +76,13 @@ export class RedisSecretCapabilityStore implements SecretCapabilityStore {
 
   async revoke(capabilityId: string): Promise<void> {
     const key = this.key(capabilityId);
-    const value = await this.redis.get(key);
-    if (!value) return;
-    const record = JSON.parse(value) as SecretCapabilityRecord;
-    if (record.status === "revoked") return;
-    await this.redis.set(key, JSON.stringify({ ...record, status: "revoked" }), "KEEPTTL");
+    const result = (await this.redis.eval(REVOKE_SCRIPT, 1, key)) as [string, string];
+    const [status] = result;
+    if (status === "NOT_FOUND") return;
+    if (status === "ALREADY_REVOKED") return;
+    if (status === "NOT_ACTIVE") throw new Error("secret_capability_not_active");
+    if (status === "EXPIRED") throw new Error("secret_capability_expired");
+    if (status !== "OK") throw new Error("secret_capability_revoke_failed");
   }
 
   async consume(capabilityId: string): Promise<SecretCapabilityRecord> {
