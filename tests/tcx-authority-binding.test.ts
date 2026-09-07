@@ -36,3 +36,16 @@ test("rejects stale admission state", async () => {
   await repository.create(executionTransaction());
   await assert.rejects(bindTcxAdmissionAuthority(tcxTransaction(), { ...admission(), stateVersion: 3 }, repository), /tcx_admission_state_version_mismatch/);
 });
+
+test("rejects legacy binding before authorization", async () => {
+  const repository = new InMemoryExecutionTransactionRepository();
+  await repository.create({ ...executionTransaction(), state: "RETRY_PENDING", authorizationDecisionId: undefined, verificationProofId: undefined });
+  await assert.rejects(
+    bindTcxAdmissionAuthority({ ...tcxTransaction(), state: "RETRY_PENDING" }, admission(), repository),
+    /tcx_admission_transaction_not_authorized/,
+  );
+  const saved = await repository.get("tx-1");
+  assert.equal(saved?.state, "RETRY_PENDING");
+  assert.equal(saved?.authorizationDecisionId, undefined);
+  assert.equal(saved?.verificationProofId, undefined);
+});
