@@ -1,18 +1,17 @@
-import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
+import { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
 
 /** Test-only authority fixture. Production code must obtain authority from TCX. */
 export function createTestTcxAuthority(
-  overrides: Partial<GovernedExecutionAuthority> = {},
+  overrides: Partial<Pick<GovernedExecutionAuthority, "transactionId" | "attemptId" | "tenantId" | "leaseId" | "stateVersion" | "authorizationDecisionId" | "verificationProofId">> & { assertValid?: () => Promise<void> } = {},
 ): GovernedExecutionAuthority {
-  return {
-    transactionId: "tx-test",
-    attemptId: "attempt-test",
-    tenantId: "tenant-test",
-    leaseId: "lease-test",
-    stateVersion: 1,
-    authorizationDecisionId: "decision-test",
-    verificationProofId: "proof-test",
-    assertValid: async () => undefined,
-    ...overrides,
-  };
+  return GovernedExecutionAuthority.create({
+    transactionId: overrides.transactionId ?? "tx-test",
+    attemptId: overrides.attemptId ?? "attempt-test",
+    tenantId: overrides.tenantId ?? "tenant-test",
+    leaseId: overrides.leaseId ?? "lease-test",
+    stateVersion: overrides.stateVersion ?? 1,
+    authorizationDecisionId: overrides.authorizationDecisionId ?? "decision-test",
+    verificationProofId: overrides.verificationProofId ?? "proof-test",
+    assertValid: overrides.assertValid ?? (async () => undefined),
+  });
 }
