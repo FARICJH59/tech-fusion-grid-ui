@@ -33,6 +33,7 @@ test("approved proposal permits only the constrained AWS role operation", () => 
   const plan = prepareApprovedAwsRoleExecution(proposal, policy, {
     action: "iam.create-role",
     tenantId: "tenant-a",
+    region: "us-east-1",
     roleName: "hoare-tenant-agent-tenant-a",
     trustPolicyHash: "sha256:example",
     permissionsBoundaryArn: "arn:aws:iam::123456789012:policy/HOARETenantBoundary",
@@ -48,6 +49,7 @@ test("role execution blocks tenant mismatch", () => {
   assert.throws(() => prepareApprovedAwsRoleExecution(proposal, policy, {
     action: "iam.create-role",
     tenantId: "tenant-b",
+    region: "us-east-1",
     roleName: "hoare-tenant-agent-tenant-b",
     trustPolicyHash: "sha256:example",
     permissionsBoundaryArn: "arn:aws:iam::123456789012:policy/HOARETenantBoundary",
