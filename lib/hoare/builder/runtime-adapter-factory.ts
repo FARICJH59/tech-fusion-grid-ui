@@ -4,14 +4,14 @@ import type { BuildProvider, BuildProviderAdapter } from "./executor";
 import { RuntimeProviderAdapter, type BuilderRuntimeResolver } from "./runtime-adapter";
 
 export type RuntimeBackedAdapterOptions = {
-  authority?: GovernedExecutionAuthority;
+  authority: GovernedExecutionAuthority;
 };
 
 export function createRuntimeBackedAdapter(
   provider: BuildProvider,
   runtime: RuntimeProvider,
   resolver: BuilderRuntimeResolver,
-  options: RuntimeBackedAdapterOptions = {},
+  options: RuntimeBackedAdapterOptions,
 ): BuildProviderAdapter {
   return new RuntimeProviderAdapter(provider, runtime, resolver, options.authority);
 }
@@ -19,7 +19,7 @@ export function createRuntimeBackedAdapter(
 export function createRuntimeBackedAdapters(
   providers: Partial<Record<"gcp" | "edge", RuntimeProvider>>,
   resolver: BuilderRuntimeResolver,
-  options: RuntimeBackedAdapterOptions = {},
+  options: RuntimeBackedAdapterOptions,
 ): BuildProviderAdapter[] {
   return (Object.entries(providers) as Array<["gcp" | "edge", RuntimeProvider | undefined]>)
     .filter((entry): entry is ["gcp" | "edge", RuntimeProvider] => Boolean(entry[1]))
