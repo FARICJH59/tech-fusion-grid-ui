@@ -21,7 +21,7 @@ export async function createTestTcxAuthority(overrides: Overrides = {}): Promise
     leaseId: transaction.leaseId!, transactionId: transaction.transactionId, attemptId: transaction.attemptId, holderId: transaction.agentId,
     issuedAt: "2026-09-06T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z",
   };
-  const leases = { async get(): Promise<TcxLease | null> { return lease; } } as TcxLeaseRepository;
+  const leases = { async get(): Promise<TcxLease | null> { return lease; } } as unknown as TcxLeaseRepository;
   const fence = { async assertActive(): Promise<void> {} } as Pick<TcxExecutionFenceController, "assertActive">;
   return issueTcxExecutionAuthority(transaction.transactionId, { transactions, leases, fence });
 }
