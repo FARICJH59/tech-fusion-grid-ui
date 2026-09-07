@@ -58,11 +58,15 @@ test("hostname binding is enforced before external mutation", async () => {
   assert.equal(calls, 0);
 });
 
-test("forged authority is rejected before the Cloudflare call", async () => {
+test("forged authority is rejected before capability credential resolution or Cloudflare call", async () => {
   let calls = 0;
+  let credentialCalls = 0;
   const provider = new CloudflareEdgeProvider({
     domain,
-    token: "test-token",
+    getTokenForRequest: async () => {
+      credentialCalls += 1;
+      return "should-not-resolve";
+    },
     tenantZoneBinding: new Map([["tenant-1", "zone-1"]]),
     fetchImpl: (async () => {
       calls += 1;
@@ -71,5 +75,6 @@ test("forged authority is rejected before the Cloudflare call", async () => {
   });
 
   await assert.rejects(() => provider.updateDnsRecord(fakeRequest() as never));
+  assert.equal(credentialCalls, 0);
   assert.equal(calls, 0);
 });
