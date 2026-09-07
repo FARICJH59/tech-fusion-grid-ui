@@ -17,9 +17,13 @@ function fakeAuthority() {
 }
 
 test("Cloudflare domain config requires explicit hostname and zone", () => {
-  assert.equal(getCloudflareDomainConfig({}), null);
+  assert.equal(getCloudflareDomainConfig({ NODE_ENV: "test" }), null);
   assert.deepEqual(
-    getCloudflareDomainConfig({ HOARE_PUBLIC_DOMAIN: "HOARE.example.com.", CLOUDFLARE_ZONE_ID: "zone-1" }),
+    getCloudflareDomainConfig({
+      NODE_ENV: "test",
+      HOARE_PUBLIC_DOMAIN: "HOARE.example.com.",
+      CLOUDFLARE_ZONE_ID: "zone-1",
+    }),
     { hostname: "hoare.example.com", zoneId: "zone-1" },
   );
 });
