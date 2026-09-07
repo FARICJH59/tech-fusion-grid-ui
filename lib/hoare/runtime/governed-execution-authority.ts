@@ -6,8 +6,8 @@
  * object received from transport or an arbitrary object literal cannot
  * masquerade as TCX-issued authority.
  *
- * Construction is kept private to this module; TCX obtains instances through
- * `createGovernedExecutionAuthority`, which is used only by the TCX issuer.
+ * Construction is private to this module. The TCX issuer is colocated with
+ * the construction boundary so there is no public `create()` escape hatch.
  */
 export class GovernedExecutionAuthority {
   readonly transactionId: string;
@@ -45,7 +45,7 @@ export class GovernedExecutionAuthority {
     return this.#assertValid();
   }
 
-  static create(input: {
+  static issue(input: {
     transactionId: string;
     attemptId: string;
     tenantId: string;
