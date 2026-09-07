@@ -28,7 +28,7 @@ function executionTransaction(): ExecutionTransaction {
     attemptId: "attempt-1",
     attemptNumber: 1,
     idempotencyKey: "idem",
-    state: "AUTHORIZED",
+    state: "CREATED",
     stateVersion: 4,
     expectedStateVersion: 4,
     createdAt: NOW.toISOString(),
@@ -47,7 +47,7 @@ function tcxTransaction(): TCXTransaction {
     expectedStateVersion: 4,
     stateVersion: 4,
     idempotencyKey: "idem",
-    state: "AUTHORIZED",
+    state: "CREATED",
   };
 }
 
@@ -94,7 +94,7 @@ async function provision() {
   return setup;
 }
 
-test("successful admission durably binds the AEGIS decision and proof", async () => {
+test("successful admission atomically binds the AEGIS decision/proof and authorizes the attempt", async () => {
   const { gate, transactions } = await provision();
   const admission = await gate.admit({ transaction: tcxTransaction(), authorization: authorization(), verification: verification(), now: NOW });
 
@@ -104,15 +104,18 @@ test("successful admission durably binds the AEGIS decision and proof", async ()
   const saved = await transactions.get("tx-1");
   assert.equal(saved?.authorizationDecisionId, "decision-1");
   assert.equal(saved?.verificationProofId, "proof-1");
+  assert.equal(saved?.state, "AUTHORIZED");
   assert.equal(saved?.stateVersion, 5);
 });
 
-test("admission fails closed unless the transaction is AUTHORIZED", async () => {
+test("admission fails closed for a terminal transaction state", async () => {
   const { gate, transactions } = await provision();
-  const admission = await gate.admit({ transaction: { ...tcxTransaction(), state: "CREATED" }, authorization: authorization(), verification: verification(), now: NOW });
+  const admission = await gate.admit({ transaction: { ...tcxTransaction(), state: "SUCCEEDED" }, authorization: authorization(), verification: verification(), now: NOW });
 
   assert.equal(admission.admitted, false);
-  assert.equal(admission.reason, "tcx_transaction_not_authorized");
+  assert.match(admission.reason, /invalid_execution_transaction_transition:SUCCEEDED:AUTHORIZED/);
   const saved = await transactions.get("tx-1");
   assert.equal(saved?.authorizationDecisionId, undefined);
+  assert.equal(saved?.verificationProofId, undefined);
+  assert.equal(saved?.state, "CREATED");
 });
