@@ -10,13 +10,7 @@ export type IssueTcxAuthorityDependencies = {
   now?: () => Date;
 };
 
-/**
- * Opaque authority presented at a live side-effect boundary.
- *
- * The constructor is private and there is no public object-literal or static
- * constructor escape hatch. Issuance is performed by the canonical TCX issuer
- * below, after repository, lease, and fence validation.
- */
+/** Opaque authority presented at a live side-effect boundary. */
 export class GovernedExecutionAuthority {
   readonly transactionId: string;
   readonly attemptId: string;
@@ -53,6 +47,7 @@ export class GovernedExecutionAuthority {
     return this.#assertValid();
   }
 
+  /** Internal construction primitive. Only this module's issuer can call it. */
   static issue(input: {
     transactionId: string;
     attemptId: string;
@@ -67,7 +62,7 @@ export class GovernedExecutionAuthority {
   }
 }
 
-/** Canonical TCX authority issuer. The class itself cannot be constructed by callers. */
+/** Canonical TCX authority issuer. Callers receive an opaque, runtime-branded authority. */
 export async function issueTcxExecutionAuthority(transactionId: string, dependencies: IssueTcxAuthorityDependencies): Promise<GovernedExecutionAuthority> {
   const transaction = await dependencies.transactions.get(transactionId);
   assertIssuableTransaction(transaction);
@@ -78,7 +73,6 @@ export async function issueTcxExecutionAuthority(transactionId: string, dependen
   if (!lease || lease.leaseId !== leaseId || lease.transactionId !== transaction.transactionId || lease.attemptId !== transaction.attemptId || lease.tenantId !== transaction.tenantId || lease.revokedAt) throw new Error("tcx_authority_lease_invalid");
   if (Date.parse(lease.expiresAt) <= now.getTime()) throw new Error("tcx_authority_lease_expired");
   await assertFenceActive(dependencies.fence, transaction.transactionId, transaction.attemptId);
-
   const authorizationDecisionId = transaction.authorizationDecisionId;
   const verificationProofId = transaction.verificationProofId;
   if (!authorizationDecisionId || !verificationProofId) throw new Error("tcx_authority_proof_binding_required");
@@ -121,7 +115,5 @@ function assertIssuableTransaction(transaction: ExecutionTransaction | null): as
 }
 
 export function assertTcxExecutionAuthority(value: unknown): asserts value is GovernedExecutionAuthority {
-  if (!(value instanceof GovernedExecutionAuthority)) {
-    throw new Error("tcx_execution_authority_not_issuer_created");
-  }
+  if (!(value instanceof GovernedExecutionAuthority)) throw new Error("tcx_execution_authority_not_issuer_created");
 }
