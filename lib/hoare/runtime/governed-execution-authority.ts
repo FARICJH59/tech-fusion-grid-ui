@@ -10,6 +10,17 @@ export type IssueTcxAuthorityDependencies = {
   now?: () => Date;
 };
 
+type AuthorityConstructionInput = {
+  transactionId: string;
+  attemptId: string;
+  tenantId: string;
+  leaseId: string;
+  stateVersion: number;
+  authorizationDecisionId: string;
+  verificationProofId: string;
+  assertValid: () => Promise<void>;
+};
+
 /** Opaque authority presented at a live side-effect boundary. */
 export class GovernedExecutionAuthority {
   readonly transactionId: string;
@@ -20,16 +31,7 @@ export class GovernedExecutionAuthority {
   readonly authorizationDecisionId: string;
   readonly verificationProofId: string;
 
-  private constructor(input: {
-    transactionId: string;
-    attemptId: string;
-    tenantId: string;
-    leaseId: string;
-    stateVersion: number;
-    authorizationDecisionId: string;
-    verificationProofId: string;
-    assertValid: () => Promise<void>;
-  }) {
+  private constructor(input: AuthorityConstructionInput) {
     this.transactionId = input.transactionId;
     this.attemptId = input.attemptId;
     this.tenantId = input.tenantId;
@@ -48,7 +50,7 @@ export class GovernedExecutionAuthority {
   }
 }
 
-function createIssuedAuthority(input: ConstructorParameters<typeof GovernedExecutionAuthority>[0]): GovernedExecutionAuthority {
+function createIssuedAuthority(input: AuthorityConstructionInput): GovernedExecutionAuthority {
   return new GovernedExecutionAuthority(input);
 }
 
