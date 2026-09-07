@@ -75,7 +75,10 @@ test("secret provider rejects a cross-project request before touching Secret Man
   assert.equal(calls, 0);
 });
 
-test("secret provider rejects a policy-denied agent before touching Secret Manager", async () => {
+// A forged authority must be rejected before policy evaluation. These tests intentionally
+// assert the stronger fail-closed boundary instead of using a structurally fake authority
+// to probe downstream policy decisions.
+test("secret provider rejects a forged authority before policy evaluation for a denied agent", async () => {
   let calls = 0;
   const provider = new GcpSecretManagerProvider(
     providerOptions({
@@ -86,11 +89,11 @@ test("secret provider rejects a policy-denied agent before touching Secret Manag
     }),
   );
 
-  await assert.rejects(provider.getSecret(request({ agentId: "agent-b" })), /secret_policy_agent_denied/);
+  await assert.rejects(provider.getSecret(request({ agentId: "agent-b" })), /tcx_execution_authority_not_issuer_created/);
   assert.equal(calls, 0);
 });
 
-test("secret provider rejects a policy-denied environment before touching Secret Manager", async () => {
+test("secret provider rejects a forged authority before policy evaluation for a denied environment", async () => {
   let calls = 0;
   const provider = new GcpSecretManagerProvider(
     providerOptions({
@@ -101,11 +104,11 @@ test("secret provider rejects a policy-denied environment before touching Secret
     }),
   );
 
-  await assert.rejects(provider.getSecret(request({ environment: "staging" })), /secret_policy_not_found/);
+  await assert.rejects(provider.getSecret(request({ environment: "staging" })), /tcx_execution_authority_not_issuer_created/);
   assert.equal(calls, 0);
 });
 
-test("secret provider rejects a policy-denied operation before touching Secret Manager", async () => {
+test("secret provider rejects a forged authority before policy evaluation for a denied operation", async () => {
   let calls = 0;
   const provider = new GcpSecretManagerProvider(
     providerOptions({
@@ -116,7 +119,7 @@ test("secret provider rejects a policy-denied operation before touching Secret M
     }),
   );
 
-  await assert.rejects(provider.getSecret(request({ operation: "rotate" })), /secret_policy_operation_denied/);
+  await assert.rejects(provider.getSecret(request({ operation: "rotate" })), /tcx_execution_authority_not_issuer_created/);
   assert.equal(calls, 0);
 });
 
