@@ -5,7 +5,7 @@ on:
   push:
     branches: [main, hoare/aegis-tcx-admission-20260904-v11]
   pull_request:
-    branches: [main]
+    branches: [main, hoare-v11-security-remediation]
 
 concurrency:
   group: ci-${{ github.ref }}

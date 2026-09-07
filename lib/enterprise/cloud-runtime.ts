@@ -32,17 +32,21 @@ function assertNoLongLivedKeys() {
   }
 }
 
+function required(name: string, value: string | undefined): string {
+  if (!value) throw new Error(`missing_gcp_wif_configuration:${name}`);
+  return value;
+}
+
 export function createWifConfig(): WorkloadIdentityFederationConfig {
   assertNoLongLivedKeys();
+  // Read WIF settings at call time so isolated test/runtime configuration is
+  // honored without weakening the production requirement for explicit WIF.
+  // `env` remains the typed application configuration surface elsewhere.
   return {
-    projectId: env.GOOGLE_CLOUD_PROJECT_ID ?? "caramel-limiter-495010-b9",
-    region: process.env.GOOGLE_CLOUD_REGION ?? "us-central1",
-    poolProvider:
-      process.env.GOOGLE_CLOUD_WIF_PROVIDER ??
-      "projects/000000000/locations/global/workloadIdentityPools/default/providers/default",
-    serviceAccount:
-      process.env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT ??
-      "hoare-runtime@caramel-limiter-495010-b9.iam.gserviceaccount.com",
+    projectId: required("GOOGLE_CLOUD_PROJECT_ID", process.env.GOOGLE_CLOUD_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT_ID),
+    region: required("GOOGLE_CLOUD_REGION", process.env.GOOGLE_CLOUD_REGION ?? env.GOOGLE_CLOUD_REGION),
+    poolProvider: required("GOOGLE_CLOUD_WIF_PROVIDER", process.env.GOOGLE_CLOUD_WIF_PROVIDER ?? env.GOOGLE_CLOUD_WIF_PROVIDER),
+    serviceAccount: required("GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT", process.env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT ?? env.GOOGLE_CLOUD_WIF_SERVICE_ACCOUNT),
     mode: "workload-identity-federation",
   };
 }
@@ -55,6 +59,10 @@ export async function createGoogleCloudRuntime(): Promise<{
   clients: CloudSdkClients;
 }> {
   const config = createWifConfig();
+
+  // Google Cloud SDKs consume Application Default Credentials. Production must
+  // supply federated/attached workload credentials; no service-account key is
+  // constructed or accepted by this layer.
   const options = {
     projectId: config.projectId,
     scopes: CLOUD_PLATFORM_SCOPE,
@@ -85,9 +93,5 @@ export async function createGoogleCloudRuntime(): Promise<{
         : null,
   };
 
-  return {
-    config,
-    sdkPackages: PHASE7_GCP_SDKS,
-    clients,
-  };
+  return { config, sdkPackages: PHASE7_GCP_SDKS, clients };
 }

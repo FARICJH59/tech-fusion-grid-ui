@@ -1,22 +1,27 @@
 import type { ApplicationResource, InfrastructureNode } from "@/lib/hoare/control-plane/types";
+import type { GovernedExecutionAuthority } from "./governed-execution-authority";
 
 export type RuntimeProviderKind = "gcp" | "bare-metal" | "edge";
 
 export interface RuntimeDeploymentRequest {
   application: ApplicationResource;
   node: InfrastructureNode;
+  /** Required by any provider that can perform a live side effect. */
+  authority?: GovernedExecutionAuthority;
 }
 
-export interface RuntimeDeploymentResult {
+export type RuntimeDeploymentResult = {
   provider: RuntimeProviderKind;
   accepted: boolean;
   mode: "dry-run" | "live";
   deploymentId: string;
   message: string;
-}
+};
 
 export interface RuntimeProvider {
   readonly kind: RuntimeProviderKind;
+  /** Secure default: providers are assumed live-capable unless explicitly dry-run-only. */
+  readonly liveCapable?: boolean;
   deploy(request: RuntimeDeploymentRequest): Promise<RuntimeDeploymentResult>;
 }
 
@@ -33,6 +38,7 @@ export class ProviderRegistry {
 }
 
 export class DryRunRuntimeProvider implements RuntimeProvider {
+  readonly liveCapable = false;
   constructor(public readonly kind: RuntimeProviderKind) {}
 
   async deploy(request: RuntimeDeploymentRequest): Promise<RuntimeDeploymentResult> {

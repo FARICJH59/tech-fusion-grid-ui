@@ -4,6 +4,7 @@ import { AgentRuntime } from "../../agentfusion/runtime/agent-runtime";
 import type { Agent } from "../../packages/agent-sdk/src/agent";
 import type { AgentExecutionContext } from "../../packages/agent-sdk/src/context";
 import { InMemoryTcxExecutionFenceController } from "../../lib/hoare/execution/tcx-execution-fence";
+import { createTestTcxAuthority } from "../fixtures/tcx-authority-fixture";
 
 function buildAgent(): Agent {
   return {
@@ -21,6 +22,10 @@ function context(requestId: string): AgentExecutionContext {
   return { requestId, tenant: { tenantId: "tenant-1" }, actor: { id: "viewer-1", role: "viewer", type: "user" } };
 }
 
+async function governedContext(fenceController: InMemoryTcxExecutionFenceController, transactionId = "tx-1", attemptId = "attempt-1") {
+  return { transactionId, attemptId, fenceController, authority: await createTestTcxAuthority({ tenantId: "tenant-1", transactionId, attemptId }) };
+}
+
 test("AgentRuntime governed execution delegates through executeGoverned with TCX context", async () => {
   const runtime = new AgentRuntime();
   const agent = buildAgent();
@@ -28,7 +33,7 @@ test("AgentRuntime governed execution delegates through executeGoverned with TCX
   const fenceController = new InMemoryTcxExecutionFenceController();
   let handlerCalled = false;
   runtime.registerExecutionHandler(agent.identity.id, async () => { handlerCalled = true; await fenceController.assertActive("tx-1", "attempt-1"); return { ok: true }; });
-  const result = await runtime.executeAgentGoverned({ agentId: agent.identity.id, tenantId: "tenant-1", context: context("req-governed-runtime"), payload: { source: "tcx" } }, { transactionId: "tx-1", attemptId: "attempt-1", fenceController });
+  const result = await runtime.executeAgentGoverned({ agentId: agent.identity.id, tenantId: "tenant-1", context: context("req-governed-runtime"), payload: { source: "tcx" } }, await governedContext(fenceController));
   assert.equal(handlerCalled, true);
   assert.equal(result.status, "completed");
   assert.deepEqual(result.output, { ok: true });
@@ -42,7 +47,7 @@ test("AgentRuntime governed execution fails closed when the TCX attempt is fence
   await fenceController.fence("tx-2", "attempt-2", "test-revocation");
   let handlerCalled = false;
   runtime.registerExecutionHandler(agent.identity.id, async () => { handlerCalled = true; return { ok: true }; });
-  const result = await runtime.executeAgentGoverned({ agentId: agent.identity.id, tenantId: "tenant-1", context: context("req-governed-fenced") }, { transactionId: "tx-2", attemptId: "attempt-2", fenceController });
+  const result = await runtime.executeAgentGoverned({ agentId: agent.identity.id, tenantId: "tenant-1", context: context("req-governed-fenced") }, await governedContext(fenceController, "tx-2", "attempt-2"));
   assert.equal(handlerCalled, false);
   assert.equal(result.status, "failed");
   assert.match(result.error ?? "", /tcx_execution_fenced/);

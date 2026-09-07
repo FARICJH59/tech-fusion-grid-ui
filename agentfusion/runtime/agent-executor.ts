@@ -6,6 +6,7 @@ import { AGENT_RUNTIME_EVENT_NAMES, AgentRuntimeEventBus } from "./agent-events"
 import { AgentSecurityRuntime } from "../security/security-runtime";
 import { AgentWorkflowRuntime, type WorkflowExecutionResult } from "../workflows/workflow-runtime";
 import type { TcxExecutionFenceController } from "../../lib/hoare/execution/tcx-execution-fence";
+import { assertTcxExecutionAuthority, type GovernedExecutionAuthority } from "../../lib/hoare/runtime/governed-execution-authority";
 
 export type AgentToolCall = { toolId: string; input: unknown };
 export type AgentExecutionHandler = (input: { agent: Agent; context: AgentExecutionContext; payload?: unknown }) => Promise<unknown>;
@@ -13,6 +14,7 @@ export type TcxAgentExecutionContext = Readonly<{
   transactionId: string;
   attemptId: string;
   fenceController: TcxExecutionFenceController;
+  authority: GovernedExecutionAuthority;
 }>;
 export type AgentExecutionRequest = {
   agent: Agent; tenantId: string; context: AgentExecutionContext; payload?: unknown; workflowId?: string;
@@ -56,18 +58,22 @@ export class AgentExecutor {
     return lastResult ?? { agentId: request.agent.identity.id, status: "failed", toolResults: [], durationMs: 0, error: "Unknown execution failure." };
   }
 
-  /**
-   * Mandatory entry point for HOARE-governed execution. Unlike generic
-   * AgentFusion execution, this API cannot be called without an explicit
-   * TCX transaction/attempt fence context.
-   */
+  /** Mandatory entry point for HOARE-governed execution. */
   async executeGoverned(
     request: Omit<AgentExecutionRequest, "tcxExecution">,
     tcxExecution: TcxAgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    if (!tcxExecution.transactionId || !tcxExecution.attemptId || !tcxExecution.fenceController) {
+    if (!tcxExecution?.transactionId || !tcxExecution.attemptId || !tcxExecution.fenceController || !tcxExecution.authority) {
       throw new AgentExecutionError("tcx_execution_context_required");
     }
+    assertTcxExecutionAuthority(tcxExecution.authority);
+    if (tcxExecution.authority.transactionId !== tcxExecution.transactionId || tcxExecution.authority.attemptId !== tcxExecution.attemptId) {
+      throw new AgentExecutionError("tcx_execution_authority_identity_mismatch");
+    }
+    if (tcxExecution.authority.tenantId !== request.tenantId) {
+      throw new AgentExecutionError("tcx_execution_authority_tenant_mismatch");
+    }
+    await tcxExecution.authority.assertValid();
     return this.execute({ ...request, tcxExecution });
   }
 
@@ -85,6 +91,7 @@ export class AgentExecutor {
   private async assertExecutionActive(request: AgentExecutionRequest): Promise<void> {
     const tcx = request.tcxExecution; if (!tcx) return;
     await tcx.fenceController.assertActive(tcx.transactionId, tcx.attemptId);
+    await tcx.authority.assertValid();
   }
 
   private async executeAttempt(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
@@ -92,6 +99,7 @@ export class AgentExecutor {
     await this.events.emit(AGENT_RUNTIME_EVENT_NAMES.AgentExecutionStarted, { agentId: request.agent.identity.id, tenantId: request.tenantId, correlationId: request.context.correlationId, payload: { workflowId: request.workflowId, toolCalls: request.toolCalls?.map((call) => call.toolId) ?? [] } });
     try {
       await this.assertExecutionActive(request);
+      const governedToolContext = request.tcxExecution ? { ...request.context, authority: request.tcxExecution.authority } : undefined;
       for (const toolCall of request.toolCalls ?? []) {
         await this.assertExecutionActive(request); const tool = this.tools.get(toolCall.toolId);
         if (!tool) throw new AgentExecutionError(`Tool '${toolCall.toolId}' is not registered.`);
@@ -100,14 +108,23 @@ export class AgentExecutor {
           const authorization = await this.security.authorize({ agentId: request.agent.identity.id, tenantId: request.tenantId, action: permission.action, resource: permission.resource, context: request.context, requiredRole: permission.requiredRole, attributes: permission.attributes, riskLevel: permission.riskLevel, approvalRequired: permission.approvalRequired, budgetLimitUsd: request.context.budget?.maxCostUsd });
           await this.assertExecutionActive(request); if (!authorization.allowed) throw new AgentExecutionError(authorization.reason);
         }
-        await this.assertExecutionActive(request); toolResults.push(await this.tools.execute(toolCall.toolId, toolCall.input, request.context)); await this.assertExecutionActive(request);
+        await this.assertExecutionActive(request);
+        toolResults.push(request.tcxExecution
+          ? await this.tools.executeGoverned(toolCall.toolId, toolCall.input, governedToolContext!)
+          : await this.tools.execute(toolCall.toolId, toolCall.input, request.context));
+        await this.assertExecutionActive(request);
       }
       const workflow = request.workflowId ? request.agent.workflows.find((candidate) => candidate.id === request.workflowId) : undefined;
       const workflowResult = workflow ? await this.workflows.execute({
         workflow, agentId: request.agent.identity.id, tenantId: request.tenantId, input: { payload: request.payload },
         executeStep: async (step) => {
           await this.assertExecutionActive(request);
-          if (step.type === "tool" && step.toolId) { const result = await this.tools.execute(step.toolId, request.payload, request.context); await this.assertExecutionActive(request); toolResults.push(result as ToolExecutionRecord<unknown>); return result.output; }
+          if (step.type === "tool" && step.toolId) {
+            const result = request.tcxExecution
+              ? await this.tools.executeGoverned(step.toolId, request.payload, governedToolContext!)
+              : await this.tools.execute(step.toolId, request.payload, request.context);
+            await this.assertExecutionActive(request); toolResults.push(result as ToolExecutionRecord<unknown>); return result.output;
+          }
           return { step: step.id, payload: request.payload };
         },
         approvalGate: async (step) => {

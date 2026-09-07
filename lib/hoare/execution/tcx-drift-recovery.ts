@@ -5,15 +5,13 @@ import { evaluateTcxDrift, type TcxDriftDecision, type TcxDriftPolicy } from "./
 import type { TcxExecutionAuthorityController } from "./tcx-execution-fence";
 import type { TcxLeaseRepository } from "./tcx-dispatch-governance";
 
+export type TcxDriftReauthorization = Readonly<{ authorized: boolean; authorizationDecisionId?: string; verificationProofId?: string }>;
 export type TcxDriftRecoveryCallbacks = {
   replan: (transaction: ExecutionTransaction, decision: TcxDriftDecision) => Promise<Partial<ExecutionTransaction>>;
-  reauthorize: (transaction: ExecutionTransaction) => Promise<boolean>;
+  reauthorize: (transaction: ExecutionTransaction) => Promise<TcxDriftReauthorization>;
 };
-export type TcxDriftRecoveryResult = {
-  drift: TcxDriftDecision; transaction: ExecutionTransaction; replanned: boolean; reauthorized: boolean;
-};
+export type TcxDriftRecoveryResult = { drift: TcxDriftDecision; transaction: ExecutionTransaction; replanned: boolean; reauthorized: boolean };
 
-/** Converts detected drift into the existing repair/retry lifecycle. */
 export async function recoverFromTcxDrift(
   transactionId: string,
   baseline: ExecutionTransaction,
@@ -39,14 +37,7 @@ export async function recoverFromTcxDrift(
     const reason = drift.observations.map((o) => o.reason).join(",");
     if (fenced.leaseId) {
       if (!leaseRepository) throw new Error("tcx_drift_requires_lease_repository");
-      await authorityController.fenceAndRevokeLease(
-        fenced.transactionId,
-        fenced.attemptId,
-        fenced.leaseId,
-        reason,
-        now.toISOString(),
-        leaseRepository,
-      );
+      await authorityController.fenceAndRevokeLease(fenced.transactionId, fenced.attemptId, fenced.leaseId, reason, now.toISOString(), leaseRepository);
     } else {
       await authorityController.fence(fenced.transactionId, fenced.attemptId, reason);
     }
@@ -54,19 +45,15 @@ export async function recoverFromTcxDrift(
     fenced = await coordinator.transition(fenced.transactionId, failureState);
   }
   if (fenced.state !== "REPAIRING") {
-    if (!["EXECUTION_FAILED", "TIMEOUT", "REJECTED", "AUTHORIZATION_FAILED", "DELIVERY_FAILED"].includes(fenced.state)) {
-      throw new Error(`tcx_drift_recovery_unsupported_state:${fenced.state}`);
-    }
+    if (!["EXECUTION_FAILED", "TIMEOUT", "REJECTED", "AUTHORIZATION_FAILED", "DELIVERY_FAILED"].includes(fenced.state)) throw new Error(`tcx_drift_recovery_unsupported_state:${fenced.state}`);
     fenced = await coordinator.transition(fenced.transactionId, "REPAIRING");
   }
-
   const replanned = await callbacks.replan(fenced, drift);
-  if (Object.keys(replanned).length > 0) {
-    fenced = await repository.update({ ...fenced, ...replanned, state: "REPAIRING", updatedAt: now.toISOString() }, fenced.stateVersion);
-  }
+  if (Object.keys(replanned).length > 0) fenced = await repository.update({ ...fenced, ...replanned, state: "REPAIRING", updatedAt: now.toISOString() }, fenced.stateVersion);
   const retry = await coordinator.prepareRetry(fenced.transactionId, maxAttempts, now.toISOString());
-  const authorized = await callbacks.reauthorize(retry);
-  if (!authorized) return { drift, transaction: retry, replanned: true, reauthorized: false };
-  const finalTransaction = await coordinator.transition(retry.transactionId, "AUTHORIZED");
+  const authorization = await callbacks.reauthorize(retry);
+  if (!authorization.authorized) return { drift, transaction: retry, replanned: true, reauthorized: false };
+  if (!authorization.authorizationDecisionId || !authorization.verificationProofId) throw new Error("tcx_reauthorization_authority_binding_required");
+  const finalTransaction = await repository.authorizeWithAuthority(retry.transactionId, retry.attemptId, authorization.authorizationDecisionId, authorization.verificationProofId, retry.stateVersion);
   return { drift, transaction: finalTransaction, replanned: true, reauthorized: true };
 }

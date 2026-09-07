@@ -1,21 +1,14 @@
 import { mqttClient } from "@/lib/mqtt";
 import type { ExecutionDispatchEnvelope } from "./dispatch-envelope";
 import { parseExecutionDispatchEnvelope } from "./dispatch-envelope";
-import { ExecutionTransactionCoordinator } from "./transaction-coordinator";
 import type { ExecutionTransactionRepository } from "./transaction-repository";
 import { RedisExecutionTransactionRepository } from "./redis-transaction-repository";
-import {
-  RedisTcxDispatchIntentRepository,
-  RedisTcxLeaseRepository,
-  type TcxDispatchIntentRepository,
-  type TcxLeaseRepository,
-} from "./tcx-dispatch-governance";
-import {
-  admitTcxDispatch,
-  type TcxDispatchAdmissionDependencies,
-} from "./tcx-dispatch-admission";
+import { RedisTcxDispatchIntentRepository, RedisTcxLeaseRepository, type TcxDispatchIntentRepository, type TcxLeaseRepository } from "./tcx-dispatch-governance";
+import { admitTcxDispatch, type TcxDispatchAdmissionDependencies } from "./tcx-dispatch-admission";
 import { RedisTcxExecutionFenceController } from "./redis-tcx-execution-fence";
 import type { TcxExecutionFenceController } from "./tcx-execution-fence";
+import { assertTcxExecutionAuthority, type GovernedExecutionAuthority } from "../runtime/governed-execution-authority";
+import { issueTcxExecutionAuthority } from "../runtime/tcx-authority-factory";
 
 const DISPATCH_TOPIC_ENV = "HOARE_EXECUTION_DISPATCH_TOPIC";
 
@@ -28,12 +21,11 @@ export type TcxExecutionContext = Readonly<{
   transactionId: string;
   attemptId: string;
   fenceController: TcxExecutionFenceController;
+  authority: GovernedExecutionAuthority;
 }>;
 
 export type TcxExecutionHandler = (
-  transaction: Awaited<ReturnType<ExecutionTransactionRepository["get"]>> extends infer T
-    ? Exclude<T, null | undefined>
-    : never,
+  transaction: Awaited<ReturnType<ExecutionTransactionRepository["get"]>> extends infer T ? Exclude<T, null | undefined> : never,
   envelope: ExecutionDispatchEnvelope,
   tcxExecution: TcxExecutionContext,
 ) => Promise<void>;
@@ -49,19 +41,7 @@ export type TcxMqttReceiverOptions = {
   onRejected?: (error: unknown, topic: string, rawMessage: string) => void;
 };
 
-/**
- * Production receiver boundary for TCX execution dispatches.
- *
- * MQTT delivery is untrusted input. Nothing reaches the governed execution
- * handler until envelope parsing, transaction identity, dispatch-intent state,
- * lease fencing, and state-version admission have all succeeded.
- *
- * The receiver advances DISPATCHED -> ADMITTED -> RUNNING before invoking the
- * governed handler and supplies an immutable TCX execution context. A caller
- * integrating AgentExecutor must pass this context to executeGoverned().
- * Successful execution is deliberately not finalized here; evidence must
- * cross tcx-commit-finalizer instead.
- */
+/** Production TCX receiver: untrusted MQTT cannot manufacture execution authority. */
 export class TcxMqttExecutionReceiver {
   private registered = false;
   private readonly repository: ExecutionTransactionRepository;
@@ -87,57 +67,48 @@ export class TcxMqttExecutionReceiver {
   register(): () => void {
     if (this.registered) return () => undefined;
     if (!this.topic) throw new Error("missing_execution_dispatch_topic");
-
     const unsubscribe = this.client.subscribe(this.topic, { qos: 1 });
     const off = this.client.on((topic, message) => this.handleMessage(topic, message));
     this.registered = true;
-
-    return () => {
-      off();
-      unsubscribe();
-      this.registered = false;
-    };
+    return () => { off(); unsubscribe(); this.registered = false; };
   }
 
   private async handleMessage(topic: string, rawMessage: string): Promise<void> {
     if (topic !== this.topic) return;
-
     try {
       const envelope = parseExecutionDispatchEnvelope(JSON.parse(rawMessage));
-      const dependencies: TcxDispatchAdmissionDependencies = {
-        transactions: this.repository,
-        leases: this.leases,
-        dispatchIntents: this.dispatchIntents,
-      };
-
+      const dependencies: TcxDispatchAdmissionDependencies = { transactions: this.repository, leases: this.leases, dispatchIntents: this.dispatchIntents };
       const admission = await admitTcxDispatch(envelope, dependencies);
       if (admission.duplicate) return;
 
-      const coordinator = new ExecutionTransactionCoordinator(this.repository);
-      const running = await coordinator.transition(admission.transaction.transactionId, "RUNNING");
-      const tcxExecution: TcxExecutionContext = Object.freeze({
-        transactionId: running.transactionId,
-        attemptId: running.attemptId,
-        fenceController: this.fenceController,
+      // The repository performs the ADMITTED -> RUNNING transition with a CAS
+      // and refuses the transition unless the current attempt already carries
+      // complete AEGIS decision/proof binding. There is no RUNNING window in
+      // which the receiver can execute before TCX authority is issuable.
+      const running = await this.repository.startWithAuthority(
+        admission.transaction.transactionId,
+        admission.transaction.attemptId,
+        admission.transaction.stateVersion,
+      );
+      await this.fenceController.assertActive(running.transactionId, running.attemptId);
+
+      // Authority is reconstructed exclusively from canonical repository state;
+      // no MQTT field or caller-supplied context can inject its identity.
+      const authority = await issueTcxExecutionAuthority(running.transactionId, {
+        transactions: this.repository,
+        leases: this.leases,
+        fence: this.fenceController,
       });
+      assertTcxExecutionAuthority(authority);
+      const tcxExecution: TcxExecutionContext = Object.freeze({ transactionId: running.transactionId, attemptId: running.attemptId, fenceController: this.fenceController, authority });
 
-      await tcxExecution.fenceController.assertActive(
-        tcxExecution.transactionId,
-        tcxExecution.attemptId,
-      );
-
+      await authority.assertValid();
       await this.executeGoverned(running, envelope, tcxExecution);
-
-      await tcxExecution.fenceController.assertActive(
-        tcxExecution.transactionId,
-        tcxExecution.attemptId,
-      );
+      await authority.assertValid();
     } catch (error) {
       this.onRejected?.(error, topic, rawMessage);
     }
   }
 }
 
-export const createTcxMqttExecutionReceiver = (
-  options: TcxMqttReceiverOptions,
-): TcxMqttExecutionReceiver => new TcxMqttExecutionReceiver(options);
+export const createTcxMqttExecutionReceiver = (options: TcxMqttReceiverOptions): TcxMqttExecutionReceiver => new TcxMqttExecutionReceiver(options);
