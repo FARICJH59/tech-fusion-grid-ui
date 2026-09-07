@@ -8,7 +8,7 @@ export type GcpRuntimeCompositionOptions = {
   resolver: BuilderRuntimeResolver;
   projectId?: string;
   region?: string;
-  authority?: GovernedExecutionAuthority;
+  authority: GovernedExecutionAuthority;
 };
 
 /**
