@@ -1,4 +1,5 @@
 import type { GovernedExecutionAuthority } from "@/lib/hoare/runtime/governed-execution-authority";
+import type { SecretAccessOperation } from "./secret-access-policy";
 
 export type SecretAccessRequest = Readonly<{
   tenantId: string;
@@ -6,6 +7,13 @@ export type SecretAccessRequest = Readonly<{
   transactionId: string;
   attemptId: string;
   secretId: string;
+  agentId: string;
+  workloadId: string;
+  environment: string;
+  operation: SecretAccessOperation;
+  nodeId?: string;
+  runtimeKind?: string;
+  secretVersion?: string;
   authority: GovernedExecutionAuthority;
 }>;
 
