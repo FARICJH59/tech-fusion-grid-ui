@@ -4,6 +4,7 @@ import type { AwsIamPolicyValidation } from "./aws-policy-validator";
 export type AwsApprovedRoleRequest = Readonly<{
   action: "iam.create-role";
   tenantId: string;
+  region: string;
   roleName: string;
   trustPolicyHash: string;
   permissionsBoundaryArn: string;
@@ -23,6 +24,6 @@ export function prepareApprovedAwsRoleExecution(proposal: ChangeProposal, policy
   if (proposal.tenantId !== request.tenantId) throw new Error("aws_execution_tenant_mismatch");
   if (!policy.valid) throw new Error("aws_policy_validation_failed");
   if (request.action !== "iam.create-role") throw new Error("aws_action_not_approved");
-  if (!request.roleName || !request.trustPolicyHash || !request.permissionsBoundaryArn) throw new Error("aws_role_request_incomplete");
+  if (!request.region || !request.roleName || !request.trustPolicyHash || !request.permissionsBoundaryArn) throw new Error("aws_role_request_incomplete");
   return { provider: "aws", mode: "approved-single-operation", request, rollback: { required: true, action: "iam.delete-role" }, mutationAllowed: true };
 }
