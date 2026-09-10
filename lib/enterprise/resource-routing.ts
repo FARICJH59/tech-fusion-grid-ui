@@ -42,10 +42,15 @@ export type ResourceRoute = {
 };
 
 export class ResourceAwareRouter {
-  constructor(private readonly telemetry: ResourceTelemetry[]) {}
+  constructor(private telemetry: ResourceTelemetry[]) {}
 
   snapshot(): ResourceTelemetry[] {
-    return this.telemetry;
+    return [...this.telemetry];
+  }
+
+  /** Replace the routing snapshot from a trusted telemetry adapter. */
+  ingestTelemetry(telemetry: ResourceTelemetry[]): void {
+    this.telemetry = [...telemetry];
   }
 
   route(requirements: ResourceRequirements): ResourceRoute {
