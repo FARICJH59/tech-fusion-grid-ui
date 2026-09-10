@@ -19,6 +19,7 @@ import { EnterpriseMessagingRuntime, MQTT_HARDENING_FEATURES } from "@/lib/enter
 import { policyEngine, POLICY_TYPES } from "@/lib/enterprise/policy-engine";
 import { REDIS_RUNTIME_CAPABILITIES, RUNTIME_STATE_ENTITIES } from "@/lib/enterprise/runtime-state";
 import { autonomousScalingEngine } from "@/lib/enterprise/scaling";
+import { createDefaultResourceAwareRouter } from "@/lib/enterprise/resource-routing";
 import { DEFAULT_POLICY_RULES } from "@/lib/policy/rules";
 
 export class HoareEnterprisePlatform {
@@ -39,6 +40,7 @@ export class HoareEnterprisePlatform {
   readonly alerts = alertManager;
   readonly cost = costOptimizationEngine;
   readonly scaling = autonomousScalingEngine;
+  readonly resourceRouting = createDefaultResourceAwareRouter();
 
   status() {
     return {
@@ -59,6 +61,14 @@ export class HoareEnterprisePlatform {
         policyTypes: POLICY_TYPES,
         notificationChannels: ALERT_CHANNELS,
         multiRegion: this.fleet.snapshot().map((item) => item.region),
+        resourceAwareRouting: [
+          "latency-aware",
+          "quota-aware",
+          "energy-aware",
+          "carbon-aware",
+          "cost-aware",
+          "edge-preferred",
+        ],
         integrationConnectors: ENTERPRISE_CONNECTORS,
         autonomousCloudControl: [
           "cloud-run-controller",
