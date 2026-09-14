@@ -28,6 +28,20 @@ export default function HoareControlPlanePage() {
         ))}
       </section>
 
+      <section className="mt-8 rounded-2xl border p-6 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">GitHub Governance</h2>
+            <p className="mt-2 max-w-3xl text-sm opacity-70">
+              Connect tenant-scoped repositories, inspect source, evaluate AEGIS decisions, create governed branches, and open pull requests without placing GitHub credentials in the browser.
+            </p>
+          </div>
+          <Link href="/platform/hoare/github" className="rounded-lg border px-4 py-2 text-sm font-semibold">
+            Open GitHub Governance
+          </Link>
+        </div>
+      </section>
+
       <section className="mt-8 rounded-2xl border p-6">
         <h2 className="text-xl font-semibold">Current platform identity</h2>
         <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
